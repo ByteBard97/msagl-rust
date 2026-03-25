@@ -3,6 +3,7 @@ use msagl_rust::projection_solver::constraint::{Constraint, ConIndex};
 use msagl_rust::projection_solver::block::{Block, BlockIndex};
 use msagl_rust::projection_solver::parameters::Parameters;
 use msagl_rust::projection_solver::solution::Solution;
+use msagl_rust::projection_solver::constraint_vector::ConstraintVector;
 
 #[test]
 fn variable_default_fields() {
@@ -77,4 +78,40 @@ fn block_compute_variable_pos() {
     assert_eq!(block.compute_variable_pos(0.0, 1.0), 5.0);
     // with offset: (1 * 5 + 3) / 1 = 8
     assert_eq!(block.compute_variable_pos(3.0, 1.0), 8.0);
+}
+
+#[test]
+fn constraint_vector_activate_deactivate() {
+    let mut cv = ConstraintVector::new(3);
+    assert_eq!(cv.active_count(), 0);
+    cv.activate(ConIndex(0));
+    assert_eq!(cv.active_count(), 1);
+    cv.activate(ConIndex(1));
+    assert_eq!(cv.active_count(), 2);
+    cv.deactivate(ConIndex(0));
+    assert_eq!(cv.active_count(), 1);
+}
+
+#[test]
+fn constraint_vector_active_list() {
+    let mut cv = ConstraintVector::new(5);
+    cv.activate(ConIndex(2));
+    cv.activate(ConIndex(4));
+    let active = cv.active_constraints();
+    assert_eq!(active.len(), 2);
+    assert!(active.contains(&ConIndex(2)));
+    assert!(active.contains(&ConIndex(4)));
+}
+
+#[test]
+fn constraint_vector_round_trip() {
+    let mut cv = ConstraintVector::new(3);
+    cv.activate(ConIndex(0));
+    cv.activate(ConIndex(1));
+    cv.activate(ConIndex(2));
+    assert_eq!(cv.active_count(), 3);
+    cv.deactivate(ConIndex(1));
+    assert_eq!(cv.active_count(), 2);
+    cv.activate(ConIndex(1));
+    assert_eq!(cv.active_count(), 3);
 }
