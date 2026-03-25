@@ -1,4 +1,4 @@
-use msagl_rust::{Point, GeomConstants};
+use msagl_rust::Point;
 use approx::assert_abs_diff_eq;
 
 #[test]

@@ -11,7 +11,12 @@ pub struct Rectangle {
 }
 
 impl Rectangle {
+    /// Create from explicit bounds: left, bottom, right, top.
+    ///
+    /// Panics in debug mode if bounds are inverted (left > right or bottom > top).
     pub fn new(left: f64, bottom: f64, right: f64, top: f64) -> Self {
+        debug_assert!(left <= right && bottom <= top,
+            "Rectangle::new called with inverted bounds: left={left}, right={right}, bottom={bottom}, top={top}");
         Self { left, bottom, right, top }
     }
 

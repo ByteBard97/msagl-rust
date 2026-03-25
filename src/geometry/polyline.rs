@@ -166,10 +166,8 @@ impl Polyline {
     }
 
     pub fn translate(&mut self, delta: Point) {
-        let keys: Vec<_> = self.nodes.keys().collect();
-        for key in keys {
-            let p = self.nodes[key].point;
-            self.nodes[key].point = p + delta;
+        for data in self.nodes.values_mut() {
+            data.point = data.point + delta;
         }
     }
 
