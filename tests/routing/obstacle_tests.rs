@@ -1,6 +1,7 @@
 use msagl_rust::routing::shape::Shape;
 use msagl_rust::routing::obstacle::Obstacle;
 use msagl_rust::routing::obstacle_side::SideType;
+use msagl_rust::routing::scan_direction::ScanDirection;
 use msagl_rust::Point;
 
 #[test]
@@ -74,7 +75,9 @@ fn obstacle_initially_has_no_active_sides() {
 fn create_sides_horizontal_scan() {
     let shape = Shape::rectangle(10.0, 20.0, 100.0, 50.0);
     let mut obs = Obstacle::from_shape(&shape, 4.0, 0);
-    obs.create_initial_sides(true); // horizontal scan
+    let scan_dir = ScanDirection::horizontal();
+    let open_key = obs.get_open_vertex(scan_dir);
+    obs.create_initial_sides(open_key, scan_dir);
     let low = obs.active_low_side().unwrap();
     let high = obs.active_high_side().unwrap();
     // Horizontal scan: low side is left (low X), high side is right (high X)
@@ -90,7 +93,9 @@ fn create_sides_horizontal_scan() {
 fn create_sides_vertical_scan() {
     let shape = Shape::rectangle(10.0, 20.0, 100.0, 50.0);
     let mut obs = Obstacle::from_shape(&shape, 4.0, 0);
-    obs.create_initial_sides(false); // vertical scan
+    let scan_dir = ScanDirection::vertical();
+    let open_key = obs.get_open_vertex(scan_dir);
+    obs.create_initial_sides(open_key, scan_dir);
     let low = obs.active_low_side().unwrap();
     let high = obs.active_high_side().unwrap();
     // Vertical scan: low side is bottom (low Y), high side is top (high Y)

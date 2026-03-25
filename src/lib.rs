@@ -2,7 +2,7 @@ pub mod geometry;
 pub mod projection_solver;
 pub mod visibility;
 pub mod routing;
-mod arenas;
+pub mod arenas;
 
 pub use geometry::point::Point;
 pub use geometry::rectangle::Rectangle;

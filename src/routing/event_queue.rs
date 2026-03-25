@@ -1,5 +1,6 @@
 use std::collections::BinaryHeap;
 use std::cmp::Ordering;
+use crate::arenas::PolylinePointKey;
 use crate::geometry::point::Point;
 use crate::geometry::point_comparer::GeomConstants;
 use super::scan_direction::ScanDirection;
@@ -10,16 +11,20 @@ use super::scan_direction::ScanDirection;
 ///   SweepEvent
 ///   ├── VertexEvent  (OpenVertex, CloseVertex, LowBend, HighBend)
 ///   └── ReflectionEvent (LowReflection, HighReflection)
+///
+/// Vertex events carry a `vertex_key` that identifies the PolylinePoint in
+/// the obstacle's boundary polyline. This matches the TS where each vertex
+/// event holds a `PolylinePoint` giving both the point and traversal position.
 #[derive(Clone, Debug)]
 pub enum SweepEvent {
     /// Obstacle corner entering sweep range (low side of obstacle).
-    OpenVertex { site: Point, obstacle_index: usize },
+    OpenVertex { site: Point, obstacle_index: usize, vertex_key: PolylinePointKey },
     /// Obstacle corner leaving sweep range (high side of obstacle).
-    CloseVertex { site: Point, obstacle_index: usize },
+    CloseVertex { site: Point, obstacle_index: usize, vertex_key: PolylinePointKey },
     /// Low bend at obstacle corner (between open and close).
-    LowBend { site: Point, obstacle_index: usize },
+    LowBend { site: Point, obstacle_index: usize, vertex_key: PolylinePointKey },
     /// High bend at obstacle corner (between open and close).
-    HighBend { site: Point, obstacle_index: usize },
+    HighBend { site: Point, obstacle_index: usize, vertex_key: PolylinePointKey },
     /// Reflection event off a low obstacle side.
     LowReflection {
         site: Point,
@@ -56,6 +61,17 @@ impl SweepEvent {
             | Self::CloseVertex { obstacle_index, .. }
             | Self::LowBend { obstacle_index, .. }
             | Self::HighBend { obstacle_index, .. } => Some(*obstacle_index),
+            Self::LowReflection { .. } | Self::HighReflection { .. } => None,
+        }
+    }
+
+    /// The polyline point key for vertex events; `None` for reflection events.
+    pub fn vertex_key(&self) -> Option<PolylinePointKey> {
+        match self {
+            Self::OpenVertex { vertex_key, .. }
+            | Self::CloseVertex { vertex_key, .. }
+            | Self::LowBend { vertex_key, .. }
+            | Self::HighBend { vertex_key, .. } => Some(*vertex_key),
             Self::LowReflection { .. } | Self::HighReflection { .. } => None,
         }
     }

@@ -6,8 +6,11 @@ use super::scan_direction::ScanDirection;
 
 /// Key for ordering sides on the scan line.
 /// Ordered by: scan-perpendicular coordinate → side type (High before Low at same position) → obstacle ordinal.
+///
+/// Public so callers can hold a handle to a specific position in the scanline
+/// (matching TS `RBNode<BasicObstacleSide>` usage in `Find`, `NextLow`, `NextHigh`).
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
-struct SideKey {
+pub struct SideKey {
     /// The perpendicular coordinate where this side sits.
     coord: OrderedFloat<f64>,
     /// High sides sort before Low sides at the same coordinate.
@@ -103,6 +106,44 @@ impl RectilinearScanLine {
 
     pub fn is_empty(&self) -> bool {
         self.sides.is_empty()
+    }
+
+    /// Find a specific side in the scanline and return its key.
+    ///
+    /// Matches TS: `RectilinearScanLine.Find(side)` which returns an `RBNode`.
+    /// Returns `None` if the side is not present.
+    pub fn find(&self, side: &ObstacleSide) -> Option<SideKey> {
+        let coord = self.side_coordinate(side);
+        let key = SideKey::new(coord, side);
+        if self.sides.contains_key(&key) {
+            Some(key)
+        } else {
+            None
+        }
+    }
+
+    /// Return the side at the given key, if present.
+    pub fn get(&self, key: &SideKey) -> Option<&ObstacleSide> {
+        self.sides.get(key)
+    }
+
+    /// Return the next side in the low (decreasing) direction from the given key.
+    ///
+    /// Matches TS: `RectilinearScanLine.NextLowR(sideNode)` which returns
+    /// `SideTree.previous(sideNode)`.
+    pub fn next_low(&self, key: &SideKey) -> Option<(&SideKey, &ObstacleSide)> {
+        self.sides.range(..key).next_back()
+    }
+
+    /// Return the next side in the high (increasing) direction from the given key.
+    ///
+    /// Matches TS: `RectilinearScanLine.NextHighR(sideNode)` which returns
+    /// `SideTree.next(sideNode)`.
+    pub fn next_high(&self, key: &SideKey) -> Option<(&SideKey, &ObstacleSide)> {
+        // range is exclusive on the left for `(key..)` — we need to skip past the
+        // key itself. Use a range that starts strictly after key.
+        use std::ops::Bound;
+        self.sides.range((Bound::Excluded(key.clone()), Bound::Unbounded)).next()
     }
 
     /// Return all sides currently on the scanline, ordered by their scan coordinate.

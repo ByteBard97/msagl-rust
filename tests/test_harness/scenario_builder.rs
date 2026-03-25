@@ -62,6 +62,35 @@ impl ScenarioBuilder {
         idx
     }
 
+    /// Add a rectangle by its lower-left and upper-right corners.
+    /// Mirrors C# `PolylineFromRectanglePoints(lowerLeft, upperRight)`.
+    pub fn add_rectangle_corners(&mut self, x0: f64, y0: f64, x1: f64, y1: f64) -> usize {
+        let idx = self.shapes.len();
+        let left = x0.min(x1);
+        let bottom = y0.min(y1);
+        let width = (x1 - x0).abs();
+        let height = (y1 - y0).abs();
+        self.shapes.push(Shape::rectangle(left, bottom, width, height));
+        idx
+    }
+
+    /// Route from obstacle `src` to every other obstacle.
+    /// Mirrors C# `CreateRoutingBetweenObstacles(obstacles, src, -1)`.
+    pub fn route_from_to_all(&mut self, src: usize) {
+        let n = self.shapes.len();
+        for i in 0..n {
+            if i != src {
+                self.route_between(src, i);
+            }
+        }
+    }
+
+    /// Route from obstacle `src` to a specific target obstacle.
+    /// Mirrors C# `CreateRoutingBetweenObstacles(obstacles, src, tgt)`.
+    pub fn route_from_to(&mut self, src: usize, tgt: usize) {
+        self.route_between(src, tgt);
+    }
+
     /// Schedule an edge from the center of obstacle `src` to the center of `tgt`.
     pub fn route_between(&mut self, src: usize, tgt: usize) {
         self.route_between_offsets(src, Point::new(0.0, 0.0), tgt, Point::new(0.0, 0.0));

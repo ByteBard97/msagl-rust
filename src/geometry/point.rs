@@ -93,6 +93,13 @@ impl Point {
         (a + b) / 2.0
     }
 
+    /// Round a point's coordinates to the standard geometric precision.
+    /// Since `Point::new` already rounds, this just re-constructs the point.
+    #[inline]
+    pub fn round(p: Point) -> Point {
+        Point::new(p.x(), p.y())
+    }
+
     pub fn line_line_intersection(a: Point, b: Point, c: Point, d: Point) -> Option<Point> {
         let ba = b - a;
         let dc = d - c;
