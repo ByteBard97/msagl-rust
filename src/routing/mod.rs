@@ -12,3 +12,4 @@ pub mod port;
 pub mod edge_geometry;
 pub mod path_search;
 pub mod port_manager;
+pub mod nudging;

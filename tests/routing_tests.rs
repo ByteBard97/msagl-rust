@@ -6,3 +6,4 @@
 #[path = "routing/scan_line_tests.rs"] mod scan_line_tests;
 #[path = "routing/path_search_tests.rs"] mod path_search_tests;
 #[path = "routing/port_manager_tests.rs"] mod port_manager_tests;
+#[path = "routing/nudging_tests.rs"] mod nudging_tests;
