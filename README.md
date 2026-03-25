@@ -17,7 +17,7 @@
 
 A Rust port of the **rectilinear edge router** from Microsoft's [Automatic Graph Layout (MSAGL)](https://github.com/microsoft/automatic-graph-layout) library. Routes edges as clean, orthogonal polylines around rectangular obstacles with guaranteed minimum edge separation.
 
-> **Status:** Work in progress. The geometry foundation and constraint solver are complete; visibility graph, path search, and nudging are under active development.
+> **Status:** All six pipeline stages are implemented. The router produces clean orthogonal paths with guaranteed edge separation for rectangular obstacles.
 
 ## Features
 
@@ -64,7 +64,7 @@ for edge in &result.edges {
 }
 ```
 
-> **Note:** The public `RectilinearEdgeRouter` API is not yet available. The example above shows the planned API. Currently, only the geometry primitives and projection solver are implemented.
+> **Note:** This API is functional. The router produces orthogonal paths with edge separation for rectangular obstacles. Arc corner fitting is supported via `corner_fit_radius()`.
 
 ## Architecture
 
@@ -72,17 +72,19 @@ The router implements a six-stage pipeline, ported faithfully from MSAGL's C# an
 
 | Stage | Description | Status |
 |-------|-------------|--------|
-| 1. Obstacle Tree | R-tree spatial index of padded node rectangles | Planned |
-| 2. Visibility Graph | Sweep-line construction of legal routing corridors | Planned |
-| 3. Port Splicing | Connect edge endpoints into the visibility graph | Planned |
-| 4. Shortest Path | Direction-aware A* on the visibility graph | Planned |
-| 5. Nudging | QPSC constraint solver for minimum edge separation | **Solver complete** |
-| 6. Finalization | Arc fitting, arrowhead trimming, curve output | Planned |
+| 1. Obstacle Tree | R-tree spatial index of padded node rectangles | **Complete** |
+| 2. Visibility Graph | Sweep-line construction of legal routing corridors | **Complete** |
+| 3. Port Splicing | Connect edge endpoints into the visibility graph | **Complete** |
+| 4. Shortest Path | Direction-aware A* on the visibility graph | **Complete** |
+| 5. Nudging | QPSC constraint solver for minimum edge separation | **Complete** |
+| 6. Finalization | Arc fitting, arrowhead trimming, curve output | **Complete** |
 
-### What's Built
+### Modules
 
-- **`geometry/`** — `Point` (OrderedFloat-backed), `Rectangle`, `Polyline` (SlotMap doubly-linked list), `Curve`, epsilon comparison utilities
-- **`projection_solver/`** — Full QPSC (Quadratic Programming for Separation Constraints) port, validated against 80 of 86 golden-baseline fixture files from the C# test suite
+- **`geometry/`** — `Point` (OrderedFloat-backed), `Rectangle`, `Polyline` (SlotMap doubly-linked list), `Curve`
+- **`projection_solver/`** — Full QPSC port, validated against 80/86 C# golden-baseline fixtures
+- **`visibility/`** — Visibility graph with HashMap point-to-vertex lookup
+- **`routing/`** — Obstacle tree, sweep-line graph generator, A* path search, port splicing, nudging pipeline, top-level router
 
 ## Algorithm
 
@@ -110,8 +112,9 @@ cargo test
 
 The test suite includes:
 - 70 geometry unit tests
-- 29 solver unit tests (basic constraint scenarios)
-- 86 golden-baseline fixture tests (80 passing, 6 ignored edge cases)
+- 112 projection solver tests (29 unit + 86 golden-baseline fixtures, 80 passing / 6 ignored edge cases)
+- 47 routing tests (visibility graph, path search, port splicing, nudging)
+- 6 end-to-end integration tests
 
 ## Attribution
 
