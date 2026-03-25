@@ -166,3 +166,107 @@ fn obstacle_tree_no_hits() {
     let hits = tree.query_point(Point::new(100.0, 100.0));
     assert!(hits.is_empty());
 }
+
+// --- Task 1: Shape polyline boundary tests ---
+
+#[test]
+fn shape_from_polyline_has_correct_bounding_box() {
+    use msagl_rust::geometry::polyline::Polyline;
+
+    // L-shaped polyline (6 vertices)
+    let mut poly = Polyline::new();
+    poly.add_point(Point::new(0.0, 0.0));
+    poly.add_point(Point::new(100.0, 0.0));
+    poly.add_point(Point::new(100.0, 50.0));
+    poly.add_point(Point::new(50.0, 50.0));
+    poly.add_point(Point::new(50.0, 100.0));
+    poly.add_point(Point::new(0.0, 100.0));
+    poly.set_closed(true);
+
+    let shape = Shape::from_polyline(poly);
+    let bb = shape.bounding_box();
+    assert!((bb.left() - 0.0).abs() < 1e-10);
+    assert!((bb.bottom() - 0.0).abs() < 1e-10);
+    assert!((bb.right() - 100.0).abs() < 1e-10);
+    assert!((bb.top() - 100.0).abs() < 1e-10);
+}
+
+#[test]
+fn shape_rectangle_creates_4_point_polyline() {
+    let shape = Shape::rectangle(10.0, 20.0, 100.0, 50.0);
+    let poly = shape.boundary_polyline();
+    assert_eq!(poly.count(), 4);
+    assert!(poly.is_closed());
+}
+
+// --- Task 3: Obstacle IsRectangle, GetOpenVertex, Close tests ---
+
+#[test]
+fn obstacle_is_rectangle_for_rect_shape() {
+    let shape = Shape::rectangle(0.0, 0.0, 100.0, 50.0);
+    let obs = Obstacle::from_shape(&shape, 5.0, 0);
+    assert!(obs.is_rectangle());
+    assert_eq!(obs.padded_polyline().count(), 4);
+}
+
+#[test]
+fn obstacle_get_open_vertex_finds_lowest() {
+    let shape = Shape::rectangle(10.0, 20.0, 80.0, 60.0);
+    let obs = Obstacle::from_shape(&shape, 5.0, 0);
+
+    let scan_dir = ScanDirection::horizontal();
+    let open_key = obs.get_open_vertex(scan_dir);
+    let open_point = obs.padded_polyline().point_at(open_key);
+
+    // For H-scan, the open vertex should be the bottom-left corner (lowest Y, then lowest X)
+    // Padded bbox: (5, 15) to (95, 85)
+    assert!((open_point.y() - 15.0).abs() < 1e-10);
+    assert!((open_point.x() - 5.0).abs() < 1e-10);
+}
+
+#[test]
+fn obstacle_create_initial_sides_from_open_vertex() {
+    let shape = Shape::rectangle(10.0, 20.0, 80.0, 60.0);
+    let mut obs = Obstacle::from_shape(&shape, 5.0, 0);
+
+    let scan_dir = ScanDirection::horizontal();
+    let open_key = obs.get_open_vertex(scan_dir);
+    obs.create_initial_sides(open_key, scan_dir);
+
+    let low = obs.active_low_side().expect("should have low side");
+    let high = obs.active_high_side().expect("should have high side");
+
+    // Both sides start at the open vertex
+    assert_eq!(low.start(), obs.padded_polyline().point_at(open_key));
+    // High side may have been advanced past a flat bottom, so check it's valid
+    assert_eq!(high.side_type(), SideType::High);
+}
+
+#[test]
+fn obstacle_close_clears_active_sides() {
+    let shape = Shape::rectangle(0.0, 0.0, 100.0, 50.0);
+    let mut obs = Obstacle::from_shape(&shape, 5.0, 0);
+    let scan_dir = ScanDirection::horizontal();
+    let open_key = obs.get_open_vertex(scan_dir);
+    obs.create_initial_sides(open_key, scan_dir);
+    assert!(obs.active_low_side().is_some());
+
+    obs.close();
+    assert!(obs.active_low_side().is_none());
+    assert!(obs.active_high_side().is_none());
+}
+
+#[test]
+fn obstacle_get_open_vertex_vertical_scan() {
+    let shape = Shape::rectangle(10.0, 20.0, 80.0, 60.0);
+    let obs = Obstacle::from_shape(&shape, 5.0, 0);
+
+    let scan_dir = ScanDirection::vertical();
+    let open_key = obs.get_open_vertex(scan_dir);
+    let open_point = obs.padded_polyline().point_at(open_key);
+
+    // For V-scan, the open vertex should be the bottom-left corner (lowest X, then lowest Y)
+    // Padded bbox: (5, 15) to (95, 85)
+    assert!((open_point.x() - 5.0).abs() < 1e-10);
+    assert!((open_point.y() - 15.0).abs() < 1e-10);
+}
