@@ -6,4 +6,5 @@ pub mod scan_direction;
 pub mod scan_segment;
 pub mod scan_line;
 pub mod event_queue;
+pub mod segment_intersector;
 pub mod visibility_graph_generator;
