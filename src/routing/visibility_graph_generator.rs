@@ -2,7 +2,7 @@ use crate::geometry::point_comparer::GeomConstants;
 use crate::visibility::graph::VisibilityGraph;
 use super::obstacle_tree::ObstacleTree;
 use super::scan_direction::ScanDirection;
-use super::scan_segment::ScanSegment;
+use super::scan_segment::{ScanSegment, SegmentWeight};
 use super::segment_intersector::build_graph_from_segments;
 use super::shape::Shape;
 
@@ -49,7 +49,8 @@ fn create_segments(tree: &ObstacleTree, direction: ScanDirection) -> Vec<ScanSeg
             let start = direction.make_point(start_coord, perp);
             let end = direction.make_point(end_coord, perp);
             if !GeomConstants::close(start_coord, end_coord) {
-                segments.push(ScanSegment::new(start, end));
+                let is_vertical = direction.is_vertical();
+                segments.push(ScanSegment::new(start, end, SegmentWeight::Normal, is_vertical));
             }
         }
     }

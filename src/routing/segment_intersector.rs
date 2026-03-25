@@ -181,21 +181,19 @@ fn distance(a: Point, b: Point) -> f64 {
 }
 
 fn seg_weight(seg: &ScanSegment) -> f64 {
-    match seg.weight {
-        super::scan_segment::SegmentWeight::Normal => 1.0,
-        super::scan_segment::SegmentWeight::Reflection => 5.0,
-    }
+    seg.weight.value() as f64
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::geometry::point::Point;
+    use crate::routing::scan_segment::SegmentWeight;
 
     #[test]
     fn two_crossing_segments_create_intersection() {
-        let h = vec![ScanSegment::new(Point::new(0.0, 5.0), Point::new(10.0, 5.0))];
-        let v = vec![ScanSegment::new(Point::new(5.0, 0.0), Point::new(5.0, 10.0))];
+        let h = vec![ScanSegment::new(Point::new(0.0, 5.0), Point::new(10.0, 5.0), SegmentWeight::Normal, false)];
+        let v = vec![ScanSegment::new(Point::new(5.0, 0.0), Point::new(5.0, 10.0), SegmentWeight::Normal, true)];
 
         let mut graph = VisibilityGraph::new();
         build_graph_from_segments(&mut graph, &h, &v);
@@ -207,8 +205,8 @@ mod tests {
 
     #[test]
     fn parallel_segments_no_intersection() {
-        let h1 = ScanSegment::new(Point::new(0.0, 0.0), Point::new(10.0, 0.0));
-        let h2 = ScanSegment::new(Point::new(0.0, 5.0), Point::new(10.0, 5.0));
+        let h1 = ScanSegment::new(Point::new(0.0, 0.0), Point::new(10.0, 0.0), SegmentWeight::Normal, false);
+        let h2 = ScanSegment::new(Point::new(0.0, 5.0), Point::new(10.0, 5.0), SegmentWeight::Normal, false);
 
         let mut graph = VisibilityGraph::new();
         build_graph_from_segments(&mut graph, &[h1, h2], &[]);
