@@ -1,0 +1,112 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  test:
+    name: Test (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
+
+      - name: Run tests
+        run: cargo test --all
+
+      - name: Clippy
+        run: cargo clippy --all -- -D warnings
+
+      - name: Format check
+        run: cargo fmt --check
+
+  wasm:
+    name: WASM tests (Ubuntu)
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ubuntu-wasm-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ubuntu-wasm-cargo-
+
+      - name: Install wasm-pack
+        run: cargo install wasm-pack
+
+      - name: Run WASM tests
+        working-directory: crates/msagl-wasm
+        run: wasm-pack test --headless --firefox
+
+  python:
+    name: Python build + test (Ubuntu)
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ubuntu-python-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ubuntu-python-cargo-
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install maturin
+        run: pip install maturin pytest
+
+      - name: Build Python wheel
+        working-directory: crates/msagl-python
+        run: maturin build --release
+
+      - name: Install built wheel
+        run: pip install target/wheels/*.whl
+
+      - name: Run pytest (if tests exist)
+        working-directory: crates/msagl-python
+        run: |
+          if [ -d tests ] || [ -f test_msagl.py ]; then
+            pytest
+          else
+            echo "No Python tests found, skipping."
+          fi

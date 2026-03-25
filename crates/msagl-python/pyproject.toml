@@ -1,0 +1,25 @@
+[build-system]
+requires = ["maturin>=1.5,<2"]
+build-backend = "maturin"
+
+[project]
+name = "msagl"
+version = "0.1.0"
+description = "Rectilinear edge router for orthogonal graph layouts"
+license = { text = "MIT" }
+requires-python = ">=3.9"
+readme = "../../README.md"
+keywords = ["routing", "graph", "layout", "orthogonal", "EDA"]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Rust",
+    "Programming Language :: Python :: Implementation :: CPython",
+    "Topic :: Scientific/Engineering :: Visualization",
+]
+
+[project.urls]
+Homepage = "https://github.com/ByteBard97/msagl-rust"
+Repository = "https://github.com/ByteBard97/msagl-rust"
+
+[tool.maturin]
+features = ["pyo3/extension-module"]

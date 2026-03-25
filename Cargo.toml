@@ -1,5 +1,5 @@
 [workspace]
-members = [".", "crates/msagl-wasm"]
+members = [".", "crates/msagl-wasm", "crates/msagl-python"]
 
 [package]
 name = "msagl-rust"
