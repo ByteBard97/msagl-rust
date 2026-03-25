@@ -1,0 +1,113 @@
+{
+  "scenario": "triangle",
+  "padding": 2,
+  "corner_fit_radius": 0,
+  "edge_separation": 1,
+  "obstacles": [
+    [
+      200,
+      0,
+      300,
+      60
+    ],
+    [
+      0,
+      200,
+      100,
+      260
+    ],
+    [
+      400,
+      200,
+      500,
+      260
+    ]
+  ],
+  "paths": [
+    {
+      "src_obstacle": 0,
+      "tgt_obstacle": 1,
+      "src_port": [
+        250,
+        60
+      ],
+      "tgt_port": [
+        50,
+        200
+      ],
+      "waypoints": [
+        [
+          249,
+          60
+        ],
+        [
+          249,
+          130
+        ],
+        [
+          50,
+          130
+        ],
+        [
+          50,
+          200
+        ]
+      ],
+      "routed": true
+    },
+    {
+      "src_obstacle": 0,
+      "tgt_obstacle": 2,
+      "src_port": [
+        250,
+        60
+      ],
+      "tgt_port": [
+        450,
+        200
+      ],
+      "waypoints": [
+        [
+          251,
+          60
+        ],
+        [
+          251,
+          130
+        ],
+        [
+          450,
+          130
+        ],
+        [
+          450,
+          200
+        ]
+      ],
+      "routed": true
+    },
+    {
+      "src_obstacle": 1,
+      "tgt_obstacle": 2,
+      "src_port": [
+        100,
+        230
+      ],
+      "tgt_port": [
+        400,
+        230
+      ],
+      "waypoints": [
+        [
+          100,
+          230
+        ],
+        [
+          400,
+          230
+        ]
+      ],
+      "routed": true
+    }
+  ]
+}

@@ -1,0 +1,45 @@
+{
+  "scenario": "two_boxes",
+  "padding": 2,
+  "corner_fit_radius": 0,
+  "edge_separation": 1,
+  "obstacles": [
+    [
+      0,
+      0,
+      100,
+      50
+    ],
+    [
+      300,
+      0,
+      400,
+      50
+    ]
+  ],
+  "paths": [
+    {
+      "src_obstacle": 0,
+      "tgt_obstacle": 1,
+      "src_port": [
+        100,
+        25
+      ],
+      "tgt_port": [
+        300,
+        25
+      ],
+      "waypoints": [
+        [
+          100,
+          25
+        ],
+        [
+          300,
+          25
+        ]
+      ],
+      "routed": true
+    }
+  ]
+}

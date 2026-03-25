@@ -1,0 +1,67 @@
+{
+  "scenario": "obstacle_in_between",
+  "padding": 2,
+  "corner_fit_radius": 0,
+  "edge_separation": 1,
+  "obstacles": [
+    [
+      0,
+      25,
+      60,
+      85
+    ],
+    [
+      300,
+      25,
+      360,
+      85
+    ],
+    [
+      130,
+      20,
+      190,
+      80
+    ]
+  ],
+  "paths": [
+    {
+      "src_obstacle": 0,
+      "tgt_obstacle": 1,
+      "src_port": [
+        60,
+        55
+      ],
+      "tgt_port": [
+        300,
+        55
+      ],
+      "waypoints": [
+        [
+          60,
+          55
+        ],
+        [
+          126.000000002,
+          55
+        ],
+        [
+          126.000000002,
+          84
+        ],
+        [
+          213,
+          84
+        ],
+        [
+          213,
+          55
+        ],
+        [
+          300,
+          55
+        ]
+      ],
+      "routed": true
+    }
+  ]
+}
