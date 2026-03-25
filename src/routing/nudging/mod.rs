@@ -3,13 +3,14 @@
 //! Takes routed paths and uses a projection solver to push overlapping
 //! parallel segments apart while respecting obstacle boundaries.
 
-mod axis_edge;
-mod combinatorial_nudger;
-mod free_space_finder;
-mod longest_nudged_segment;
-mod nudger;
-mod path_edge;
-mod path_refiner;
-mod staircase_remover;
+pub mod axis_edge;
+pub mod linked_point;
+pub mod combinatorial_nudger;
+pub mod free_space_finder;
+pub mod longest_nudged_segment;
+pub mod nudger;
+pub mod path_edge;
+pub mod path_refiner;
+pub mod staircase_remover;
 
 pub use nudger::nudge_paths;

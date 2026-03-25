@@ -18,3 +18,4 @@
 #[path = "routing/static_graph_utility_tests.rs"] mod static_graph_utility_tests;
 #[path = "routing/splice_utility_tests.rs"] mod splice_utility_tests;
 #[path = "routing/transient_graph_utility_tests.rs"] mod transient_graph_utility_tests;
+#[path = "routing/linked_point_tests.rs"] mod linked_point_tests;
