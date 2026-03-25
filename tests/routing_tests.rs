@@ -1,3 +1,6 @@
+#[path = "routing/compass_direction_tests.rs"] mod compass_direction_tests;
+#[path = "routing/obstacle_side_tests.rs"] mod obstacle_side_tests;
+#[path = "routing/obstacle_tree_tests.rs"] mod obstacle_tree_tests;
 #[path = "routing/scan_direction_tests.rs"] mod scan_direction_tests;
 #[path = "routing/obstacle_tests.rs"] mod obstacle_tests;
 #[path = "routing/visibility_gen_tests.rs"] mod visibility_gen_tests;
@@ -6,4 +9,12 @@
 #[path = "routing/scan_line_tests.rs"] mod scan_line_tests;
 #[path = "routing/path_search_tests.rs"] mod path_search_tests;
 #[path = "routing/port_manager_tests.rs"] mod port_manager_tests;
+#[path = "routing/port_manager_tgu_tests.rs"] mod port_manager_tgu_tests;
 #[path = "routing/nudging_tests.rs"] mod nudging_tests;
+#[path = "routing/neighbor_sides_tests.rs"] mod neighbor_sides_tests;
+#[path = "routing/lookahead_scan_tests.rs"] mod lookahead_scan_tests;
+#[path = "routing/segment_intersector_tests.rs"] mod segment_intersector_tests;
+#[path = "routing/vertex_entry_tests.rs"] mod vertex_entry_tests;
+#[path = "routing/static_graph_utility_tests.rs"] mod static_graph_utility_tests;
+#[path = "routing/splice_utility_tests.rs"] mod splice_utility_tests;
+#[path = "routing/transient_graph_utility_tests.rs"] mod transient_graph_utility_tests;

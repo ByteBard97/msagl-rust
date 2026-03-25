@@ -285,12 +285,12 @@ impl PathSearch {
 }
 
 /// Compute the Manhattan distance between two points.
-fn manhattan_distance(a: Point, b: Point) -> f64 {
+pub fn manhattan_distance(a: Point, b: Point) -> f64 {
     (b.x() - a.x()).abs() + (b.y() - a.y()).abs()
 }
 
 /// Estimate the number of bends needed to reach `target` from `point` in `direction`.
-fn estimated_bends_to_target(
+pub fn estimated_bends_to_target(
     direction: CompassDirection,
     point: Point,
     target: Point,
@@ -320,61 +320,5 @@ fn estimated_bends_to_target(
         0
     } else {
         2
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::geometry::point::Point;
-
-    #[test]
-    fn bend_penalty_scales_with_distance() {
-        let search = PathSearch::new(DEFAULT_BEND_PENALTY_AS_PERCENTAGE_OF_DISTANCE);
-
-        // distance=100 → bend_cost = 100 * 4/100 = 4 per bend
-        // distance=1000 → bend_cost = 1000 * 4/100 = 40 per bend
-        let cost_near = search.compute_cost(50.0, 1, 100.0);
-        let cost_far  = search.compute_cost(50.0, 1, 1000.0);
-        assert!(cost_far > cost_near, "far bend cost {cost_far} should exceed near bend cost {cost_near}");
-    }
-
-    #[test]
-    fn zero_bends_cost_equals_length() {
-        let search = PathSearch::new(DEFAULT_BEND_PENALTY_AS_PERCENTAGE_OF_DISTANCE);
-        let cost = search.compute_cost(123.0, 0, 500.0);
-        assert!((cost - 123.0).abs() < 1e-10);
-    }
-
-    #[test]
-    fn compute_cost_matches_formula() {
-        // bend_cost per bend = 200 * 4/100 = 8
-        // total = 50 + 8 * 2 = 66
-        let search = PathSearch::new(4.0);
-        let cost = search.compute_cost(50.0, 2, 200.0);
-        assert!((cost - 66.0).abs() < 1e-10);
-    }
-
-    #[test]
-    fn manhattan_distance_axis_aligned() {
-        let a = Point::new(0.0, 0.0);
-        let b = Point::new(3.0, 4.0);
-        assert!((manhattan_distance(a, b) - 7.0).abs() < 1e-10);
-    }
-
-    #[test]
-    fn estimated_bends_already_aligned() {
-        // Heading East, target is directly East → 0 bends.
-        let pt = Point::new(0.0, 0.0);
-        let tgt = Point::new(10.0, 0.0);
-        assert_eq!(estimated_bends_to_target(CompassDirection::East, pt, tgt), 0);
-    }
-
-    #[test]
-    fn estimated_bends_needs_turn() {
-        // Heading East but target is North-East → 1 bend.
-        let pt = Point::new(0.0, 0.0);
-        let tgt = Point::new(5.0, 5.0);
-        assert_eq!(estimated_bends_to_target(CompassDirection::East, pt, tgt), 1);
     }
 }
