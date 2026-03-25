@@ -1,0 +1,331 @@
+use super::super::block::{Block, BlockIndex};
+use super::super::constraint::ConIndex;
+use super::super::variable::VarIndex;
+use super::Solver;
+
+impl Solver {
+    // ===== MERGE EQUALITY CONSTRAINTS =====
+
+    pub(super) fn merge_equality_constraints(&mut self) {
+        let eq_cons: Vec<ConIndex> = self.equality_constraints.clone();
+        for &ci in &eq_cons {
+            let left_vi = self.constraints[ci.0].left;
+            let right_vi = self.constraints[ci.0].right;
+            let left_block = self.variables[left_vi.0].block;
+            let right_block = self.variables[right_vi.0].block;
+
+            if left_block == right_block {
+                // Already same block -- check for unsatisfiable
+                let vio = self.constraint_violation(ci).abs();
+                if vio > self.solver_params.gap_tolerance {
+                    self.constraints[ci.0].is_unsatisfiable = true;
+                    self.constraint_vector.number_of_unsatisfiable_constraints += 1;
+                }
+                continue;
+            }
+
+            self.merge_blocks(ci);
+        }
+    }
+
+    // ===== PROJECT =====
+
+    pub(super) fn project(&mut self) {
+        if self.constraints.is_empty() {
+            return;
+        }
+
+        self.violation_cache.clear();
+        let mut last_modified_block: Option<BlockIndex> = None;
+        let use_cache = self.active_block_count() > self.violation_cache_min_block_cutoff;
+        let mut iterations: u32 = 1;
+
+        let mut max_violated = self.get_max_violated_constraint(last_modified_block, use_cache);
+        if max_violated.is_none() {
+            return;
+        }
+
+        while let Some(ci) = max_violated {
+            let left_vi = self.constraints[ci.0].left;
+            let right_vi = self.constraints[ci.0].right;
+            let left_block = self.variables[left_vi.0].block;
+            let right_block = self.variables[right_vi.0].block;
+
+            if left_block == right_block {
+                self.expand(ci);
+                if self.constraints[ci.0].is_unsatisfiable {
+                    self.violation_cache.clear();
+                }
+                last_modified_block = Some(self.variables[left_vi.0].block);
+            } else {
+                let merged_block = self.merge_blocks(ci);
+                last_modified_block = Some(merged_block);
+            }
+
+            if self.solver_params.inner_project_iterations_limit > 0
+                && iterations >= self.solver_params.inner_project_iterations_limit as u32
+            {
+                self.solver_solution.inner_project_iterations_limit_exceeded = true;
+                break;
+            }
+
+            let use_cache = self.active_block_count() > self.violation_cache_min_block_cutoff;
+            if !use_cache {
+                self.violation_cache.clear();
+            }
+
+            iterations += 1;
+            max_violated =
+                self.get_max_violated_constraint(last_modified_block, use_cache);
+        }
+
+        self.solver_solution.inner_project_iterations_total += iterations as u64;
+        if self.solver_solution.max_inner_project_iterations < iterations {
+            self.solver_solution.max_inner_project_iterations = iterations;
+        }
+        if self.solver_solution.min_inner_project_iterations > iterations {
+            self.solver_solution.min_inner_project_iterations = iterations;
+        }
+    }
+
+    // ===== GET MAX VIOLATED CONSTRAINT =====
+
+    fn get_max_violated_constraint(
+        &mut self,
+        _last_modified_block: Option<BlockIndex>,
+        _use_cache: bool,
+    ) -> Option<ConIndex> {
+        // Scan all inactive constraints for max violation.
+        let tolerance = self.solver_params.gap_tolerance;
+        let mut max_violation = tolerance;
+        let mut max_ci: Option<ConIndex> = None;
+
+        let all = self.constraint_vector.all_constraints();
+        let active_count = self.constraint_vector.active_count();
+        let inactive_count = all.len() - active_count;
+
+        // Inactive constraints are in the first part of the array.
+        for &ci in all.iter().take(inactive_count) {
+            let c = &self.constraints[ci.0];
+            if c.is_active || c.is_unsatisfiable {
+                continue;
+            }
+            let violation = self.constraint_violation(ci);
+            if violation > max_violation {
+                max_violation = violation;
+                max_ci = Some(ci);
+            }
+        }
+
+        max_ci
+    }
+
+    // ===== MERGE BLOCKS =====
+
+    pub(super) fn merge_blocks(&mut self, violated_ci: ConIndex) -> BlockIndex {
+        let left_vi = self.constraints[violated_ci.0].left;
+        let right_vi = self.constraints[violated_ci.0].right;
+        let mut block_to = self.variables[left_vi.0].block;
+        let mut block_from = self.variables[right_vi.0].block;
+
+        let mut distance = self.variables[left_vi.0].offset_in_block
+            + self.constraints[violated_ci.0].gap
+            - self.variables[right_vi.0].offset_in_block;
+
+        // Move from smaller block to larger
+        if self.blocks[block_from.0].variables.len() > self.blocks[block_to.0].variables.len() {
+            std::mem::swap(&mut block_to, &mut block_from);
+            distance = -distance;
+        }
+
+        let vars_to_move: Vec<VarIndex> = self.blocks[block_from.0].variables.clone();
+
+        for &vi in &vars_to_move {
+            self.variables[vi.0].offset_in_block += distance;
+            let v = &self.variables[vi.0];
+            let offset = v.offset_in_block;
+            let weight = v.weight;
+            let var_scale = v.scale;
+            let desired = v.desired_pos;
+            self.blocks[block_to.0]
+                .add_variable_with_offset(vi, offset, weight, var_scale, desired);
+            self.variables[vi.0].block = block_to;
+        }
+
+        self.update_reference_pos_from_sums(block_to);
+        self.activate_constraint(violated_ci);
+        self.remove_block_from_vector(block_from);
+
+        block_to
+    }
+
+    // ===== SPLIT BLOCKS =====
+
+    pub(super) fn split_blocks(&mut self) -> bool {
+        let mut new_blocks: Vec<BlockIndex> = Vec::new();
+        let block_indices: Vec<BlockIndex> = self.blocks_order.clone();
+
+        for bi in block_indices {
+            if let Some(new_bi) = self.split_block(bi) {
+                new_blocks.push(new_bi);
+            }
+        }
+
+        for bi in &new_blocks {
+            self.add_block_to_vector(*bi);
+        }
+
+        !new_blocks.is_empty()
+    }
+
+    fn split_block(&mut self, bi: BlockIndex) -> Option<BlockIndex> {
+        if self.blocks[bi.0].variables.len() < 2 {
+            return None;
+        }
+
+        let first_var = self.blocks[bi.0].variables[0];
+        self.compute_dfdv(first_var, None);
+
+        let min_threshold = self.solver_params.advanced.min_split_lagrangian_threshold;
+        let mut min_lagrangian = min_threshold;
+        let mut min_ci: Option<ConIndex> = None;
+
+        let vars: Vec<VarIndex> = self.blocks[bi.0].variables.clone();
+        for &vi in &vars {
+            let left_cons: Vec<ConIndex> = self.variables[vi.0].left_constraints.clone();
+            for ci in left_cons {
+                let c = &self.constraints[ci.0];
+                if c.is_active && !c.is_equality && c.lagrangian < min_lagrangian {
+                    min_ci = Some(ci);
+                    min_lagrangian = c.lagrangian;
+                }
+            }
+        }
+
+        let split_ci = min_ci?;
+        self.split_on_constraint(bi, split_ci)
+    }
+
+    fn split_on_constraint(&mut self, bi: BlockIndex, ci: ConIndex) -> Option<BlockIndex> {
+        self.deactivate_constraint(ci);
+
+        let right_var = self.constraints[ci.0].right;
+        let left_var = self.constraints[ci.0].left;
+
+        let new_bi = BlockIndex(self.blocks.len());
+        self.blocks.push(Block {
+            index: new_bi,
+            variables: Vec::new(),
+            reference_pos: 0.0,
+            scale: 1.0,
+            sum_a2: 0.0,
+            sum_ad: 0.0,
+            sum_ab: 0.0,
+            vector_index: 0,
+        });
+
+        let connected_vars = self.get_connected_variables(right_var, Some(left_var));
+
+        if connected_vars.is_empty() {
+            return None;
+        }
+
+        for &vi in &connected_vars {
+            self.variables[vi.0].block = new_bi;
+        }
+        self.blocks[new_bi.0].variables = connected_vars.clone();
+
+        self.blocks[bi.0]
+            .variables
+            .retain(|&vi| self.variables[vi.0].block != new_bi);
+
+        if self.blocks[bi.0].variables.is_empty() {
+            for &vi in &connected_vars {
+                self.variables[vi.0].block = bi;
+            }
+            self.blocks[bi.0].variables = connected_vars;
+            self.blocks[new_bi.0].variables.clear();
+            return None;
+        }
+
+        self.full_update_reference_pos(bi);
+        self.full_update_reference_pos(new_bi);
+
+        Some(new_bi)
+    }
+
+    // ===== EXPAND =====
+
+    fn expand(&mut self, violated_ci: ConIndex) {
+        let left_var = self.constraints[violated_ci.0].left;
+        let right_var = self.constraints[violated_ci.0].right;
+
+        let path = self.compute_dfdv_with_path(left_var, right_var);
+
+        let mut min_lagrangian_ci: Option<ConIndex> = None;
+        let mut min_lag = f64::MAX;
+
+        for item in &path {
+            if item.is_forward {
+                let c = &self.constraints[item.constraint.0];
+                if !c.is_equality && c.lagrangian < min_lag {
+                    min_lag = c.lagrangian;
+                    min_lagrangian_ci = Some(item.constraint);
+                }
+            }
+        }
+
+        if let Some(min_ci) = min_lagrangian_ci {
+            self.deactivate_constraint(min_ci);
+        } else {
+            self.constraints[violated_ci.0].is_unsatisfiable = true;
+            self.constraint_vector.number_of_unsatisfiable_constraints += 1;
+            return;
+        }
+
+        let connected = self.get_connected_variables(right_var, Some(left_var));
+        let violation = self.constraint_violation(violated_ci);
+        for &vi in &connected {
+            self.variables[vi.0].offset_in_block += violation;
+        }
+
+        self.activate_constraint(violated_ci);
+        self.constraints[violated_ci.0].lagrangian = 0.0;
+
+        let block = self.variables[left_var.0].block;
+        self.full_update_reference_pos(block);
+    }
+
+    // ===== BLOCK REFERENCE POS HELPERS =====
+
+    /// Full recalculation of reference pos from all variables in block.
+    pub(super) fn full_update_reference_pos(&mut self, bi: BlockIndex) {
+        if self.blocks[bi.0].variables.is_empty() {
+            return;
+        }
+
+        let first_var = self.blocks[bi.0].variables[0];
+        self.blocks[bi.0].scale = self.variables[first_var.0].scale;
+        self.blocks[bi.0].reset_sums();
+
+        let vars: Vec<VarIndex> = self.blocks[bi.0].variables.clone();
+        for &vi in &vars {
+            let v = &self.variables[vi.0];
+            self.blocks[bi.0].add_to_sums(v.offset_in_block, v.weight, v.scale, v.desired_pos);
+        }
+
+        self.update_reference_pos_from_sums(bi);
+    }
+
+    /// Update reference pos from current sums and update variable positions.
+    fn update_reference_pos_from_sums(&mut self, bi: BlockIndex) {
+        self.blocks[bi.0].update_reference_pos();
+        let scaled_ref = self.blocks[bi.0].scale * self.blocks[bi.0].reference_pos;
+        let vars: Vec<VarIndex> = self.blocks[bi.0].variables.clone();
+        for &vi in &vars {
+            let v = &self.variables[vi.0];
+            let new_pos = (scaled_ref + v.offset_in_block) / v.scale;
+            self.variables[vi.0].actual_pos = new_pos;
+        }
+    }
+}

@@ -157,3 +157,76 @@ fn violation_cache_filter() {
     assert!(remaining);
     assert_eq!(cache.find_if_greater(0.0).unwrap().0, ConIndex(2));
 }
+
+// ===== Solver tests =====
+
+use msagl_rust::projection_solver::solver::Solver;
+
+#[test]
+fn two_vars_satisfied_constraint() {
+    let mut solver = Solver::new();
+    let v0 = solver.add_variable(0.0, 1.0, 1.0);
+    let v1 = solver.add_variable(10.0, 1.0, 1.0);
+    solver.add_constraint(v0, v1, 3.0, false);
+    let _solution = solver.solve(None);
+    let pos0 = solver.variable(v0).actual_pos;
+    let pos1 = solver.variable(v1).actual_pos;
+    assert!(pos1 - pos0 >= 3.0 - 1e-4);
+    assert!((pos0 - 0.0).abs() < 1e-4);
+    assert!((pos1 - 10.0).abs() < 1e-4);
+}
+
+#[test]
+fn two_vars_violated_constraint() {
+    let mut solver = Solver::new();
+    let v0 = solver.add_variable(5.0, 1.0, 1.0);
+    let v1 = solver.add_variable(6.0, 1.0, 1.0);
+    solver.add_constraint(v0, v1, 3.0, false);
+    let _solution = solver.solve(None);
+    let pos0 = solver.variable(v0).actual_pos;
+    let pos1 = solver.variable(v1).actual_pos;
+    assert!(pos1 - pos0 >= 3.0 - 1e-4);
+    assert!((pos0 - 4.0).abs() < 0.1);
+    assert!((pos1 - 7.0).abs() < 0.1);
+}
+
+#[test]
+fn three_vars_chain() {
+    let mut solver = Solver::new();
+    let v0 = solver.add_variable(0.0, 1.0, 1.0);
+    let v1 = solver.add_variable(0.0, 1.0, 1.0);
+    let v2 = solver.add_variable(0.0, 1.0, 1.0);
+    solver.add_constraint(v0, v1, 5.0, false);
+    solver.add_constraint(v1, v2, 5.0, false);
+    let _solution = solver.solve(None);
+    let pos0 = solver.variable(v0).actual_pos;
+    let pos1 = solver.variable(v1).actual_pos;
+    let pos2 = solver.variable(v2).actual_pos;
+    assert!(pos1 - pos0 >= 5.0 - 1e-4);
+    assert!(pos2 - pos1 >= 5.0 - 1e-4);
+}
+
+#[test]
+fn equality_constraint() {
+    let mut solver = Solver::new();
+    let v0 = solver.add_variable(0.0, 1.0, 1.0);
+    let v1 = solver.add_variable(10.0, 1.0, 1.0);
+    solver.add_constraint(v0, v1, 5.0, true);
+    let _solution = solver.solve(None);
+    let pos0 = solver.variable(v0).actual_pos;
+    let pos1 = solver.variable(v1).actual_pos;
+    assert!((pos1 - pos0 - 5.0).abs() < 1e-4);
+}
+
+#[test]
+fn weighted_variables() {
+    let mut solver = Solver::new();
+    let v0 = solver.add_variable(0.0, 100.0, 1.0);
+    let v1 = solver.add_variable(2.0, 1.0, 1.0);
+    solver.add_constraint(v0, v1, 5.0, false);
+    let _solution = solver.solve(None);
+    let pos0 = solver.variable(v0).actual_pos;
+    let pos1 = solver.variable(v1).actual_pos;
+    assert!(pos1 - pos0 >= 5.0 - 1e-4);
+    assert!(pos0.abs() < 0.5); // Heavy var barely moves
+}
