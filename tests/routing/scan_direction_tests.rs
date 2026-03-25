@@ -55,3 +55,37 @@ fn make_point_vertical() {
     let p = sd.make_point(3.0, 7.0); // coord=y=3, perp=x=7
     assert_eq!(p, Point::new(7.0, 3.0));
 }
+
+// --- Tests extracted from inline #[cfg(test)] in scan_direction.rs ---
+
+#[test]
+fn horizontal_scan_is_horizontal() {
+    let dir = ScanDirection::horizontal();
+    assert!(dir.is_horizontal());
+    assert!(!dir.is_vertical());
+}
+
+#[test]
+fn vertical_scan_is_vertical() {
+    let dir = ScanDirection::vertical();
+    assert!(dir.is_vertical());
+    assert!(!dir.is_horizontal());
+}
+
+#[test]
+fn perpendicular_swaps_direction() {
+    let h = ScanDirection::horizontal();
+    let v = h.perpendicular();
+    assert!(v.is_vertical());
+    assert!(v.perpendicular().is_horizontal());
+}
+
+#[test]
+fn min_max_returns_correct_point() {
+    let dir = ScanDirection::horizontal();
+    let a = Point::new(5.0, 10.0);
+    let b = Point::new(5.0, 20.0);
+    // Horizontal scan: perp is Y. a has lower Y, so a is "less"
+    assert_eq!(dir.min(a, b), a);
+    assert_eq!(dir.max(a, b), b);
+}

@@ -26,7 +26,7 @@ pub fn refine_paths(paths: &mut [Vec<Point>]) {
 }
 
 /// Remove consecutive duplicate points from a path.
-fn deduplicate(path: &mut Vec<Point>) {
+pub fn deduplicate(path: &mut Vec<Point>) {
     if path.len() < 2 {
         return;
     }
@@ -185,38 +185,5 @@ fn cross_vertical_and_horizontal(paths: &mut [Vec<Point>]) {
             }
         }
         paths[pi] = new_path;
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn deduplicate_removes_consecutive_dups() {
-        let mut path = vec![
-            Point::new(0.0, 0.0),
-            Point::new(0.0, 0.0),
-            Point::new(1.0, 0.0),
-            Point::new(1.0, 0.0),
-            Point::new(1.0, 1.0),
-        ];
-        deduplicate(&mut path);
-        assert_eq!(path.len(), 3);
-    }
-
-    #[test]
-    fn refine_inserts_subdivision_points() {
-        // Two horizontal segments on y=0: one from x=0..10, another from x=5..15.
-        // After refinement, both should have a vertex at x=5 and x=10.
-        let mut paths = vec![
-            vec![Point::new(0.0, 0.0), Point::new(10.0, 0.0)],
-            vec![Point::new(5.0, 0.0), Point::new(15.0, 0.0)],
-        ];
-        refine_paths(&mut paths);
-        // Path 0 should now have points at x=0, 5, 10
-        assert!(paths[0].len() >= 3, "path0 len = {}", paths[0].len());
-        // Path 1 should now have points at x=5, 10, 15
-        assert!(paths[1].len() >= 3, "path1 len = {}", paths[1].len());
     }
 }

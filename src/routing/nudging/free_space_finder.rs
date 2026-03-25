@@ -158,22 +158,3 @@ fn obstacle_along_range(obs: &Rectangle, direction: Direction) -> (f64, f64) {
         Direction::East => (obs.left(), obs.right()),
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn obstacle_bounds_vertical_edge() {
-        let mut edges = vec![
-            AxisEdge::new(Point::new(5.0, 0.0), Point::new(5.0, 10.0)),
-        ];
-        let obstacles = vec![
-            Rectangle::new(0.0, 0.0, 3.0, 10.0), // left obstacle
-            Rectangle::new(7.0, 0.0, 10.0, 10.0), // right obstacle
-        ];
-        find_free_space(&mut edges, &obstacles, Direction::North);
-        assert!(edges[0].left_bound >= 3.0 - 0.1);
-        assert!(edges[0].right_bound <= 7.0 + 0.1);
-    }
-}

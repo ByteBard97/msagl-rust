@@ -189,32 +189,3 @@ fn get_perp_offset(
     // Fallback: use path index as tiebreaker.
     pe.path_index as f64
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn single_path_creates_axis_edges() {
-        let paths = vec![
-            vec![Point::new(0.0, 0.0), Point::new(10.0, 0.0), Point::new(10.0, 10.0)],
-        ];
-        let result = get_order(&paths);
-        assert_eq!(result.axis_edges.len(), 2);
-        assert_eq!(result.path_edges.len(), 2);
-        assert!(result.path_first_edges[0].is_some());
-    }
-
-    #[test]
-    fn two_paths_share_axis_edge() {
-        let paths = vec![
-            vec![Point::new(0.0, 5.0), Point::new(20.0, 5.0)],
-            vec![Point::new(0.0, 5.0), Point::new(20.0, 5.0)],
-        ];
-        let result = get_order(&paths);
-        // Both paths share the same AxisEdge.
-        assert_eq!(result.axis_edges.len(), 1);
-        assert_eq!(result.path_edges.len(), 2);
-        assert_eq!(result.axis_edge_orders[0].len(), 2);
-    }
-}

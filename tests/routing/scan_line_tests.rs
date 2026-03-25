@@ -49,3 +49,103 @@ fn scan_line_remove() {
     sl.remove(&side);
     assert_eq!(sl.len(), 0);
 }
+
+#[test]
+fn insert_and_find_low_neighbor() {
+    let mut sl = RectilinearScanLine::new(ScanDirection::horizontal());
+    // Vertical side at x=10 (horizontal scan, keyed by X)
+    let side = ObstacleSide::new(
+        SideType::Low,
+        Point::new(10.0, 0.0),
+        Point::new(10.0, 100.0),
+        0,
+    );
+    sl.insert(side);
+    // Query at x=15: low neighbor should be the side at x=10
+    let low = sl.low_neighbor(15.0);
+    assert!(low.is_some());
+    assert_eq!(low.unwrap().obstacle_ordinal(), 0);
+}
+
+#[test]
+fn find_neighbors_returns_both() {
+    let mut sl = RectilinearScanLine::new(ScanDirection::horizontal());
+    let side_a = ObstacleSide::new(
+        SideType::Low,
+        Point::new(10.0, 0.0),
+        Point::new(10.0, 100.0),
+        0,
+    );
+    let side_b = ObstacleSide::new(
+        SideType::High,
+        Point::new(30.0, 0.0),
+        Point::new(30.0, 100.0),
+        1,
+    );
+    sl.insert(side_a);
+    sl.insert(side_b);
+    let (low, high) = sl.find_neighbors(20.0);
+    assert_eq!(low.unwrap().obstacle_ordinal(), 0);
+    assert_eq!(high.unwrap().obstacle_ordinal(), 1);
+}
+
+#[test]
+fn remove_side() {
+    let mut sl = RectilinearScanLine::new(ScanDirection::horizontal());
+    let side = ObstacleSide::new(
+        SideType::Low,
+        Point::new(10.0, 0.0),
+        Point::new(10.0, 100.0),
+        0,
+    );
+    sl.insert(side.clone());
+    assert_eq!(sl.len(), 1);
+    sl.remove(&side);
+    assert_eq!(sl.len(), 0);
+}
+
+#[test]
+fn high_side_sorts_before_low_at_same_coord() {
+    let mut sl = RectilinearScanLine::new(ScanDirection::horizontal());
+    let low = ObstacleSide::new(
+        SideType::Low,
+        Point::new(10.0, 0.0),
+        Point::new(10.0, 100.0),
+        0,
+    );
+    let high = ObstacleSide::new(
+        SideType::High,
+        Point::new(10.0, 0.0),
+        Point::new(10.0, 100.0),
+        1,
+    );
+    sl.insert(low);
+    sl.insert(high);
+    // Both sides are at x=10 — the tree should hold 2 distinct entries
+    assert_eq!(sl.len(), 2);
+}
+
+#[test]
+fn empty_scanline_returns_none() {
+    let sl = RectilinearScanLine::new(ScanDirection::horizontal());
+    let (low, high) = sl.find_neighbors(10.0);
+    assert!(low.is_none());
+    assert!(high.is_none());
+}
+
+#[test]
+fn vertical_scan_keys_by_y() {
+    let mut sl = RectilinearScanLine::new(ScanDirection::vertical());
+    // Horizontal side at y=20 (vertical scan, keyed by Y)
+    let side = ObstacleSide::new(
+        SideType::Low,
+        Point::new(0.0, 20.0),
+        Point::new(100.0, 20.0),
+        0,
+    );
+    sl.insert(side);
+    let low = sl.low_neighbor(25.0);
+    assert!(low.is_some());
+    assert_eq!(low.unwrap().obstacle_ordinal(), 0);
+    assert!(sl.high_neighbor(25.0).is_none());
+}

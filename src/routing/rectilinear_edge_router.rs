@@ -120,10 +120,8 @@ impl RectilinearEdgeRouter {
         let mut paths: Vec<Vec<Point>> = Vec::new();
 
         for edge in &self.edges {
-            let (_sv, sv_added, se_added) =
-                PortManager::splice_port(&mut vis_graph, edge.source.location);
-            let (_tv, tv_added, te_added) =
-                PortManager::splice_port(&mut vis_graph, edge.target.location);
+            let mut src_splice = PortManager::splice_port(&mut vis_graph, edge.source.location);
+            let mut tgt_splice = PortManager::splice_port(&mut vis_graph, edge.target.location);
 
             let path = search.find_path(
                 &vis_graph,
@@ -134,8 +132,8 @@ impl RectilinearEdgeRouter {
                 vec![edge.source.location, edge.target.location]
             }));
 
-            PortManager::unsplice(&mut vis_graph, &sv_added, &se_added);
-            PortManager::unsplice(&mut vis_graph, &tv_added, &te_added);
+            PortManager::unsplice(&mut vis_graph, &mut src_splice);
+            PortManager::unsplice(&mut vis_graph, &mut tgt_splice);
         }
 
         // 3. Nudge paths for edge separation
