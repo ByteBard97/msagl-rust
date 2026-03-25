@@ -17,8 +17,9 @@ use crate::routing::visibility_graph_generator::generate_visibility_graph;
 const DEFAULT_PADDING: f64 = 4.0;
 /// Default separation between parallel edges.
 const DEFAULT_EDGE_SEPARATION: f64 = 8.0;
-/// Default bend penalty as a percentage of the average obstacle dimension.
-const DEFAULT_BEND_PENALTY_PCT: f64 = 0.5;
+/// Default bend penalty as a percentage of source-target Manhattan distance.
+/// Matches `SsstRectilinearPath.DefaultBendPenaltyAsAPercentageOfDistance = 4` from the TS source.
+const DEFAULT_BEND_PENALTY_PCT: f64 = 4.0;
 /// Default corner arc radius (0 = sharp corners).
 const DEFAULT_CORNER_FIT_RADIUS: f64 = 0.0;
 
@@ -115,8 +116,7 @@ impl RectilinearEdgeRouter {
         let mut vis_graph = generate_visibility_graph(&self.shapes, self.padding);
 
         // 2. Route each edge: splice ports -> A* -> unsplice
-        let bend_penalty = self.compute_bend_penalty();
-        let search = PathSearch::new(1.0, bend_penalty);
+        let search = PathSearch::new(self.bend_penalty_as_percentage);
         let mut paths: Vec<Vec<Point>> = Vec::new();
 
         for edge in &self.edges {
@@ -152,23 +152,6 @@ impl RectilinearEdgeRouter {
             .collect();
 
         RoutingResult { edges }
-    }
-
-    /// Compute bend penalty from the average obstacle dimension.
-    fn compute_bend_penalty(&self) -> f64 {
-        if self.shapes.is_empty() {
-            return self.bend_penalty_as_percentage;
-        }
-        let avg_dim: f64 = self
-            .shapes
-            .iter()
-            .map(|s| {
-                let bb = s.bounding_box();
-                bb.width() + bb.height()
-            })
-            .sum::<f64>()
-            / (self.shapes.len() as f64 * 2.0);
-        self.bend_penalty_as_percentage * avg_dim
     }
 
     /// Build padded obstacle rectangles for nudging.
@@ -318,13 +301,9 @@ mod tests {
     }
 
     #[test]
-    fn bend_penalty_scales_with_obstacle_size() {
-        let small = RectilinearEdgeRouter::new(&[
-            Shape::rectangle(0.0, 0.0, 10.0, 10.0),
-        ]);
-        let large = RectilinearEdgeRouter::new(&[
-            Shape::rectangle(0.0, 0.0, 100.0, 100.0),
-        ]);
-        assert!(large.compute_bend_penalty() > small.compute_bend_penalty());
+    fn bend_penalty_as_percentage_can_be_configured() {
+        let router = RectilinearEdgeRouter::new(&[Shape::rectangle(0.0, 0.0, 50.0, 50.0)])
+            .bend_penalty_as_percentage(8.0);
+        assert!((router.bend_penalty_as_percentage - 8.0).abs() < 1e-10);
     }
 }

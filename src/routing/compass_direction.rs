@@ -1,3 +1,5 @@
+use crate::geometry::point::Point;
+
 /// Four compass directions for VertexEntry[4] indexing and path search.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum CompassDirection {
@@ -42,6 +44,27 @@ impl CompassDirection {
             Self::West => Self::North,
         }
     }
+
+    /// Determine the compass direction from `from` to `to`.
+    ///
+    /// For rectilinear graphs, edges are axis-aligned. Returns `None` if
+    /// the points are identical (distance < 1e-12).
+    /// On a diagonal tie, horizontal direction is preferred.
+    pub fn from_points(from: Point, to: Point) -> Option<Self> {
+        let dx = to.x() - from.x();
+        let dy = to.y() - from.y();
+
+        if dx.abs() > dy.abs() {
+            if dx > 0.0 { Some(Self::East) } else { Some(Self::West) }
+        } else if dy.abs() > dx.abs() {
+            if dy > 0.0 { Some(Self::North) } else { Some(Self::South) }
+        } else if dx.abs() < 1e-12 && dy.abs() < 1e-12 {
+            None
+        } else {
+            // Diagonal tie-break: prefer horizontal
+            if dx > 0.0 { Some(Self::East) } else { Some(Self::West) }
+        }
+    }
 }
 
 #[cfg(test)]
@@ -74,5 +97,28 @@ mod tests {
         assert_eq!(CompassDirection::North.right(), CompassDirection::East);
         assert_eq!(CompassDirection::East.left(), CompassDirection::North);
         assert_eq!(CompassDirection::East.right(), CompassDirection::South);
+    }
+
+    #[test]
+    fn from_points_axis_aligned() {
+        let origin = Point::new(0.0, 0.0);
+        assert_eq!(CompassDirection::from_points(origin, Point::new(10.0, 0.0)), Some(CompassDirection::East));
+        assert_eq!(CompassDirection::from_points(origin, Point::new(-10.0, 0.0)), Some(CompassDirection::West));
+        assert_eq!(CompassDirection::from_points(origin, Point::new(0.0, 10.0)), Some(CompassDirection::North));
+        assert_eq!(CompassDirection::from_points(origin, Point::new(0.0, -10.0)), Some(CompassDirection::South));
+    }
+
+    #[test]
+    fn from_points_identical_returns_none() {
+        let p = Point::new(5.0, 5.0);
+        assert_eq!(CompassDirection::from_points(p, p), None);
+    }
+
+    #[test]
+    fn from_points_diagonal_prefers_horizontal() {
+        let origin = Point::new(0.0, 0.0);
+        // Equal dx and dy — horizontal wins
+        assert_eq!(CompassDirection::from_points(origin, Point::new(5.0, 5.0)), Some(CompassDirection::East));
+        assert_eq!(CompassDirection::from_points(origin, Point::new(-5.0, -5.0)), Some(CompassDirection::West));
     }
 }

@@ -57,7 +57,7 @@ fn splice_and_route_between_obstacles() {
     let (_, sv_added, se_added) = PortManager::splice_port(&mut graph, source);
     let (_, tv_added, te_added) = PortManager::splice_port(&mut graph, target);
 
-    let search = PathSearch::new(1.0, 0.001);
+    let search = PathSearch::new(4.0);
     let path = search.find_path(&graph, source, target);
     assert!(path.is_some(), "should find path between spliced ports");
 
@@ -88,7 +88,7 @@ fn full_pipeline_shapes_to_path() {
     let (_, sv, se) = PortManager::splice_port(&mut graph, source);
     let (_, tv, te) = PortManager::splice_port(&mut graph, target);
 
-    let search = PathSearch::new(1.0, 0.5);
+    let search = PathSearch::new(4.0);
     let path = search.find_path(&graph, source, target);
     assert!(path.is_some(), "full pipeline should find a path");
 

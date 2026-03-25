@@ -10,7 +10,7 @@ fn path_search_straight_line() {
     graph.add_edge(v1, v2, 1.0);
     graph.add_edge(v2, v1, 1.0);
 
-    let search = PathSearch::new(1.0, 0.001);
+    let search = PathSearch::new(4.0);
     let path = search.find_path(&graph, Point::new(0.0, 0.0), Point::new(10.0, 0.0));
     assert!(path.is_some());
     let pts = path.unwrap();
@@ -30,7 +30,7 @@ fn path_search_with_bend() {
     graph.add_edge(v2, v3, 1.0);
     graph.add_edge(v3, v2, 1.0);
 
-    let search = PathSearch::new(1.0, 0.001);
+    let search = PathSearch::new(4.0);
     let path = search.find_path(&graph, Point::new(0.0, 0.0), Point::new(10.0, 10.0));
     assert!(path.is_some());
     let pts = path.unwrap();
@@ -43,7 +43,7 @@ fn path_search_no_path() {
     graph.add_vertex(Point::new(0.0, 0.0));
     graph.add_vertex(Point::new(10.0, 0.0));
     // No edges
-    let search = PathSearch::new(1.0, 0.001);
+    let search = PathSearch::new(4.0);
     assert!(search.find_path(&graph, Point::new(0.0, 0.0), Point::new(10.0, 0.0)).is_none());
 }
 
@@ -58,7 +58,7 @@ fn path_search_multi_hop() {
     graph.add_edge(v2, v3, 1.0);
     graph.add_edge(v3, v2, 1.0);
 
-    let search = PathSearch::new(1.0, 0.001);
+    let search = PathSearch::new(4.0);
     let path = search.find_path(&graph, Point::new(0.0, 0.0), Point::new(10.0, 0.0));
     assert!(path.is_some());
     // Should skip intermediate collinear point (5,0)
@@ -71,7 +71,7 @@ fn path_search_same_source_target() {
     let mut graph = VisibilityGraph::new();
     graph.add_vertex(Point::new(5.0, 5.0));
 
-    let search = PathSearch::new(1.0, 0.001);
+    let search = PathSearch::new(4.0);
     let path = search.find_path(&graph, Point::new(5.0, 5.0), Point::new(5.0, 5.0));
     assert!(path.is_some());
     assert_eq!(path.unwrap().len(), 1);
@@ -103,7 +103,7 @@ fn path_search_prefers_fewer_bends() {
 
     // High bend penalty: should prefer a -> e -> d (1 bend, length 15)
     // over a -> b -> c -> d (2 bends, length 15)
-    let search = PathSearch::new(1.0, 100.0);
+    let search = PathSearch::new(4.0);
     let path = search.find_path(
         &graph,
         Point::new(0.0, 0.0),

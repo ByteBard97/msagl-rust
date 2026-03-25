@@ -3,64 +3,22 @@ use std::collections::BinaryHeap;
 
 use crate::geometry::point::Point;
 use crate::visibility::graph::{VertexId, VisibilityGraph};
+use super::compass_direction::CompassDirection;
 
-/// Cardinal compass directions for tracking entry into a vertex.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub enum CompassDirection {
-    North,
-    East,
-    South,
-    West,
-}
-
+/// Number of compass directions (used for the best-cost table).
 const NUM_DIRECTIONS: usize = 4;
 
-impl CompassDirection {
-    pub fn index(self) -> usize {
-        match self {
-            CompassDirection::North => 0,
-            CompassDirection::East => 1,
-            CompassDirection::South => 2,
-            CompassDirection::West => 3,
-        }
-    }
+/// Default bend penalty as a percentage of source-target Manhattan distance.
+/// Matches TS `SsstRectilinearPath.DefaultBendPenaltyAsAPercentageOfDistance = 4`.
+pub const DEFAULT_BEND_PENALTY_AS_PERCENTAGE_OF_DISTANCE: f64 = 4.0;
 
-    /// Determine compass direction from `from` to `to`.
-    ///
-    /// For rectilinear graphs, edges are axis-aligned. Returns `None` if
-    /// the points are identical.
-    pub fn from_points(from: Point, to: Point) -> Option<Self> {
-        let dx = to.x() - from.x();
-        let dy = to.y() - from.y();
-
-        if dx.abs() > dy.abs() {
-            if dx > 0.0 { Some(CompassDirection::East) }
-            else { Some(CompassDirection::West) }
-        } else if dy.abs() > dx.abs() {
-            if dy > 0.0 { Some(CompassDirection::North) }
-            else { Some(CompassDirection::South) }
-        } else if dx.abs() < 1e-12 && dy.abs() < 1e-12 {
-            None
-        } else {
-            // Diagonal tie-break: prefer horizontal
-            if dx > 0.0 { Some(CompassDirection::East) }
-            else { Some(CompassDirection::West) }
-        }
-    }
-
-    pub fn opposite(self) -> Self {
-        match self {
-            CompassDirection::North => CompassDirection::South,
-            CompassDirection::East => CompassDirection::West,
-            CompassDirection::South => CompassDirection::North,
-            CompassDirection::West => CompassDirection::East,
-        }
-    }
-}
-
-/// An entry in the A* search arena.
+/// Local arena entry for the A* search.
+///
+/// Intentionally separate from `vertex_entry::VertexEntry`, which is used
+/// by the visibility graph for per-vertex open/closed tracking. This struct
+/// is an ephemeral allocation inside the heap arena.
 #[derive(Clone, Debug)]
-struct VertexEntry {
+struct SearchEntry {
     vertex: VertexId,
     direction: CompassDirection,
     cost: f64,
@@ -96,28 +54,46 @@ impl Ord for QueueItem {
     }
 }
 
-/// Direction-aware A* path search on a visibility graph.
+/// Direction-aware A* shortest path on a rectilinear visibility graph.
 ///
-/// Tracks entry direction at each vertex so that bends (direction changes)
-/// can be penalized. The cost function is:
-///   `length_importance * path_length + bends_importance * bend_count`
+/// Corresponds to `SsstRectilinearPath` in the TypeScript source.
+///
+/// The cost function is:
+/// ```text
+/// bend_cost  = manhattan(source, target) * bend_penalty_as_percentage / 100
+/// total_cost = path_length + bend_cost * number_of_bends
+/// ```
+///
+/// This matches the TS default where each bend costs 4% of the
+/// source-to-target Manhattan distance.
 pub struct PathSearch {
-    pub length_importance: f64,
-    pub bends_importance: f64,
+    /// Bend penalty as a percentage of source-target Manhattan distance.
+    /// Default: [`DEFAULT_BEND_PENALTY_AS_PERCENTAGE_OF_DISTANCE`] (4.0).
+    pub bend_penalty_as_percentage: f64,
 }
 
 impl PathSearch {
-    pub fn new(length_importance: f64, bends_importance: f64) -> Self {
-        Self { length_importance, bends_importance }
+    /// Create a `PathSearch` with the given bend penalty percentage.
+    pub fn new(bend_penalty_as_percentage: f64) -> Self {
+        Self { bend_penalty_as_percentage }
     }
 
-    fn combined_cost(&self, length: f64, bends: u32) -> f64 {
-        self.length_importance * length + self.bends_importance * bends as f64
+    /// Create a `PathSearch` with the TS default bend penalty (4%).
+    pub fn default_penalty() -> Self {
+        Self::new(DEFAULT_BEND_PENALTY_AS_PERCENTAGE_OF_DISTANCE)
     }
 
-    /// Find the shortest (bend-penalized) path between two points.
+    /// Compute the total path cost given length, bend count, and source-target distance.
     ///
-    /// Returns `None` if no path exists.
+    /// Exposed for testing.
+    pub fn compute_cost(&self, length: f64, bends: u32, source_target_distance: f64) -> f64 {
+        let bend_cost = source_target_distance * self.bend_penalty_as_percentage / 100.0;
+        length + bend_cost * bends as f64
+    }
+
+    /// Find the shortest (bend-penalized) path between two points in the graph.
+    ///
+    /// Returns `None` if no path exists between `source` and `target`.
     pub fn find_path(
         &self,
         graph: &VisibilityGraph,
@@ -131,29 +107,31 @@ impl PathSearch {
             return Some(vec![source]);
         }
 
+        let source_target_distance = manhattan_distance(source, target);
         let vertex_count = graph.vertex_count();
-        // best_cost[vertex_index][direction_index] tracks best cost seen
+
+        // best_cost[vertex_index][direction_index] — lowest cost seen per (vertex, direction).
         let mut best_cost = vec![[f64::INFINITY; NUM_DIRECTIONS]; vertex_count];
 
-        let mut arena: Vec<VertexEntry> = Vec::new();
+        let mut arena: Vec<SearchEntry> = Vec::new();
         let mut heap: BinaryHeap<QueueItem> = BinaryHeap::new();
 
-        // Initialize: seed from source's neighbors
-        let neighbors = self.collect_neighbors(graph, source_id);
-        for (neighbor_id, edge_weight) in &neighbors {
+        // Seed the heap from source's neighbors.
+        let initial_neighbors = self.collect_neighbors(graph, source_id);
+        for (neighbor_id, edge_weight) in &initial_neighbors {
             let dir = match CompassDirection::from_points(source, graph.point(*neighbor_id)) {
                 Some(d) => d,
                 None => continue,
             };
 
             let length = *edge_weight;
-            let cost = self.combined_cost(length, 0);
-            let h = self.heuristic(graph.point(*neighbor_id), target, dir);
+            let cost = self.compute_cost(length, 0, source_target_distance);
+            let h = self.heuristic(graph.point(*neighbor_id), target, dir, source_target_distance);
 
             if cost < best_cost[neighbor_id.0][dir.index()] {
                 best_cost[neighbor_id.0][dir.index()] = cost;
                 let idx = arena.len();
-                arena.push(VertexEntry {
+                arena.push(SearchEntry {
                     vertex: *neighbor_id,
                     direction: dir,
                     cost,
@@ -168,24 +146,21 @@ impl PathSearch {
         while let Some(item) = heap.pop() {
             let entry = arena[item.arena_index].clone();
 
-            // Skip stale entries
+            // Skip stale entries.
             if entry.cost > best_cost[entry.vertex.0][entry.direction.index()] {
                 continue;
             }
 
-            // Reached target?
+            // Reached target.
             if entry.vertex == target_id {
-                return Some(self.reconstruct_path(
-                    &arena, item.arena_index, source, graph,
-                ));
+                return Some(self.reconstruct_path(&arena, item.arena_index, source, graph));
             }
 
-            // Expand neighbors (bidirectional traversal)
             let cur_point = graph.point(entry.vertex);
             let neighbors = self.collect_neighbors(graph, entry.vertex);
 
             for (neighbor_id, edge_weight) in &neighbors {
-                // Don't go back to source unless it's the target
+                // Don't backtrack to source (unless it's also the target).
                 if *neighbor_id == source_id && *neighbor_id != target_id {
                     continue;
                 }
@@ -196,19 +171,15 @@ impl PathSearch {
                     None => continue,
                 };
 
-                let new_bends = if dir != entry.direction {
-                    entry.bends + 1
-                } else {
-                    entry.bends
-                };
+                let new_bends = if dir != entry.direction { entry.bends + 1 } else { entry.bends };
                 let new_length = entry.length + edge_weight;
-                let new_cost = self.combined_cost(new_length, new_bends);
+                let new_cost = self.compute_cost(new_length, new_bends, source_target_distance);
 
                 if new_cost < best_cost[neighbor_id.0][dir.index()] {
                     best_cost[neighbor_id.0][dir.index()] = new_cost;
-                    let h = self.heuristic(neighbor_point, target, dir);
+                    let h = self.heuristic(neighbor_point, target, dir, source_target_distance);
                     let idx = arena.len();
-                    arena.push(VertexEntry {
+                    arena.push(SearchEntry {
                         vertex: *neighbor_id,
                         direction: dir,
                         cost: new_cost,
@@ -232,20 +203,16 @@ impl PathSearch {
     ) -> Vec<(VertexId, f64)> {
         let mut neighbors = Vec::new();
 
-        // Out-edges
         for edge in graph.out_edges(vertex) {
             neighbors.push((edge.target, edge.weight));
         }
 
-        // In-edges (reversed): walk back toward sources
         let in_sources: Vec<VertexId> = graph.vertex(vertex).in_edges.clone();
         for src in in_sources {
-            // Find the edge weight from src -> vertex
             let weight = graph.out_edges(src)
                 .find(|e| e.target == vertex)
                 .map(|e| e.weight)
                 .unwrap_or_else(|| {
-                    // Fallback: compute Euclidean distance
                     let a = graph.point(src);
                     let b = graph.point(vertex);
                     (a - b).length()
@@ -256,25 +223,31 @@ impl PathSearch {
         neighbors
     }
 
-    /// Heuristic: Manhattan distance + estimated bends to target.
-    fn heuristic(&self, point: Point, target: Point, direction: CompassDirection) -> f64 {
+    /// A* heuristic: Manhattan distance to target plus estimated bend cost.
+    fn heuristic(
+        &self,
+        point: Point,
+        target: Point,
+        direction: CompassDirection,
+        source_target_distance: f64,
+    ) -> f64 {
         let dx = (target.x() - point.x()).abs();
         let dy = (target.y() - point.y()).abs();
         let manhattan = dx + dy;
         let est_bends = estimated_bends_to_target(direction, point, target);
-        self.combined_cost(manhattan, est_bends)
+        let bend_cost = source_target_distance * self.bend_penalty_as_percentage / 100.0;
+        manhattan + bend_cost * est_bends as f64
     }
 
-    /// Walk the prev_entry chain to reconstruct the path, skipping collinear
-    /// intermediate points.
+    /// Walk the `prev_entry` chain to reconstruct the path, discarding
+    /// collinear intermediate waypoints.
     fn reconstruct_path(
         &self,
-        arena: &[VertexEntry],
+        arena: &[SearchEntry],
         final_index: usize,
         source: Point,
         graph: &VisibilityGraph,
     ) -> Vec<Point> {
-        // Collect all points from target back to first entry after source
         let mut points = Vec::new();
         let mut idx = Some(final_index);
 
@@ -284,11 +257,9 @@ impl PathSearch {
             idx = entry.prev_entry;
         }
 
-        // Add source at the end (since we walked backward)
         points.push(source);
         points.reverse();
 
-        // Remove collinear intermediate points
         if points.len() <= 2 {
             return points;
         }
@@ -297,15 +268,14 @@ impl PathSearch {
         filtered.push(points[0]);
 
         for i in 1..points.len() - 1 {
-            let prev = filtered.last().unwrap();
-            let curr = &points[i];
-            let next = &points[i + 1];
+            let prev = *filtered.last().unwrap();
+            let curr = points[i];
+            let next = points[i + 1];
 
-            // Keep point if direction changes (not collinear)
-            let dir1 = CompassDirection::from_points(*prev, *curr);
-            let dir2 = CompassDirection::from_points(*curr, *next);
+            let dir1 = CompassDirection::from_points(prev, curr);
+            let dir2 = CompassDirection::from_points(curr, next);
             if dir1 != dir2 {
-                filtered.push(*curr);
+                filtered.push(curr);
             }
         }
 
@@ -314,7 +284,12 @@ impl PathSearch {
     }
 }
 
-/// Estimate the number of bends needed to reach target from current direction.
+/// Compute the Manhattan distance between two points.
+fn manhattan_distance(a: Point, b: Point) -> f64 {
+    (b.x() - a.x()).abs() + (b.y() - a.y()).abs()
+}
+
+/// Estimate the number of bends needed to reach `target` from `point` in `direction`.
 fn estimated_bends_to_target(
     direction: CompassDirection,
     point: Point,
@@ -323,29 +298,83 @@ fn estimated_bends_to_target(
     let dx = target.x() - point.x();
     let dy = target.y() - point.y();
 
-    // If essentially at the target, no bends needed
     if dx.abs() < 1e-9 && dy.abs() < 1e-9 {
         return 0;
     }
 
-    // If aligned on one axis, check if going in the right direction
     let going_toward = match direction {
-        CompassDirection::East => dx > 1e-9,
-        CompassDirection::West => dx < -1e-9,
+        CompassDirection::East  => dx > 1e-9,
+        CompassDirection::West  => dx < -1e-9,
         CompassDirection::North => dy > 1e-9,
         CompassDirection::South => dy < -1e-9,
     };
 
     let need_horizontal = dx.abs() > 1e-9;
-    let need_vertical = dy.abs() > 1e-9;
+    let need_vertical   = dy.abs() > 1e-9;
 
     if !need_horizontal && !need_vertical {
         0
     } else if need_horizontal && need_vertical {
-        // Need to go both horizontally and vertically: at least 1 bend
         if going_toward { 1 } else { 2 }
+    } else if going_toward {
+        0
     } else {
-        // Only one axis needed
-        if going_toward { 0 } else { 2 }
+        2
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::geometry::point::Point;
+
+    #[test]
+    fn bend_penalty_scales_with_distance() {
+        let search = PathSearch::new(DEFAULT_BEND_PENALTY_AS_PERCENTAGE_OF_DISTANCE);
+
+        // distance=100 → bend_cost = 100 * 4/100 = 4 per bend
+        // distance=1000 → bend_cost = 1000 * 4/100 = 40 per bend
+        let cost_near = search.compute_cost(50.0, 1, 100.0);
+        let cost_far  = search.compute_cost(50.0, 1, 1000.0);
+        assert!(cost_far > cost_near, "far bend cost {cost_far} should exceed near bend cost {cost_near}");
+    }
+
+    #[test]
+    fn zero_bends_cost_equals_length() {
+        let search = PathSearch::new(DEFAULT_BEND_PENALTY_AS_PERCENTAGE_OF_DISTANCE);
+        let cost = search.compute_cost(123.0, 0, 500.0);
+        assert!((cost - 123.0).abs() < 1e-10);
+    }
+
+    #[test]
+    fn compute_cost_matches_formula() {
+        // bend_cost per bend = 200 * 4/100 = 8
+        // total = 50 + 8 * 2 = 66
+        let search = PathSearch::new(4.0);
+        let cost = search.compute_cost(50.0, 2, 200.0);
+        assert!((cost - 66.0).abs() < 1e-10);
+    }
+
+    #[test]
+    fn manhattan_distance_axis_aligned() {
+        let a = Point::new(0.0, 0.0);
+        let b = Point::new(3.0, 4.0);
+        assert!((manhattan_distance(a, b) - 7.0).abs() < 1e-10);
+    }
+
+    #[test]
+    fn estimated_bends_already_aligned() {
+        // Heading East, target is directly East → 0 bends.
+        let pt = Point::new(0.0, 0.0);
+        let tgt = Point::new(10.0, 0.0);
+        assert_eq!(estimated_bends_to_target(CompassDirection::East, pt, tgt), 0);
+    }
+
+    #[test]
+    fn estimated_bends_needs_turn() {
+        // Heading East but target is North-East → 1 bend.
+        let pt = Point::new(0.0, 0.0);
+        let tgt = Point::new(5.0, 5.0);
+        assert_eq!(estimated_bends_to_target(CompassDirection::East, pt, tgt), 1);
     }
 }
