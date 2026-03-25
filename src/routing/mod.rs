@@ -14,4 +14,6 @@ pub mod edge_geometry;
 pub mod path_search;
 pub mod port_manager;
 pub mod nudging;
+pub mod neighbor_sides;
+pub mod lookahead_scan;
 pub mod rectilinear_edge_router;
