@@ -1,5 +1,7 @@
 pub mod geometry;
 pub mod projection_solver;
+pub mod visibility;
+pub mod routing;
 mod arenas;
 
 pub use geometry::point::Point;

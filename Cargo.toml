@@ -10,6 +10,7 @@ repository = "https://github.com/ByteBard97/msagl-rust"
 ordered-float = "5"
 slotmap = "1"
 kurbo = "0.13"
+rstar = "0.12"
 
 [dev-dependencies]
 approx = "0.5"
