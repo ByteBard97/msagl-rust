@@ -149,6 +149,99 @@ impl ScanSegmentTree {
     pub fn is_empty(&self) -> bool {
         self.segments.is_empty()
     }
+
+    /// Find the segment with the lowest perpendicular coordinate whose scan range
+    /// contains the given scan coordinate value.
+    pub fn find_lowest_intersector(&self, scan_coord: f64) -> Option<&ScanSegment> {
+        for segs in self.segments.values() {
+            for seg in segs {
+                if seg.contains_coord(scan_coord) {
+                    return Some(seg);
+                }
+            }
+        }
+        None
+    }
+
+    /// Find the segment with the highest perpendicular coordinate whose scan range
+    /// contains the given scan coordinate value.
+    pub fn find_highest_intersector(&self, scan_coord: f64) -> Option<&ScanSegment> {
+        for segs in self.segments.values().rev() {
+            for seg in segs.iter().rev() {
+                if seg.contains_coord(scan_coord) {
+                    return Some(seg);
+                }
+            }
+        }
+        None
+    }
+
+    /// Insert a segment only if no segment with the same start, end, and weight already exists.
+    /// Returns `true` if the segment was inserted, `false` if a duplicate was found.
+    pub fn insert_unique(&mut self, seg: ScanSegment) -> bool {
+        let key = OrderedFloat(GeomConstants::round(
+            self.scan_direction.perp_coord(seg.start)
+        ));
+        let entry = self.segments.entry(key).or_default();
+        let is_duplicate = entry.iter().any(|existing| {
+            existing.weight == seg.weight
+                && (existing.start.x() - seg.start.x()).abs() < GeomConstants::DISTANCE_EPSILON
+                && (existing.start.y() - seg.start.y()).abs() < GeomConstants::DISTANCE_EPSILON
+                && (existing.end.x() - seg.end.x()).abs() < GeomConstants::DISTANCE_EPSILON
+                && (existing.end.y() - seg.end.y()).abs() < GeomConstants::DISTANCE_EPSILON
+        });
+        if is_duplicate {
+            false
+        } else {
+            entry.push(seg);
+            true
+        }
+    }
+
+    /// Get all segments at the given perpendicular coordinate.
+    pub fn segments_at_coord(&self, perp_coord: f64) -> &[ScanSegment] {
+        let key = OrderedFloat(GeomConstants::round(perp_coord));
+        self.segments.get(&key).map(Vec::as_slice).unwrap_or(&[])
+    }
+
+    /// Merge adjacent touching segments at each perpendicular coordinate that share the same weight.
+    /// Two segments merge when one's high_coord equals the other's low_coord and weights match.
+    pub fn merge_segments(&mut self) {
+        for segs in self.segments.values_mut() {
+            // Sort by low_coord so adjacent segments are neighbours in the slice.
+            segs.sort_by(|a, b| {
+                a.low_coord()
+                    .partial_cmp(&b.low_coord())
+                    .unwrap_or(std::cmp::Ordering::Equal)
+            });
+            let mut merged: Vec<ScanSegment> = Vec::with_capacity(segs.len());
+            for seg in segs.drain(..) {
+                if let Some(last) = merged.last_mut() {
+                    let touching = (last.high_coord() - seg.low_coord()).abs()
+                        < GeomConstants::DISTANCE_EPSILON;
+                    if touching && last.weight == seg.weight {
+                        // Extend last segment to cover seg's range.
+                        let new_high = seg.high_coord();
+                        if last.is_vertical {
+                            // Keep perp (x) the same; update the y extent.
+                            let px = last.start.x();
+                            let low_y = last.low_coord();
+                            last.start = Point::new(px, low_y);
+                            last.end = Point::new(px, new_high);
+                        } else {
+                            let py = last.start.y();
+                            let low_x = last.low_coord();
+                            last.start = Point::new(low_x, py);
+                            last.end = Point::new(new_high, py);
+                        }
+                        continue;
+                    }
+                }
+                merged.push(seg);
+            }
+            *segs = merged;
+        }
+    }
 }
 
 #[cfg(test)]
@@ -212,5 +305,173 @@ mod tests {
         assert!(!normal.is_overlapped());
         assert!(refl.is_reflection());
         assert!(over.is_overlapped());
+    }
+
+    // -------------------------------------------------------------------------
+    // ScanSegmentTree — new method tests
+    // -------------------------------------------------------------------------
+
+    #[test]
+    fn find_lowest_intersector_returns_first_crossing() {
+        let mut tree = ScanSegmentTree::new(ScanDirection::horizontal());
+        tree.insert(ScanSegment::new(
+            Point::new(0.0, 10.0), Point::new(50.0, 10.0),
+            SegmentWeight::Normal, false,
+        ));
+        tree.insert(ScanSegment::new(
+            Point::new(0.0, 20.0), Point::new(50.0, 20.0),
+            SegmentWeight::Normal, false,
+        ));
+        // scan_coord 25 is within [0, 50] for both; lowest perp coord is y=10.
+        let lowest = tree.find_lowest_intersector(25.0);
+        assert!(lowest.is_some());
+        assert!((lowest.unwrap().perp_coord() - 10.0).abs() < 1e-10);
+    }
+
+    #[test]
+    fn find_highest_intersector_returns_last_crossing() {
+        let mut tree = ScanSegmentTree::new(ScanDirection::horizontal());
+        tree.insert(ScanSegment::new(
+            Point::new(0.0, 10.0), Point::new(50.0, 10.0),
+            SegmentWeight::Normal, false,
+        ));
+        tree.insert(ScanSegment::new(
+            Point::new(0.0, 20.0), Point::new(50.0, 20.0),
+            SegmentWeight::Normal, false,
+        ));
+        let highest = tree.find_highest_intersector(25.0);
+        assert!(highest.is_some());
+        assert!((highest.unwrap().perp_coord() - 20.0).abs() < 1e-10);
+    }
+
+    #[test]
+    fn find_intersector_returns_none_when_no_crossing() {
+        let mut tree = ScanSegmentTree::new(ScanDirection::horizontal());
+        tree.insert(ScanSegment::new(
+            Point::new(0.0, 10.0), Point::new(50.0, 10.0),
+            SegmentWeight::Normal, false,
+        ));
+        assert!(tree.find_lowest_intersector(60.0).is_none());
+        assert!(tree.find_highest_intersector(60.0).is_none());
+    }
+
+    #[test]
+    fn insert_unique_rejects_duplicate() {
+        let mut tree = ScanSegmentTree::new(ScanDirection::horizontal());
+        let seg = ScanSegment::new(
+            Point::new(0.0, 10.0), Point::new(50.0, 10.0),
+            SegmentWeight::Normal, false,
+        );
+        assert!(tree.insert_unique(seg.clone()));
+        assert!(!tree.insert_unique(seg));
+        assert_eq!(tree.len(), 1);
+    }
+
+    #[test]
+    fn insert_unique_accepts_different_weight() {
+        let mut tree = ScanSegmentTree::new(ScanDirection::horizontal());
+        let seg_a = ScanSegment::new(
+            Point::new(0.0, 10.0), Point::new(50.0, 10.0),
+            SegmentWeight::Normal, false,
+        );
+        let seg_b = ScanSegment::new(
+            Point::new(0.0, 10.0), Point::new(50.0, 10.0),
+            SegmentWeight::Reflection, false,
+        );
+        assert!(tree.insert_unique(seg_a));
+        assert!(tree.insert_unique(seg_b));
+        assert_eq!(tree.len(), 2);
+    }
+
+    #[test]
+    fn segments_at_coord_returns_correct_slice() {
+        let mut tree = ScanSegmentTree::new(ScanDirection::horizontal());
+        tree.insert(ScanSegment::new(
+            Point::new(0.0, 10.0), Point::new(50.0, 10.0),
+            SegmentWeight::Normal, false,
+        ));
+        tree.insert(ScanSegment::new(
+            Point::new(60.0, 10.0), Point::new(100.0, 10.0),
+            SegmentWeight::Reflection, false,
+        ));
+        tree.insert(ScanSegment::new(
+            Point::new(0.0, 20.0), Point::new(50.0, 20.0),
+            SegmentWeight::Normal, false,
+        ));
+        assert_eq!(tree.segments_at_coord(10.0).len(), 2);
+        assert_eq!(tree.segments_at_coord(20.0).len(), 1);
+        assert_eq!(tree.segments_at_coord(30.0).len(), 0);
+    }
+
+    #[test]
+    fn merge_adjacent_segments() {
+        let mut tree = ScanSegmentTree::new(ScanDirection::horizontal());
+        tree.insert(ScanSegment::new(
+            Point::new(0.0, 10.0), Point::new(50.0, 10.0),
+            SegmentWeight::Normal, false,
+        ));
+        tree.insert(ScanSegment::new(
+            Point::new(50.0, 10.0), Point::new(100.0, 10.0),
+            SegmentWeight::Normal, false,
+        ));
+        assert_eq!(tree.len(), 2);
+        tree.merge_segments();
+        assert_eq!(tree.len(), 1);
+        let seg = tree.all_segments().next().unwrap();
+        assert!((seg.low_coord() - 0.0).abs() < 1e-10);
+        assert!((seg.high_coord() - 100.0).abs() < 1e-10);
+    }
+
+    #[test]
+    fn merge_does_not_merge_different_weights() {
+        let mut tree = ScanSegmentTree::new(ScanDirection::horizontal());
+        tree.insert(ScanSegment::new(
+            Point::new(0.0, 10.0), Point::new(50.0, 10.0),
+            SegmentWeight::Normal, false,
+        ));
+        tree.insert(ScanSegment::new(
+            Point::new(50.0, 10.0), Point::new(100.0, 10.0),
+            SegmentWeight::Reflection, false,
+        ));
+        tree.merge_segments();
+        assert_eq!(tree.len(), 2);
+    }
+
+    #[test]
+    fn merge_three_adjacent_same_weight() {
+        let mut tree = ScanSegmentTree::new(ScanDirection::horizontal());
+        tree.insert(ScanSegment::new(
+            Point::new(0.0, 5.0), Point::new(30.0, 5.0),
+            SegmentWeight::Normal, false,
+        ));
+        tree.insert(ScanSegment::new(
+            Point::new(30.0, 5.0), Point::new(60.0, 5.0),
+            SegmentWeight::Normal, false,
+        ));
+        tree.insert(ScanSegment::new(
+            Point::new(60.0, 5.0), Point::new(90.0, 5.0),
+            SegmentWeight::Normal, false,
+        ));
+        tree.merge_segments();
+        assert_eq!(tree.len(), 1);
+        let seg = tree.all_segments().next().unwrap();
+        assert!((seg.low_coord() - 0.0).abs() < 1e-10);
+        assert!((seg.high_coord() - 90.0).abs() < 1e-10);
+    }
+
+    #[test]
+    fn merge_non_adjacent_segments_stay_separate() {
+        let mut tree = ScanSegmentTree::new(ScanDirection::horizontal());
+        tree.insert(ScanSegment::new(
+            Point::new(0.0, 10.0), Point::new(40.0, 10.0),
+            SegmentWeight::Normal, false,
+        ));
+        // Gap: [40, 60] is empty.
+        tree.insert(ScanSegment::new(
+            Point::new(60.0, 10.0), Point::new(100.0, 10.0),
+            SegmentWeight::Normal, false,
+        ));
+        tree.merge_segments();
+        assert_eq!(tree.len(), 2);
     }
 }
