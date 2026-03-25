@@ -21,3 +21,4 @@
 #[path = "routing/linked_point_tests.rs"] mod linked_point_tests;
 #[path = "routing/linked_point_splitter_tests.rs"] mod linked_point_splitter_tests;
 #[path = "routing/path_merger_tests.rs"] mod path_merger_tests;
+#[path = "routing/free_space_finder_tests.rs"] mod free_space_finder_tests;
