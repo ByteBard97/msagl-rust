@@ -20,3 +20,4 @@
 #[path = "routing/transient_graph_utility_tests.rs"] mod transient_graph_utility_tests;
 #[path = "routing/linked_point_tests.rs"] mod linked_point_tests;
 #[path = "routing/linked_point_splitter_tests.rs"] mod linked_point_splitter_tests;
+#[path = "routing/path_merger_tests.rs"] mod path_merger_tests;

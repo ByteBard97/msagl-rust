@@ -4,6 +4,7 @@
 //! parallel segments apart while respecting obstacle boundaries.
 
 pub mod axis_edge;
+pub mod path_merger;
 pub mod linked_point;
 pub mod linked_point_splitter;
 pub mod combinatorial_nudger;
