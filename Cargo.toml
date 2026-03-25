@@ -1,0 +1,15 @@
+[package]
+name = "msagl-rust"
+version = "0.1.0"
+edition = "2021"
+description = "Rectilinear edge router for orthogonal graph layouts, ported from Microsoft's MSAGL"
+license = "MIT"
+repository = "https://github.com/anthropics/msagl-rust"
+
+[dependencies]
+ordered-float = "5"
+slotmap = "1"
+kurbo = "0.13"
+
+[dev-dependencies]
+approx = "0.5"
