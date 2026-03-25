@@ -52,10 +52,10 @@ impl ViolationCache {
     pub fn find_if_greater(&self, target_violation: f64) -> Option<(ConIndex, f64)> {
         let mut best: Option<(ConIndex, f64)> = None;
         for e in &self.entries {
-            if e.violation > target_violation {
-                if best.is_none() || e.violation > best.unwrap().1 {
-                    best = Some((e.constraint, e.violation));
-                }
+            if e.violation > target_violation
+                && (best.is_none() || e.violation > best.unwrap().1)
+            {
+                best = Some((e.constraint, e.violation));
             }
         }
         best
@@ -70,5 +70,11 @@ impl ViolationCache {
             self.low_violation = self.entries.iter().map(|e| e.violation).fold(f64::MAX, f64::min);
             true
         }
+    }
+}
+
+impl Default for ViolationCache {
+    fn default() -> Self {
+        Self::new()
     }
 }
