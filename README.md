@@ -124,7 +124,4 @@ The TypeScript port ([msagl-js](https://github.com/microsoft/msagljs)) was used 
 
 ## License
 
-MIT License. See [LICENSE-MIT](LICENSE-MIT) for details.
-
-Copyright (c) Microsoft Corporation (original MSAGL).
-Portions Copyright (c) 2026 SignalCanvas contributors.
+MIT License — same as the original MSAGL. See [LICENSE-MIT](LICENSE-MIT).
