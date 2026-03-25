@@ -9,8 +9,8 @@ fn two_crossing_segments_create_intersection() {
 
     let graph = build_graph_from_segments(&mut h, &mut v);
 
-    // Should have 1 intersection vertex at (5, 5)
-    assert_eq!(graph.vertex_count(), 1);
+    // V endpoints (5,0), (5,10) + H endpoints (0,5), (10,5) + intersection (5,5) = 5
+    assert_eq!(graph.vertex_count(), 5);
     assert!(graph.find_vertex(Point::new(5.0, 5.0)).is_some());
 }
 
@@ -23,5 +23,6 @@ fn parallel_segments_no_intersection() {
 
     let graph = build_graph_from_segments(&mut h, &mut []);
 
-    assert_eq!(graph.vertex_count(), 0);
+    // 2 H segments with start+end each = 4 vertices
+    assert_eq!(graph.vertex_count(), 4);
 }

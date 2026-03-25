@@ -6,12 +6,6 @@ use crate::visibility::graph::{VertexId, VisibilityGraph};
 use super::scan_direction::ScanDirection;
 use super::static_graph_utility::StaticGraphUtility;
 
-/// Check if point `a` is strictly lower than point `b` using PointComparer ordering.
-/// Matches TS: `PointComparer.IsPureLower(a, b)`
-fn is_pure_lower(a: Point, b: Point) -> bool {
-    StaticGraphUtility::is_pure_lower(a, b)
-}
-
 /// Weight of a scan segment (affects routing preference).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum SegmentWeight {
@@ -109,20 +103,22 @@ impl ScanSegment {
     }
 
     /// Called when the segment intersector begins processing this segment.
-    /// Creates a vertex at the start point if needed (for overlap boundaries).
+    /// Creates a vertex at the start point.
     ///
     /// Matches TS: `ScanSegment.OnSegmentIntersectorBegin(vg)`
-    /// In the full TS, this also handles group crossings and overlap vertices.
-    /// We skip group crossings (deferred) but handle the overlap vertex case.
+    /// In the full TS, this handles group crossings and overlap vertices.
+    /// We skip group crossings (deferred). We always create the start vertex
+    /// to ensure connectivity even for segments without crossings; when the
+    /// full VG generator (Task 8) is in place, this will be narrowed to the
+    /// TS behavior (overlap-only creation).
     pub fn on_intersector_begin(&mut self, graph: &mut VisibilityGraph) {
         // TS: if (!this.AppendGroupCrossingsThroughPoint(vg, this.Start)) {
         //       this.LoadStartOverlapVertexIfNeeded(vg);
         //     }
-        // We don't have group crossings, so go straight to overlap check.
-        if self.needs_overlap_vertex {
-            let v = graph.add_vertex(self.start);
-            self.append_visibility_vertex(graph, v);
-        }
+        // Until the full VG generator produces a dense segment grid, we always
+        // create the start vertex to maintain graph connectivity.
+        let v = graph.add_vertex(self.start);
+        self.append_visibility_vertex(graph, v);
     }
 
     /// Called when the segment intersector finishes this segment.
@@ -133,18 +129,16 @@ impl ScanSegment {
         // TS: this.AppendGroupCrossingsThroughPoint(vg, this.End)
         // (skipped — no groups)
 
-        // TS: if (this.HighestVisibilityVertex == null ||
-        //         PointComparer.IsPureLower(this.HighestVisibilityVertex.point, this.End)) {
-        //       this.LoadEndOverlapVertexIfNeeded(vg);
-        //     }
+        // TS checks HighestVisibilityVertex == null or IsPureLower before loading end.
+        // We always create the end vertex for connectivity (see on_intersector_begin note).
         let should_load_end = match self.highest_vertex {
             None => true,
             Some(hv) => {
                 let hvp = graph.point(hv);
-                is_pure_lower(hvp, self.end)
+                StaticGraphUtility::is_pure_lower(hvp, self.end)
             }
         };
-        if should_load_end && self.needs_overlap_vertex {
+        if should_load_end {
             let v = graph.add_vertex(self.end);
             self.append_visibility_vertex(graph, v);
         }
@@ -160,7 +154,7 @@ impl ScanSegment {
             //       return;  // Already have a higher or equal vertex
             let new_point = graph.point(vertex);
             let high_point = graph.point(highest);
-            if is_pure_lower(new_point, high_point) {
+            if StaticGraphUtility::is_pure_lower(new_point, high_point) {
                 return;
             }
 

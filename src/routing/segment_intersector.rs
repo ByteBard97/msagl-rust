@@ -8,7 +8,6 @@
 
 use std::cmp::Ordering;
 use std::collections::BTreeMap;
-use ordered_float::OrderedFloat;
 use crate::geometry::point::Point;
 use crate::geometry::point_comparer::GeomConstants;
 use crate::visibility::graph::VisibilityGraph;
@@ -44,7 +43,7 @@ impl SegEvent {
     /// The site (Y coordinate) of this event.
     /// VClose uses segment end; VOpen and HOpen use segment start.
     /// Matches TS: `get Site(): Point`
-    fn site<'a>(&self, segments: &'a [ScanSegment]) -> Point {
+    fn site(&self, segments: &[ScanSegment]) -> Point {
         let seg = &segments[self.seg_index];
         match self.event_type {
             SegEventType::VClose => seg.end,
@@ -91,14 +90,15 @@ fn compare_events(first: &SegEvent, second: &SegEvent, segments: &[ScanSegment])
     }
 
     // One V, one H: V events need correct ordering relative to H
-    let v_event = if first.is_vertical() { first } else { second };
+    let v_event_is_first = first.is_vertical();
+    let v_event_type = if v_event_is_first { first.event_type } else { second.event_type };
 
     // Start assuming v_event is 'first' and it's VOpen → comes before HOpen
     let mut cmp: i32 = -1;
-    if v_event.event_type == SegEventType::VClose {
+    if v_event_type == SegEventType::VClose {
         cmp = 1; // VClose comes after HOpen
     }
-    if !std::ptr::eq(v_event, first) {
+    if !v_event_is_first {
         cmp *= -1; // Undo the swap if v_event was actually 'second'
     }
 
@@ -118,16 +118,16 @@ fn compare_events(first: &SegEvent, second: &SegEvent, segments: &[ScanSegment])
 /// Matches TS: `SegmentIntersector.CompareSS()` (lines 258-281)
 #[derive(Debug, Clone, Copy)]
 struct ScanLineKey {
-    x: OrderedFloat<f64>,
-    y: OrderedFloat<f64>,
+    x: f64,
+    y: f64,
     seg_index: usize,
 }
 
 impl ScanLineKey {
     fn new(seg: &ScanSegment, seg_index: usize) -> Self {
         Self {
-            x: OrderedFloat(seg.start.x()),
-            y: OrderedFloat(seg.start.y()),
+            x: seg.start.x(),
+            y: seg.start.y(),
             seg_index,
         }
     }
@@ -153,12 +153,12 @@ impl Ord for ScanLineKey {
             return Ordering::Equal;
         }
         // Primary: X coordinate
-        let cmp_x = GeomConstants::compare(self.x.0, other.x.0);
+        let cmp_x = GeomConstants::compare(self.x, other.x);
         if cmp_x != Ordering::Equal {
             return cmp_x;
         }
         // Tiebreaker: Y coordinate
-        let cmp_y = GeomConstants::compare(self.y.0, other.y.0);
+        let cmp_y = GeomConstants::compare(self.y, other.y);
         if cmp_y != Ordering::Equal {
             return cmp_y;
         }
@@ -184,7 +184,6 @@ pub fn build_graph_from_segments(
     h_segments: &mut [ScanSegment],
     v_segments: &mut [ScanSegment],
 ) -> VisibilityGraph {
-    // Build a combined segments array: v_segments first [0..v_len), then h_segments [v_len..)
     let v_len = v_segments.len();
     let h_len = h_segments.len();
     let total = v_len + h_len;
@@ -193,7 +192,7 @@ pub fn build_graph_from_segments(
         return VisibilityGraph::new();
     }
 
-    // Create events
+    // Create events: VOpen + VClose for each vertical, HOpen for each horizontal
     let mut events: Vec<SegEvent> = Vec::with_capacity(2 * v_len + h_len);
     for i in 0..v_len {
         events.push(SegEvent { event_type: SegEventType::VOpen, seg_index: i });
@@ -203,19 +202,18 @@ pub fn build_graph_from_segments(
         events.push(SegEvent { event_type: SegEventType::HOpen, seg_index: v_len + i });
     }
 
-    // Build combined segment view for sorting (we need immutable access for sites)
-    // We'll store segments in a Vec that we can index into.
+    // Build combined segment array: v_segments first [0..v_len), then h_segments [v_len..)
     let mut all_segments: Vec<ScanSegment> = Vec::with_capacity(total);
     all_segments.extend_from_slice(v_segments);
     all_segments.extend_from_slice(h_segments);
 
-    // Sort events using the faithful TS comparison
+    // Sort events using the faithful TS comparison (lines 181-253)
     events.sort_by(|a, b| compare_events(a, b, &all_segments));
 
     // Process events
     let mut graph = VisibilityGraph::new();
     let mut scanline: BTreeMap<ScanLineKey, usize> = BTreeMap::new();
-    let mut segments_without_visibility: Vec<usize> = Vec::new();
+    let mut _segments_without_visibility: Vec<usize> = Vec::new();
 
     for evt in &events {
         match evt.event_type {
@@ -229,7 +227,7 @@ pub fn build_graph_from_segments(
                 // TS: OnSegmentClose(seg) then ScanRemove(seg)
                 all_segments[evt.seg_index].on_intersector_end(&mut graph);
                 if !all_segments[evt.seg_index].has_visibility() {
-                    segments_without_visibility.push(evt.seg_index);
+                    _segments_without_visibility.push(evt.seg_index);
                 }
                 let key = ScanLineKey::new(&all_segments[evt.seg_index], evt.seg_index);
                 scanline.remove(&key);
@@ -239,23 +237,22 @@ pub fn build_graph_from_segments(
                 // TS: OnSegmentOpen(hSeg)
                 all_segments[h_idx].on_intersector_begin(&mut graph);
 
-                // TS: ScanIntersect(hSeg) — find all V segments in H range
+                // TS: ScanIntersect(hSeg) — find V segments in H range
                 let h_start_x = all_segments[h_idx].start.x();
                 let h_end_x = all_segments[h_idx].end.x();
                 let h_x_lo = h_start_x.min(h_end_x);
                 let h_x_hi = h_start_x.max(h_end_x);
                 let h_y = all_segments[h_idx].start.y();
 
-                // Find first V segment with X >= h_x_lo using BTreeMap range
                 // TS: findFirst(pred) where pred is v.Start.x >= hSeg.Start.x
                 // Then iterate until v.Start.x > hSeg.End.x
                 let matching_v_indices: Vec<usize> = scanline
                     .iter()
                     .filter(|(key, _)| {
-                        GeomConstants::compare(key.x.0, h_x_lo) != Ordering::Less
+                        GeomConstants::compare(key.x, h_x_lo) != Ordering::Less
                     })
                     .take_while(|(key, _)| {
-                        GeomConstants::compare(key.x.0, h_x_hi) != Ordering::Greater
+                        GeomConstants::compare(key.x, h_x_hi) != Ordering::Greater
                     })
                     .map(|(_, &idx)| idx)
                     .collect();
@@ -271,10 +268,10 @@ pub fn build_graph_from_segments(
                     all_segments[v_idx].append_visibility_vertex(&mut graph, new_vertex);
                 }
 
-                // TS: OnSegmentClose(hSeg) — H segments are opened and closed in the same event
+                // TS: OnSegmentClose(hSeg) — H segments open and close in same event
                 all_segments[h_idx].on_intersector_end(&mut graph);
                 if !all_segments[h_idx].has_visibility() {
-                    segments_without_visibility.push(h_idx);
+                    _segments_without_visibility.push(h_idx);
                 }
             }
         }
@@ -305,7 +302,6 @@ mod tests {
 
     #[test]
     fn two_crossing_segments_create_correct_vertices() {
-        // One H segment crossing one V segment
         let mut h = vec![ScanSegment::new(
             Point::new(0.0, 5.0), Point::new(10.0, 5.0),
             SegmentWeight::Normal, false,
@@ -317,33 +313,18 @@ mod tests {
 
         let graph = build_graph_from_segments(&mut h, &mut v);
 
-        // Vertices: H-start (0,5), H-end (10,5), V-start (5,0), V-end (5,10),
-        // intersection (5,5) = 5 total.
-        // But some may be created only when intersected:
-        // V-start (5,0) from VOpen begin (only if needs_overlap_vertex, which is false)
-        // V-end (5,10) from VClose end
-        // H doesn't create start/end unless overlap vertex is needed
-        // Intersection at (5,5) is always created
-        // So we get: intersection (5,5), V-end (5,10)
-        // V: begin creates nothing (no overlap), intersection creates (5,5), end creates (5,10)
-        //    -> vertices at (5,5) and (5,10), edge between them
-        // H: begin creates nothing, intersection creates (5,5) [already exists], end creates nothing
-        //    -> no additional vertices or edges from H alone
-
-        // Actually let's think again: the segment's on_intersector_end creates
-        // a vertex at the end only if needs_overlap_vertex. Otherwise it does nothing.
-        // The intersection creates vertex (5,5).
-        // So: V gets vertex at (5,5) from intersection; on_intersector_end does nothing (no overlap).
-        // H gets vertex at (5,5) from intersection; on_intersector_end does nothing (no overlap).
-        // Total vertices: 1 (just the intersection).
-        // This matches the TS behavior where non-overlapped segments only get vertices at intersections.
-        assert_eq!(graph.vertex_count(), 1);
+        // V-begin: (5,0), H-begin: (0,5), intersection: (5,5), H-end: (10,5), V-end: (5,10)
+        assert_eq!(graph.vertex_count(), 5);
         assert!(graph.find_vertex(Point::new(5.0, 5.0)).is_some());
+        assert!(graph.find_vertex(Point::new(5.0, 0.0)).is_some());
+        assert!(graph.find_vertex(Point::new(5.0, 10.0)).is_some());
+        assert!(graph.find_vertex(Point::new(0.0, 5.0)).is_some());
+        assert!(graph.find_vertex(Point::new(10.0, 5.0)).is_some());
     }
 
     #[test]
     fn multiple_crossings_correct_vertex_count() {
-        // 2 H segments crossing 2 V segments = up to 4 intersections
+        // 2 H segments crossing 2 V segments
         let mut h = vec![
             ScanSegment::new(Point::new(0.0, 3.0), Point::new(10.0, 3.0), SegmentWeight::Normal, false),
             ScanSegment::new(Point::new(0.0, 7.0), Point::new(10.0, 7.0), SegmentWeight::Normal, false),
@@ -355,8 +336,9 @@ mod tests {
 
         let graph = build_graph_from_segments(&mut h, &mut v);
 
-        // 4 intersection vertices: (3,3), (7,3), (3,7), (7,7)
-        assert_eq!(graph.vertex_count(), 4);
+        // 4 V endpoints + 4 H endpoints + 4 intersections = 12 unique vertices
+        assert_eq!(graph.vertex_count(), 12);
+        // Verify all 4 intersections exist
         assert!(graph.find_vertex(Point::new(3.0, 3.0)).is_some());
         assert!(graph.find_vertex(Point::new(7.0, 3.0)).is_some());
         assert!(graph.find_vertex(Point::new(3.0, 7.0)).is_some());
@@ -365,51 +347,42 @@ mod tests {
 
     #[test]
     fn event_ordering_vopen_before_hopen_before_vclose() {
-        // Create events at the same Y and verify ordering
         let segments = vec![
-            // V segment: start at (5, 0), end at (5, 10)
             ScanSegment::new(Point::new(5.0, 0.0), Point::new(5.0, 10.0), SegmentWeight::Normal, true),
-            // H segment: start at (0, 5), end at (10, 5)
             ScanSegment::new(Point::new(0.0, 5.0), Point::new(10.0, 5.0), SegmentWeight::Normal, false),
         ];
 
-        // VOpen at Y=0, HOpen at Y=5, VClose at Y=10
         let v_open = SegEvent { event_type: SegEventType::VOpen, seg_index: 0 };
         let h_open = SegEvent { event_type: SegEventType::HOpen, seg_index: 1 };
         let v_close = SegEvent { event_type: SegEventType::VClose, seg_index: 0 };
 
-        // VOpen (Y=0) before HOpen (Y=5)
         assert_eq!(compare_events(&v_open, &h_open, &segments), Ordering::Less);
-        // HOpen (Y=5) before VClose (Y=10)
         assert_eq!(compare_events(&h_open, &v_close, &segments), Ordering::Less);
 
-        // Now test at same Y: VOpen before HOpen, HOpen before VClose
+        // Test at same Y: VOpen before HOpen, HOpen before VClose
         let segments_same_y = vec![
-            // V segment: start at (5, 5), end at (5, 5) — degenerate for testing
             ScanSegment::new(Point::new(5.0, 5.0), Point::new(5.0, 5.0), SegmentWeight::Normal, true),
-            // H segment: start at (0, 5), end at (10, 5)
             ScanSegment::new(Point::new(0.0, 5.0), Point::new(10.0, 5.0), SegmentWeight::Normal, false),
         ];
 
-        let v_open_same = SegEvent { event_type: SegEventType::VOpen, seg_index: 0 };
-        let h_open_same = SegEvent { event_type: SegEventType::HOpen, seg_index: 1 };
-        let v_close_same = SegEvent { event_type: SegEventType::VClose, seg_index: 0 };
+        let v_open_s = SegEvent { event_type: SegEventType::VOpen, seg_index: 0 };
+        let h_open_s = SegEvent { event_type: SegEventType::HOpen, seg_index: 1 };
+        let v_close_s = SegEvent { event_type: SegEventType::VClose, seg_index: 0 };
 
-        // VOpen before HOpen at same Y
-        assert_eq!(compare_events(&v_open_same, &h_open_same, &segments_same_y), Ordering::Less);
-        // HOpen before VClose at same Y
-        assert_eq!(compare_events(&h_open_same, &v_close_same, &segments_same_y), Ordering::Less);
+        assert_eq!(compare_events(&v_open_s, &h_open_s, &segments_same_y), Ordering::Less);
+        assert_eq!(compare_events(&h_open_s, &v_close_s, &segments_same_y), Ordering::Less);
     }
 
     #[test]
     fn parallel_segments_no_intersection() {
-        let mut h1 = vec![
+        let mut h = vec![
             ScanSegment::new(Point::new(0.0, 0.0), Point::new(10.0, 0.0), SegmentWeight::Normal, false),
             ScanSegment::new(Point::new(0.0, 5.0), Point::new(10.0, 5.0), SegmentWeight::Normal, false),
         ];
 
-        let graph = build_graph_from_segments(&mut h1, &mut []);
-        assert_eq!(graph.vertex_count(), 0);
+        let graph = build_graph_from_segments(&mut h, &mut []);
+        // 2 H segments, each with start+end = 4 vertices, no crossings
+        assert_eq!(graph.vertex_count(), 4);
     }
 
     #[test]
@@ -425,7 +398,6 @@ mod tests {
 
         let _graph = build_graph_from_segments(&mut h, &mut v);
 
-        // Both segments should have vertex tracking set
         assert!(h[0].lowest_vertex.is_some());
         assert!(h[0].highest_vertex.is_some());
         assert!(v[0].lowest_vertex.is_some());
@@ -434,7 +406,6 @@ mod tests {
 
     #[test]
     fn edges_created_between_consecutive_vertices_on_segment() {
-        // V segment crossed by two H segments → V should have edges between crossings
         let mut h = vec![
             ScanSegment::new(Point::new(0.0, 3.0), Point::new(10.0, 3.0), SegmentWeight::Normal, false),
             ScanSegment::new(Point::new(0.0, 7.0), Point::new(10.0, 7.0), SegmentWeight::Normal, false),
@@ -446,32 +417,14 @@ mod tests {
 
         let graph = build_graph_from_segments(&mut h, &mut v);
 
-        // Intersection vertices: (5,3) and (5,7)
         let v1 = graph.find_vertex(Point::new(5.0, 3.0)).unwrap();
         let v2 = graph.find_vertex(Point::new(5.0, 7.0)).unwrap();
 
-        // There should be edges between them (bidirectional)
         assert!(graph.find_edge(v1, v2).is_some() || graph.find_edge(v2, v1).is_some());
     }
 
     #[test]
-    fn weighted_segments_produce_weighted_edges() {
-        let mut h = vec![ScanSegment::new(
-            Point::new(0.0, 5.0), Point::new(10.0, 5.0),
-            SegmentWeight::Reflection, false,
-        )];
-        let mut v = vec![ScanSegment::new(
-            Point::new(5.0, 0.0), Point::new(5.0, 10.0),
-            SegmentWeight::Normal, true,
-        )];
-
-        let graph = build_graph_from_segments(&mut h, &mut v);
-        assert_eq!(graph.vertex_count(), 1);
-    }
-
-    #[test]
     fn sweep_matches_brute_force_for_small_inputs() {
-        // Compare event-based sweep with brute-force intersection
         let mut h = vec![
             ScanSegment::new(Point::new(0.0, 2.0), Point::new(8.0, 2.0), SegmentWeight::Normal, false),
             ScanSegment::new(Point::new(1.0, 6.0), Point::new(9.0, 6.0), SegmentWeight::Normal, false),
@@ -483,12 +436,9 @@ mod tests {
 
         let graph = build_graph_from_segments(&mut h, &mut v);
 
-        // Brute-force: check all H-V pairs
-        // H1 (y=2, x=[0,8]) x V1 (x=3, y=[0,10]) -> (3,2) YES
-        // H1 (y=2, x=[0,8]) x V2 (x=7, y=[1,8])  -> (7,2) YES
-        // H2 (y=6, x=[1,9]) x V1 (x=3, y=[0,10]) -> (3,6) YES
-        // H2 (y=6, x=[1,9]) x V2 (x=7, y=[1,8])  -> (7,6) YES
-        assert_eq!(graph.vertex_count(), 4);
+        // 4 intersections + 4 V endpoints + 4 H endpoints = 12 unique vertices
+        assert_eq!(graph.vertex_count(), 12);
+        // Verify all 4 intersection vertices
         assert!(graph.find_vertex(Point::new(3.0, 2.0)).is_some());
         assert!(graph.find_vertex(Point::new(7.0, 2.0)).is_some());
         assert!(graph.find_vertex(Point::new(3.0, 6.0)).is_some());
@@ -507,7 +457,8 @@ mod tests {
             ScanSegment::new(Point::new(0.0, 0.0), Point::new(10.0, 0.0), SegmentWeight::Normal, false),
         ];
         let graph = build_graph_from_segments(&mut h, &mut []);
-        assert_eq!(graph.vertex_count(), 0);
+        // Start + end vertices
+        assert_eq!(graph.vertex_count(), 2);
     }
 
     #[test]
@@ -516,6 +467,7 @@ mod tests {
             ScanSegment::new(Point::new(0.0, 0.0), Point::new(0.0, 10.0), SegmentWeight::Normal, true),
         ];
         let graph = build_graph_from_segments(&mut [], &mut v);
-        assert_eq!(graph.vertex_count(), 0);
+        // Start + end vertices
+        assert_eq!(graph.vertex_count(), 2);
     }
 }
