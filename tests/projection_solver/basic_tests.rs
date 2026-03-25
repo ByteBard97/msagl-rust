@@ -230,3 +230,80 @@ fn weighted_variables() {
     assert!(pos1 - pos0 >= 5.0 - 1e-4);
     assert!(pos0.abs() < 0.5); // Heavy var barely moves
 }
+
+// ===== QPSC tests =====
+
+#[test]
+fn solver_with_neighbors() {
+    let mut solver = Solver::new();
+    let v0 = solver.add_variable(0.0, 1.0, 1.0);
+    let v1 = solver.add_variable(10.0, 1.0, 1.0);
+    let v2 = solver.add_variable(20.0, 1.0, 1.0);
+    solver.add_constraint(v0, v1, 3.0, false);
+    solver.add_constraint(v1, v2, 3.0, false);
+    solver.add_neighbor_pair(v0, v2, 1.0);
+
+    let _solution = solver.solve(None);
+    let pos0 = solver.variable(v0).actual_pos;
+    let pos1 = solver.variable(v1).actual_pos;
+    let pos2 = solver.variable(v2).actual_pos;
+    // Constraints satisfied
+    assert!(pos1 - pos0 >= 3.0 - 1e-3, "gap01={}", pos1 - pos0);
+    assert!(pos2 - pos1 >= 3.0 - 1e-3, "gap12={}", pos2 - pos1);
+    // Neighbor force pulls v0 and v2 closer than their desired 20-unit spread
+    assert!(pos2 - pos0 < 20.0, "spread={}", pos2 - pos0);
+}
+
+#[test]
+fn solver_force_qpsc_no_neighbors() {
+    // ForceQpsc should work even without neighbors
+    let mut solver = Solver::new();
+    let v0 = solver.add_variable(5.0, 1.0, 1.0);
+    let v1 = solver.add_variable(6.0, 1.0, 1.0);
+    solver.add_constraint(v0, v1, 3.0, false);
+
+    let mut params = Parameters::default();
+    params.advanced.force_qpsc = true;
+    let _solution = solver.solve(Some(params));
+    let pos0 = solver.variable(v0).actual_pos;
+    let pos1 = solver.variable(v1).actual_pos;
+    assert!(pos1 - pos0 >= 3.0 - 1e-3, "gap={}", pos1 - pos0);
+}
+
+#[test]
+fn solver_neighbors_with_equality() {
+    let mut solver = Solver::new();
+    let v0 = solver.add_variable(0.0, 1.0, 1.0);
+    let v1 = solver.add_variable(10.0, 1.0, 1.0);
+    let v2 = solver.add_variable(20.0, 1.0, 1.0);
+    solver.add_constraint(v0, v1, 5.0, true); // equality
+    solver.add_constraint(v1, v2, 5.0, false);
+    solver.add_neighbor_pair(v0, v2, 1.0);
+
+    let _solution = solver.solve(None);
+    let pos0 = solver.variable(v0).actual_pos;
+    let pos1 = solver.variable(v1).actual_pos;
+    let pos2 = solver.variable(v2).actual_pos;
+    // Equality constraint: exactly 5.0 gap
+    assert!((pos1 - pos0 - 5.0).abs() < 1e-3, "eq gap={}", pos1 - pos0);
+    assert!(pos2 - pos1 >= 5.0 - 1e-3, "gap12={}", pos2 - pos1);
+}
+
+#[test]
+fn solver_qpsc_no_constraints_neighbors_only() {
+    // Neighbors but no constraints -- should still converge
+    let mut solver = Solver::new();
+    let v0 = solver.add_variable(0.0, 1.0, 1.0);
+    let v1 = solver.add_variable(100.0, 1.0, 1.0);
+    solver.add_neighbor_pair(v0, v1, 10.0);
+
+    let _solution = solver.solve(None);
+    let pos0 = solver.variable(v0).actual_pos;
+    let pos1 = solver.variable(v1).actual_pos;
+    // Neighbor force pulls them together; they should be closer than 100 apart
+    assert!(
+        (pos1 - pos0).abs() < 100.0,
+        "spread={}",
+        (pos1 - pos0).abs()
+    );
+}

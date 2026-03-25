@@ -56,4 +56,14 @@ impl ConstraintVector {
     pub fn all_constraints(&self) -> &[ConIndex] {
         &self.order
     }
+
+    /// Reset all constraints to inactive (for QPSC block reinitialization).
+    pub fn reinitialize(&mut self) {
+        self.first_active = self.order.len();
+        // Restore identity mapping
+        for i in 0..self.order.len() {
+            self.order[i] = ConIndex(i);
+            self.positions[i] = i;
+        }
+    }
 }

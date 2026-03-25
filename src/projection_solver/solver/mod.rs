@@ -7,6 +7,7 @@ use super::variable::{NeighborAndWeight, VarIndex, Variable};
 use super::violation_cache::ViolationCache;
 
 mod dfdv;
+mod qpsc_solve;
 mod solver_impl;
 
 /// Loaded constraint info before solve() converts to arrays.
@@ -174,10 +175,8 @@ impl Solver {
             );
         }
 
-        if self.is_qpsc {
-            // QPSC not yet implemented -- fall through to standalone project
-            self.solve_by_standalone_project();
-            self.calculate_goal_function_value();
+        if self.is_qpsc || self.solver_params.advanced.force_qpsc {
+            self.solve_qpsc();
         } else {
             self.solve_by_standalone_project();
             self.calculate_goal_function_value();
