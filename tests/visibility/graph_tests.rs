@@ -1,1 +1,58 @@
-// Placeholder — tests added in Task 3
+use msagl_rust::visibility::graph::{VisibilityGraph, VertexId};
+use msagl_rust::Point;
+
+#[test]
+fn add_and_find_vertex() {
+    let mut g = VisibilityGraph::new();
+    let v = g.add_vertex(Point::new(1.0, 2.0));
+    assert_eq!(g.find_vertex(Point::new(1.0, 2.0)), Some(v));
+    assert_eq!(g.find_vertex(Point::new(3.0, 4.0)), None);
+}
+
+#[test]
+fn add_edge() {
+    let mut g = VisibilityGraph::new();
+    let v1 = g.add_vertex(Point::new(0.0, 0.0));
+    let v2 = g.add_vertex(Point::new(5.0, 0.0));
+    g.add_edge(v1, v2, 1.0);
+    assert_eq!(g.out_degree(v1), 1);
+    assert_eq!(g.in_degree(v2), 1);
+}
+
+#[test]
+fn find_or_add_vertex_idempotent() {
+    let mut g = VisibilityGraph::new();
+    let v1 = g.find_or_add_vertex(Point::new(1.0, 2.0));
+    let v2 = g.find_or_add_vertex(Point::new(1.0, 2.0));
+    assert_eq!(v1, v2);
+    assert_eq!(g.vertex_count(), 1);
+}
+
+#[test]
+fn remove_edge() {
+    let mut g = VisibilityGraph::new();
+    let v1 = g.add_vertex(Point::new(0.0, 0.0));
+    let v2 = g.add_vertex(Point::new(5.0, 0.0));
+    g.add_edge(v1, v2, 1.0);
+    g.remove_edge(v1, v2);
+    assert_eq!(g.out_degree(v1), 0);
+}
+
+#[test]
+fn vertex_point() {
+    let mut g = VisibilityGraph::new();
+    let v = g.add_vertex(Point::new(3.0, 4.0));
+    assert_eq!(g.point(v), Point::new(3.0, 4.0));
+}
+
+#[test]
+fn out_edges_iteration() {
+    let mut g = VisibilityGraph::new();
+    let v1 = g.add_vertex(Point::new(0.0, 0.0));
+    let v2 = g.add_vertex(Point::new(5.0, 0.0));
+    let v3 = g.add_vertex(Point::new(0.0, 5.0));
+    g.add_edge(v1, v2, 1.0);
+    g.add_edge(v1, v3, 1.0);
+    let targets: Vec<VertexId> = g.out_edges(v1).map(|e| e.target).collect();
+    assert_eq!(targets.len(), 2);
+}
