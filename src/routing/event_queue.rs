@@ -4,35 +4,77 @@ use crate::geometry::point::Point;
 use crate::geometry::point_comparer::GeomConstants;
 use super::scan_direction::ScanDirection;
 
-/// Sweep event types for rectangular obstacle corners.
+/// Full sweep event hierarchy for the rectilinear visibility sweep line.
+///
+/// Mirrors the TS EventQueue.ts hierarchy:
+///   SweepEvent
+///   ├── VertexEvent  (OpenVertex, CloseVertex, LowBend, HighBend)
+///   └── ReflectionEvent (LowReflection, HighReflection)
 #[derive(Clone, Debug)]
 pub enum SweepEvent {
-    /// Opening corner: obstacle's low side enters the scan line.
-    Open { point: Point, obstacle_index: usize },
-    /// Closing corner: obstacle's side exits the scan line.
-    Close { point: Point, obstacle_index: usize },
+    /// Obstacle corner entering sweep range (low side of obstacle).
+    OpenVertex { site: Point, obstacle_index: usize },
+    /// Obstacle corner leaving sweep range (high side of obstacle).
+    CloseVertex { site: Point, obstacle_index: usize },
+    /// Low bend at obstacle corner (between open and close).
+    LowBend { site: Point, obstacle_index: usize },
+    /// High bend at obstacle corner (between open and close).
+    HighBend { site: Point, obstacle_index: usize },
+    /// Reflection event off a low obstacle side.
+    LowReflection {
+        site: Point,
+        initial_obstacle: usize,
+        reflecting_obstacle: usize,
+        prev_event_index: Option<usize>,
+    },
+    /// Reflection event off a high obstacle side.
+    HighReflection {
+        site: Point,
+        initial_obstacle: usize,
+        reflecting_obstacle: usize,
+        prev_event_index: Option<usize>,
+    },
 }
 
 impl SweepEvent {
-    pub fn point(&self) -> Point {
+    /// The spatial site of this event.
+    pub fn site(&self) -> Point {
         match self {
-            SweepEvent::Open { point, .. } => *point,
-            SweepEvent::Close { point, .. } => *point,
+            Self::OpenVertex { site, .. }
+            | Self::CloseVertex { site, .. }
+            | Self::LowBend { site, .. }
+            | Self::HighBend { site, .. }
+            | Self::LowReflection { site, .. }
+            | Self::HighReflection { site, .. } => *site,
         }
     }
 
-    pub fn obstacle_index(&self) -> usize {
+    /// The obstacle index for vertex events; `None` for reflection events.
+    pub fn obstacle_index(&self) -> Option<usize> {
         match self {
-            SweepEvent::Open { obstacle_index, .. } => *obstacle_index,
-            SweepEvent::Close { obstacle_index, .. } => *obstacle_index,
+            Self::OpenVertex { obstacle_index, .. }
+            | Self::CloseVertex { obstacle_index, .. }
+            | Self::LowBend { obstacle_index, .. }
+            | Self::HighBend { obstacle_index, .. } => Some(*obstacle_index),
+            Self::LowReflection { .. } | Self::HighReflection { .. } => None,
         }
     }
 
-    /// Priority: Open events before Close events at same position.
+    /// Returns `true` if this is a reflection event.
+    pub fn is_reflection(&self) -> bool {
+        matches!(self, Self::LowReflection { .. } | Self::HighReflection { .. })
+    }
+
+    /// Event type priority (lower = processed first at the same coordinate).
+    ///
+    /// Matches TS EventQueue.ts ordering:
+    ///   reflection events (0) → open (1) → bend (2) → close (3)
     fn type_priority(&self) -> u8 {
         match self {
-            SweepEvent::Open { .. } => 0,
-            SweepEvent::Close { .. } => 1,
+            Self::LowReflection { .. } | Self::HighReflection { .. } => 0,
+            Self::OpenVertex { .. } => 1,
+            Self::LowBend { .. } | Self::HighBend { .. } => 2,
+            Self::CloseVertex { .. } => 3,
         }
     }
 }
@@ -61,11 +103,18 @@ impl PartialOrd for OrderedEvent {
 
 impl Ord for OrderedEvent {
     fn cmp(&self, other: &Self) -> Ordering {
-        // Reverse ordering for min-heap (BinaryHeap is max-heap)
+        // Reverse ordering for min-heap (BinaryHeap is max-heap by default).
+        // Primary: smallest perp_coord first.
         let perp = GeomConstants::compare(other.perp_coord, self.perp_coord);
-        if perp != Ordering::Equal { return perp; }
+        if perp != Ordering::Equal {
+            return perp;
+        }
+        // Secondary: lower type_priority value first (reflection < open < bend < close).
         let tp = self.event.type_priority().cmp(&other.event.type_priority());
-        if tp != Ordering::Equal { return tp.reverse(); }
+        if tp != Ordering::Equal {
+            return tp.reverse();
+        }
+        // Tertiary: smaller scan_coord first.
         GeomConstants::compare(other.scan_coord, self.scan_coord)
     }
 }
@@ -85,10 +134,10 @@ impl EventQueue {
     }
 
     pub fn enqueue(&mut self, event: SweepEvent) {
-        let point = event.point();
+        let site = event.site();
         let oe = OrderedEvent {
-            perp_coord: self.scan_direction.perp_coord(point),
-            scan_coord: self.scan_direction.coord(point),
+            perp_coord: self.scan_direction.perp_coord(site),
+            scan_coord: self.scan_direction.coord(site),
             event,
         };
         self.heap.push(oe);
@@ -104,5 +153,84 @@ impl EventQueue {
 
     pub fn len(&self) -> usize {
         self.heap.len()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::geometry::point::Point;
+
+    #[test]
+    fn events_ordered_by_perp_coord_first() {
+        let mut queue = EventQueue::new(ScanDirection::horizontal());
+        queue.enqueue(SweepEvent::OpenVertex { site: Point::new(5.0, 20.0), obstacle_index: 0 });
+        queue.enqueue(SweepEvent::OpenVertex { site: Point::new(3.0, 10.0), obstacle_index: 1 });
+        // Horizontal scan: perp coord is Y. Y=10 comes before Y=20.
+        let first = queue.dequeue().unwrap();
+        assert!((first.site().y() - 10.0).abs() < 1e-10);
+    }
+
+    #[test]
+    fn reflection_events_before_vertex_events_at_same_coord() {
+        let mut queue = EventQueue::new(ScanDirection::horizontal());
+        queue.enqueue(SweepEvent::OpenVertex { site: Point::new(5.0, 10.0), obstacle_index: 0 });
+        queue.enqueue(SweepEvent::LowReflection {
+            site: Point::new(3.0, 10.0),
+            initial_obstacle: 0,
+            reflecting_obstacle: 1,
+            prev_event_index: None,
+        });
+        let first = queue.dequeue().unwrap();
+        assert!(first.is_reflection());
+    }
+
+    #[test]
+    fn open_before_close_at_same_coord() {
+        let mut queue = EventQueue::new(ScanDirection::horizontal());
+        queue.enqueue(SweepEvent::CloseVertex { site: Point::new(5.0, 10.0), obstacle_index: 0 });
+        queue.enqueue(SweepEvent::OpenVertex { site: Point::new(5.0, 10.0), obstacle_index: 1 });
+        let first = queue.dequeue().unwrap();
+        assert!(matches!(first, SweepEvent::OpenVertex { .. }));
+    }
+
+    #[test]
+    fn bend_events_between_open_and_close() {
+        let mut queue = EventQueue::new(ScanDirection::horizontal());
+        queue.enqueue(SweepEvent::CloseVertex { site: Point::new(5.0, 10.0), obstacle_index: 0 });
+        queue.enqueue(SweepEvent::LowBend { site: Point::new(5.0, 10.0), obstacle_index: 0 });
+        queue.enqueue(SweepEvent::OpenVertex { site: Point::new(5.0, 10.0), obstacle_index: 0 });
+        let first = queue.dequeue().unwrap();
+        assert!(matches!(first, SweepEvent::OpenVertex { .. }));
+        let second = queue.dequeue().unwrap();
+        assert!(matches!(second, SweepEvent::LowBend { .. }));
+        let third = queue.dequeue().unwrap();
+        assert!(matches!(third, SweepEvent::CloseVertex { .. }));
+    }
+
+    #[test]
+    fn site_accessor_works_for_all_variants() {
+        let events = vec![
+            SweepEvent::OpenVertex { site: Point::new(1.0, 2.0), obstacle_index: 0 },
+            SweepEvent::CloseVertex { site: Point::new(3.0, 4.0), obstacle_index: 0 },
+            SweepEvent::LowBend { site: Point::new(5.0, 6.0), obstacle_index: 0 },
+            SweepEvent::HighBend { site: Point::new(7.0, 8.0), obstacle_index: 0 },
+            SweepEvent::LowReflection {
+                site: Point::new(9.0, 10.0),
+                initial_obstacle: 0,
+                reflecting_obstacle: 1,
+                prev_event_index: None,
+            },
+            SweepEvent::HighReflection {
+                site: Point::new(11.0, 12.0),
+                initial_obstacle: 0,
+                reflecting_obstacle: 1,
+                prev_event_index: None,
+            },
+        ];
+        let expected_x = [1.0_f64, 3.0, 5.0, 7.0, 9.0, 11.0];
+        for (event, &ex) in events.iter().zip(expected_x.iter()) {
+            assert!((event.site().x() - ex).abs() < 1e-10);
+        }
     }
 }
