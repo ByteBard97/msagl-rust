@@ -307,3 +307,52 @@ fn solver_qpsc_no_constraints_neighbors_only() {
         (pos1 - pos0).abs()
     );
 }
+
+// ===== SolverShell tests =====
+
+use msagl_rust::projection_solver::solver_shell::SolverShell;
+use msagl_rust::projection_solver::uniform_solver::UniformOneDimensionalSolver;
+
+#[test]
+fn solver_shell_basic() {
+    let mut shell = SolverShell::new();
+    let v0 = shell.add_variable(None, 0.0, 1.0, 1.0);
+    let v1 = shell.add_variable(None, 10.0, 1.0, 1.0);
+    shell.add_left_right_constraint(v0, v1, 3.0);
+    shell.solve();
+    let pos0 = shell.get_variable_resolved_position(v0);
+    let pos1 = shell.get_variable_resolved_position(v1);
+    assert!(pos1 - pos0 >= 3.0 - 1e-4);
+}
+
+#[test]
+fn solver_shell_with_explicit_ids() {
+    let mut shell = SolverShell::new();
+    let _v0 = shell.add_variable(Some(0), 0.0, 1.0, 1.0);
+    let _v5 = shell.add_variable(Some(5), 10.0, 1.0, 1.0);
+    shell.add_left_right_constraint(0, 5, 3.0);
+    shell.solve();
+    assert!(shell.get_variable_resolved_position(5) - shell.get_variable_resolved_position(0) >= 3.0 - 1e-4);
+}
+
+#[test]
+fn uniform_solver_basic() {
+    let mut solver = UniformOneDimensionalSolver::new();
+    let v0 = solver.add_variable(0.0, 1.0, 1.0);
+    let v1 = solver.add_variable(1.0, 1.0, 1.0);
+    solver.add_constraint(v0, v1, 5.0);
+    let positions = solver.solve();
+    assert!(positions[1] - positions[0] >= 5.0 - 1e-4);
+}
+
+#[test]
+fn uniform_solver_with_bounds() {
+    let mut solver = UniformOneDimensionalSolver::new();
+    let v0 = solver.add_variable(0.0, 1.0, 1.0);
+    let v1 = solver.add_variable(100.0, 1.0, 1.0);
+    solver.set_upper_bound(v1, 10.0);
+    solver.add_constraint(v0, v1, 3.0);
+    let positions = solver.solve();
+    assert!(positions[1] <= 10.0 + 1e-3);
+    assert!(positions[1] - positions[0] >= 3.0 - 1e-4);
+}
