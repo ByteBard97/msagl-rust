@@ -88,6 +88,7 @@ impl LongestNudgedSegment {
     }
 
     /// Maximum width among all edges in this segment.
+    #[allow(dead_code)]
     pub fn max_width(&self) -> f64 {
         // Width is stored on PathEdges; the caller must pass it in.
         // For now, return 0 (default edge width).

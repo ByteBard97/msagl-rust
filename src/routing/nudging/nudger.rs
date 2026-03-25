@@ -380,11 +380,10 @@ fn edge_source_target(pe: &PathEdge, ae: &AxisEdge) -> (Point, Point) {
     }
 }
 
-fn opposite_dir(d: Direction) -> Direction {
-    match d {
-        Direction::North => Direction::North, // South doesn't exist in our enum
-        Direction::East => Direction::East,   // West doesn't exist
-    }
+fn opposite_dir(_d: Direction) -> Direction {
+    // In our 2-direction enum (North/East), the "opposite" for nudging purposes
+    // is the same direction (we only nudge in perpendicular axis).
+    _d
 }
 
 /// Remove switchbacks (direction reversals) and collinear middle points.

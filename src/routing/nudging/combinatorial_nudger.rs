@@ -123,7 +123,7 @@ fn canonicalize(p0: Point, p1: Point) -> (Point, Point, bool) {
 /// to determine which path is "to the left" vs "to the right".
 fn sort_path_edges_on_axis(
     _ae_id: AxisEdgeId,
-    order: &mut Vec<PathEdgeId>,
+    order: &mut [PathEdgeId],
     path_edges: &[PathEdge],
     axis_edges: &[AxisEdge],
     _paths: &[Vec<Point>],

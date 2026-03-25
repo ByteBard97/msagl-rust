@@ -171,8 +171,8 @@ fn cross_vertical_and_horizontal(paths: &mut [Vec<Point>]) {
         let path = &paths[pi];
         let mut new_path: Vec<Point> = Vec::with_capacity(path.len() + ins.len());
         let mut ins_idx = 0;
-        for i in 0..path.len() {
-            new_path.push(path[i]);
+        for (i, &pt) in path.iter().enumerate() {
+            new_path.push(pt);
             while ins_idx < ins.len() && ins[ins_idx].0 == i {
                 let pt = ins[ins_idx].1;
                 // Only insert if not too close to last added point.

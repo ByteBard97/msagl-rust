@@ -17,6 +17,7 @@ pub struct PathEdge {
     /// Index of the path this edge belongs to.
     pub path_index: usize,
     /// Width of this edge (for arrowheads etc). Default 0.
+    #[allow(dead_code)]
     pub width: f64,
     /// Index within the ordered list on its AxisEdge (set by combinatorial nudger).
     pub index: i32,
