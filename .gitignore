@@ -1,3 +1,5 @@
 /target/
 Cargo.lock
 .DS_Store
+tools/golden_dump/bin/
+tools/golden_dump/obj/
