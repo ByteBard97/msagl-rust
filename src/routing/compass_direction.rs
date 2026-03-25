@@ -45,10 +45,30 @@ impl CompassDirection {
         }
     }
 
+    /// Convert from index back to direction.
+    /// Matches TS `CompassVector.ToIndex` inverse.
+    pub fn from_index(index: usize) -> Option<Self> {
+        match index {
+            0 => Some(Self::North),
+            1 => Some(Self::East),
+            2 => Some(Self::South),
+            3 => Some(Self::West),
+            _ => None,
+        }
+    }
+
+    /// Check if two directions are parallel (same or opposite).
+    /// Matches TS `CompassVector.DirectionsAreParallel`.
+    pub fn is_parallel(self, other: Self) -> bool {
+        self == other || self == other.opposite()
+    }
+
     /// Determine the compass direction from `from` to `to`.
     ///
-    /// For rectilinear graphs, edges are axis-aligned. Returns `None` if
-    /// the points are identical (distance < 1e-12).
+    /// Matches TS `CompassVector.DirectionFromPointToPoint` /
+    /// `CompassVector.VectorDirectionPP` for pure (axis-aligned) directions.
+    ///
+    /// Returns `None` if the points are identical (distance < epsilon).
     /// On a diagonal tie, horizontal direction is preferred.
     pub fn from_points(from: Point, to: Point) -> Option<Self> {
         let dx = to.x() - from.x();
@@ -63,6 +83,17 @@ impl CompassDirection {
         } else {
             // Diagonal tie-break: prefer horizontal
             if dx > 0.0 { Some(Self::East) } else { Some(Self::West) }
+        }
+    }
+
+    /// Convert direction to a unit point vector.
+    /// Matches TS `CompassVector.toPoint(dir)`.
+    pub fn to_point(self) -> Point {
+        match self {
+            Self::North => Point::new(0.0, 1.0),
+            Self::East => Point::new(1.0, 0.0),
+            Self::South => Point::new(0.0, -1.0),
+            Self::West => Point::new(-1.0, 0.0),
         }
     }
 }
