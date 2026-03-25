@@ -3,3 +3,4 @@ pub mod point_comparer;
 pub mod rectangle;
 pub mod polyline;
 pub mod curve;
+pub mod convex_hull;

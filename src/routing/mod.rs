@@ -4,6 +4,8 @@ pub mod shape;
 pub mod obstacle;
 pub mod obstacle_side;
 pub mod obstacle_tree;
+pub mod obstacle_tree_overlap;
+pub mod overlap_convex_hull;
 pub mod scan_direction;
 pub mod scan_segment;
 pub mod scan_line;
