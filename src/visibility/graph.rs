@@ -58,6 +58,14 @@ impl VisibilityGraph {
         self.vertices[target.0].in_edges.push(source);
     }
 
+    /// Add a toll-free (transient) edge used during port splicing.
+    pub fn add_toll_free_edge(&mut self, source: VertexId, target: VertexId, weight: f64) {
+        let mut edge = VisEdge::new(target, weight);
+        edge.is_toll_free = true;
+        self.vertices[source.0].out_edges.insert(edge);
+        self.vertices[target.0].in_edges.push(source);
+    }
+
     pub fn remove_edge(&mut self, source: VertexId, target: VertexId) {
         self.vertices[source.0].out_edges.remove(&VisEdge::new(target, 0.0));
         self.vertices[target.0].in_edges.retain(|&v| v != source);
@@ -89,6 +97,29 @@ impl VisibilityGraph {
 
     pub fn out_edges(&self, v: VertexId) -> impl Iterator<Item = &VisEdge> {
         self.vertices[v.0].out_edges.iter()
+    }
+
+    /// Find an edge from `source` to `target`, returning its weight if it exists.
+    pub fn find_edge(&self, source: VertexId, target: VertexId) -> Option<&VisEdge> {
+        self.vertices[source.0].out_edges.get(&VisEdge::new(target, 0.0))
+    }
+
+    /// Find an edge between two points (checks both directions since edges are ascending).
+    pub fn find_edge_pp(&self, a: Point, b: Point) -> Option<(VertexId, VertexId, f64)> {
+        let va = self.find_vertex(a)?;
+        let vb = self.find_vertex(b)?;
+        if let Some(e) = self.find_edge(va, vb) {
+            return Some((va, vb, e.weight));
+        }
+        if let Some(e) = self.find_edge(vb, va) {
+            return Some((vb, va, e.weight));
+        }
+        None
+    }
+
+    /// Check if a vertex has any out-edges or in-edges.
+    pub fn degree(&self, v: VertexId) -> usize {
+        self.vertices[v.0].out_edges.len() + self.vertices[v.0].in_edges.len()
     }
 
     /// Get the entry index for a vertex from a specific direction.

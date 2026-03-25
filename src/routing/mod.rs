@@ -20,3 +20,4 @@ pub mod lookahead_scan;
 pub mod rectilinear_edge_router;
 pub mod static_graph_utility;
 pub mod splice_utility;
+pub mod transient_graph_utility;
