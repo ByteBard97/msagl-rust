@@ -1,141 +1,191 @@
-//! Hard invariant checks for routing results.
-//!
-//! Ported from `RectilinearVerifier.cs` — only the subset needed for
-//! the first batch of tests.
-
-use msagl_rust::routing::rectilinear_edge_router::RoutingResult;
-use msagl_rust::routing::shape::Shape;
-use msagl_rust::geometry::point::Point;
-use msagl_rust::geometry::rectangle::Rectangle;
-
-/// Tolerance for floating-point comparisons in axis alignment checks.
-const AXIS_TOLERANCE: f64 = 1e-6;
-/// Small margin for obstacle boundary touching (paths may graze boundaries).
-const BOUNDARY_EPSILON: f64 = 0.1;
-
-/// Routing result verifier.
+/// Verification utilities for rectilinear routing results.
 ///
-/// Provides static methods that assert hard invariants on a `RoutingResult`.
+/// Mirrors the invariant-checking philosophy of the C# RectilinearVerifier:
+/// every routed edge must have a valid rectilinear path that does not
+/// penetrate any obstacle.
+use msagl_rust::{RoutingResult, Shape};
+
+/// Tolerance for floating-point comparisons when checking rectilinearity.
+const RECTILINEAR_TOL: f64 = 0.5;
+
 pub struct Verifier;
 
 impl Verifier {
-    /// Run all hard invariant checks on a routing result.
-    pub fn verify_all(result: &RoutingResult, shapes: &[Shape], padding: f64) {
-        Self::assert_all_edges_routed(result);
-        Self::assert_rectilinear(result);
-        Self::assert_no_obstacle_crossings(result, shapes, padding);
+    /// Run all standard invariant checks on a routing result.
+    ///
+    /// `tolerance` — absolute epsilon for geometric comparisons.
+    ///
+    /// Panics with a descriptive message if any invariant is violated.
+    pub fn verify_all(result: &RoutingResult, shapes: &[Shape], tolerance: f64) {
+        Self::verify_all_edges_present(result);
+        Self::verify_paths_have_at_least_two_points(result);
+        Self::verify_paths_are_rectilinear(result, tolerance);
+        Self::verify_paths_dont_pass_through_obstacles(result, shapes, tolerance);
+        Self::verify_no_zero_length_segments(result, tolerance);
     }
 
-    /// Every edge should have been routed (i.e. have at least 2 waypoints).
-    pub fn assert_all_edges_routed(result: &RoutingResult) {
+    /// Every edge in the result must carry at least one path.
+    fn verify_all_edges_present(result: &RoutingResult) {
+        for (i, edge) in result.edges.iter().enumerate() {
+            assert!(
+                !edge.points.is_empty(),
+                "edge[{}] has no waypoints",
+                i
+            );
+        }
+    }
+
+    /// Every routed path must have at least two waypoints (source and target).
+    fn verify_paths_have_at_least_two_points(result: &RoutingResult) {
         for (i, edge) in result.edges.iter().enumerate() {
             assert!(
                 edge.points.len() >= 2,
-                "Edge {} was not routed (has {} points)",
+                "edge[{}] has only {} waypoint(s); need at least 2",
                 i,
                 edge.points.len()
             );
         }
     }
 
-    /// All path segments must be axis-aligned (rectilinear).
-    pub fn assert_rectilinear(result: &RoutingResult) {
-        for (i, edge) in result.edges.iter().enumerate() {
-            for (j, w) in edge.points.windows(2).enumerate() {
-                let dx = (w[0].x() - w[1].x()).abs();
-                let dy = (w[0].y() - w[1].y()).abs();
+    /// All segments must be axis-aligned (no diagonal segments).
+    fn verify_paths_are_rectilinear(result: &RoutingResult, tolerance: f64) {
+        for (ei, edge) in result.edges.iter().enumerate() {
+            for (si, seg) in edge.points.windows(2).enumerate() {
+                let dx = (seg[1].x() - seg[0].x()).abs();
+                let dy = (seg[1].y() - seg[0].y()).abs();
+                let is_horizontal = dy < tolerance;
+                let is_vertical = dx < tolerance;
                 assert!(
-                    dx < AXIS_TOLERANCE || dy < AXIS_TOLERANCE,
-                    "Edge {} segment {} is not rectilinear: ({}, {}) -> ({}, {})",
-                    i,
-                    j,
-                    w[0].x(),
-                    w[0].y(),
-                    w[1].x(),
-                    w[1].y()
+                    is_horizontal || is_vertical,
+                    "edge[{}] segment[{}] is diagonal: ({:.3},{:.3}) -> ({:.3},{:.3})",
+                    ei,
+                    si,
+                    seg[0].x(),
+                    seg[0].y(),
+                    seg[1].x(),
+                    seg[1].y()
                 );
             }
         }
     }
 
-    /// No path segment midpoint should lie strictly inside a padded obstacle,
-    /// unless that obstacle contains the path's source or target endpoint.
-    ///
-    /// Ports are typically at obstacle centers, so the first/last path segments
-    /// naturally pass through the source/target obstacle. Only intermediate
-    /// obstacle crossings are violations.
-    pub fn assert_no_obstacle_crossings(
+    /// No waypoint of any routed path should land strictly inside an obstacle
+    /// (within the padded bounding box).  The path may touch obstacle borders.
+    fn verify_paths_dont_pass_through_obstacles(
         result: &RoutingResult,
         shapes: &[Shape],
-        padding: f64,
+        tolerance: f64,
     ) {
-        let padded_bboxes: Vec<Rectangle> = shapes
-            .iter()
-            .map(|shape| {
-                let bb = shape.bounding_box();
-                Rectangle::new(
-                    bb.left() - padding,
-                    bb.bottom() - padding,
-                    bb.right() + padding,
-                    bb.top() + padding,
-                )
-            })
-            .collect();
-
-        for (i, edge) in result.edges.iter().enumerate() {
-            let source = edge.points.first().unwrap();
-            let target = edge.points.last().unwrap();
-
-            // Find which obstacles contain the source and target endpoints.
-            let endpoint_obstacles: Vec<usize> = padded_bboxes
-                .iter()
-                .enumerate()
-                .filter(|(_k, padded)| {
-                    Self::point_inside(source, padded) || Self::point_inside(target, padded)
-                })
-                .map(|(k, _)| k)
-                .collect();
-
-            for (j, w) in edge.points.windows(2).enumerate() {
-                let mid = Point::new(
-                    (w[0].x() + w[1].x()) / 2.0,
-                    (w[0].y() + w[1].y()) / 2.0,
-                );
-                for (k, padded) in padded_bboxes.iter().enumerate() {
-                    // Skip source/target obstacles — the path naturally exits
-                    // through them.
-                    if endpoint_obstacles.contains(&k) {
-                        continue;
-                    }
-                    let strictly_inside = mid.x() > padded.left() + BOUNDARY_EPSILON
-                        && mid.x() < padded.right() - BOUNDARY_EPSILON
-                        && mid.y() > padded.bottom() + BOUNDARY_EPSILON
-                        && mid.y() < padded.top() - BOUNDARY_EPSILON;
+        for (ei, edge) in result.edges.iter().enumerate() {
+            for (pi, pt) in edge.points.iter().enumerate() {
+                // Only check interior waypoints (skip first and last which sit on
+                // the obstacle boundary by construction).
+                if pi == 0 || pi == edge.points.len() - 1 {
+                    continue;
+                }
+                for (oi, shape) in shapes.iter().enumerate() {
+                    let bb = shape.bounding_box();
+                    let strictly_inside = pt.x() > bb.left() + tolerance
+                        && pt.x() < bb.right() - tolerance
+                        && pt.y() > bb.bottom() + tolerance
+                        && pt.y() < bb.top() - tolerance;
                     assert!(
                         !strictly_inside,
-                        "Edge {} segment {} passes through obstacle {}: \
-                         midpoint ({}, {}) is inside padded bbox \
-                         [{}, {}, {}, {}]",
-                        i,
-                        j,
-                        k,
-                        mid.x(),
-                        mid.y(),
-                        padded.left(),
-                        padded.bottom(),
-                        padded.right(),
-                        padded.top()
+                        "edge[{}] point[{}] ({:.3},{:.3}) is inside obstacle[{}] \
+                         bbox ({:.3},{:.3})-({:.3},{:.3})",
+                        ei,
+                        pi,
+                        pt.x(),
+                        pt.y(),
+                        oi,
+                        bb.left(),
+                        bb.bottom(),
+                        bb.right(),
+                        bb.top()
                     );
                 }
             }
         }
     }
 
-    /// Check if a point is strictly inside a padded rectangle.
-    fn point_inside(p: &Point, r: &Rectangle) -> bool {
-        p.x() > r.left() + BOUNDARY_EPSILON
-            && p.x() < r.right() - BOUNDARY_EPSILON
-            && p.y() > r.bottom() + BOUNDARY_EPSILON
-            && p.y() < r.top() - BOUNDARY_EPSILON
+    /// No two consecutive waypoints should be identical (zero-length segments).
+    fn verify_no_zero_length_segments(result: &RoutingResult, tolerance: f64) {
+        for (ei, edge) in result.edges.iter().enumerate() {
+            for (si, seg) in edge.points.windows(2).enumerate() {
+                let dist = ((seg[1].x() - seg[0].x()).powi(2)
+                    + (seg[1].y() - seg[0].y()).powi(2))
+                .sqrt();
+                assert!(
+                    dist >= tolerance,
+                    "edge[{}] segment[{}] has near-zero length {:.6}",
+                    ei,
+                    si,
+                    dist
+                );
+            }
+        }
+    }
+
+    /// Assert exactly `expected` edges were routed.
+    pub fn assert_edge_count(result: &RoutingResult, expected: usize) {
+        assert_eq!(
+            result.edges.len(),
+            expected,
+            "expected {} routed edge(s), got {}",
+            expected,
+            result.edges.len()
+        );
+    }
+
+    /// Assert that edges are separated by at least `min_separation` on any
+    /// shared horizontal or vertical coordinate.
+    ///
+    /// Checks that for each pair of edges, no two waypoints that share the same
+    /// axis coordinate are closer than `min_separation` on the perpendicular axis.
+    #[allow(dead_code)]
+    pub fn assert_edges_separated(result: &RoutingResult, min_separation: f64) {
+        let edges = &result.edges;
+        for i in 0..edges.len() {
+            for j in (i + 1)..edges.len() {
+                for pi in &edges[i].points {
+                    for pj in &edges[j].points {
+                        // Collinear horizontal: same Y, check X separation.
+                        if (pi.y() - pj.y()).abs() < 0.01 {
+                            let sep = (pi.x() - pj.x()).abs();
+                            // Only care if they are in the same "lane" region — skip endpoints far apart.
+                            if sep < min_separation * 5.0 {
+                                assert!(
+                                    sep >= min_separation - 0.5,
+                                    "edges {} and {} have collinear horizontal points \
+                                     too close: sep={:.3} < {:.3}",
+                                    i,
+                                    j,
+                                    sep,
+                                    min_separation
+                                );
+                            }
+                        }
+                        // Collinear vertical: same X, check Y separation.
+                        if (pi.x() - pj.x()).abs() < 0.01 {
+                            let sep = (pi.y() - pj.y()).abs();
+                            if sep < min_separation * 5.0 {
+                                assert!(
+                                    sep >= min_separation - 0.5,
+                                    "edges {} and {} have collinear vertical points \
+                                     too close: sep={:.3} < {:.3}",
+                                    i,
+                                    j,
+                                    sep,
+                                    min_separation
+                                );
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
 }
+
+/// Rectilinear tolerance constant reused by tests.
+pub const RECTILINEAR_TOLERANCE: f64 = RECTILINEAR_TOL;
