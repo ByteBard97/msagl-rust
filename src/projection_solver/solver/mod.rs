@@ -216,8 +216,6 @@ impl Solver {
             self.constraints.push(c);
         }
 
-        self.constraint_vector = ConstraintVector::new(num_cons);
-
         // Build per-variable left/right constraint lists
         for vi in 0..self.variables.len() {
             self.variables[vi].left_constraints.clear();
@@ -233,6 +231,8 @@ impl Solver {
                 .right_constraints
                 .push(ConIndex(ci));
         }
+
+        self.constraint_vector = ConstraintVector::new(num_cons);
     }
 
     /// Main standalone project loop: project then split, repeat.
