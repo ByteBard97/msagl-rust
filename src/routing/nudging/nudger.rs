@@ -19,6 +19,7 @@ use super::combinatorial_nudger;
 use super::free_space_finder;
 use super::longest_nudged_segment::LongestNudgedSegment;
 use super::path_edge::PathEdge;
+use super::path_merger::PathMerger;
 use super::path_refiner;
 use super::staircase_remover;
 
@@ -58,6 +59,9 @@ fn calculate(
 ) {
     // Step 1: Refine paths.
     path_refiner::refine_paths(paths);
+
+    // Step 1b: Merge paths — remove self-cycles.
+    PathMerger::merge_paths(paths);
 
     // Step 2: Build axis-edge DAG and get path ordering.
     let mut result = combinatorial_nudger::get_order(paths);
