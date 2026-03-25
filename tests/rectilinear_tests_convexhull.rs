@@ -21,7 +21,6 @@ use test_harness::verifier::RECTILINEAR_TOLERANCE;
 /// Baseline to illustrate issues of using a single convex hull.
 /// C#: 2 rectangles + 1 triangle, routes between obs[0] and obs[1].
 #[test]
-#[ignore = "requires overlap/convex hull support"]
 fn overlapping_obstacles_with_non_overlapped_rectangle_creating_convex_hull() {
     let mut b = ScenarioBuilder::new();
     let obs0 = b.add_rectangle_bl(5.0, 20.0, 30.0, 10.0);
@@ -36,7 +35,6 @@ fn overlapping_obstacles_with_non_overlapped_rectangle_creating_convex_hull() {
 /// Simulated convex hull (overlapping rather than true CH).
 /// C#: same 3 obstacles + a convex hull wrapping them.
 #[test]
-#[ignore = "requires overlap/convex hull support"]
 fn overlapping_obstacles_with_non_overlapped_rect_inside_simulated_convex_hull() {
     let mut b = ScenarioBuilder::new();
     let obs0 = b.add_rectangle_bl(5.0, 20.0, 30.0, 10.0);
@@ -54,7 +52,6 @@ fn overlapping_obstacles_with_non_overlapped_rect_inside_simulated_convex_hull()
 /// Multiply-nested nonrectilinear obstacles with no overlaps.
 /// C#: 3 nested diamond shapes (non-rect).
 #[test]
-#[ignore = "requires overlap/convex hull support"]
 fn multiply_nested_nonrectilinear_obstacles() {
     let mut b = ScenarioBuilder::new();
     // 3 nested diamonds at offset 0 — approximate as rectangles
@@ -67,7 +64,6 @@ fn multiply_nested_nonrectilinear_obstacles() {
 /// Port: Multiply_Nested_Rectilinear_Obstacles
 /// Multiply-nested rectilinear obstacles with no overlaps — should be in one clump.
 #[test]
-#[ignore = "requires overlap/convex hull support"]
 fn multiply_nested_rectilinear_obstacles() {
     let mut b = ScenarioBuilder::new();
     b.add_rectangle(50.0, 40.0, 80.0, 60.0);
@@ -79,7 +75,6 @@ fn multiply_nested_rectilinear_obstacles() {
 /// Port: Multiply_Nested_Nonrectilinear_Obstacles_With_Outer_Overlap
 /// Two sets of nested diamonds with only outer obstacles overlapping.
 #[test]
-#[ignore = "requires overlap/convex hull support"]
 fn multiply_nested_nonrectilinear_obstacles_with_outer_overlap() {
     let mut b = ScenarioBuilder::new();
     // Set 1: offset 0
@@ -96,7 +91,6 @@ fn multiply_nested_nonrectilinear_obstacles_with_outer_overlap() {
 /// Port: Multiply_Nested_Nonrectilinear_Obstacles_With_All_Overlap
 /// Nested diamonds with an obstacle forcing all overlapped.
 #[test]
-#[ignore = "requires overlap/convex hull support"]
 fn multiply_nested_nonrectilinear_obstacles_with_all_overlap() {
     let mut b = ScenarioBuilder::new();
     // Set 1 at offset 0
@@ -115,7 +109,6 @@ fn multiply_nested_nonrectilinear_obstacles_with_all_overlap() {
 /// Port: Multiply_Nested_Rectilinear_Obstacles_With_Outer_Overlap_Clump
 /// Two sets of nested rectangles with outer overlap — same clump.
 #[test]
-#[ignore = "requires overlap/convex hull support"]
 fn multiply_nested_rectilinear_obstacles_with_outer_overlap_clump() {
     let mut b = ScenarioBuilder::new();
     // Set 1 (rectangles, offset 0)
@@ -132,7 +125,6 @@ fn multiply_nested_rectilinear_obstacles_with_outer_overlap_clump() {
 /// Port: Multiply_Nested_Rectilinear_Obstacles_With_Outer_Overlap_ConvexHull
 /// Nested rectangles with a non-rectangular connector forcing convex hull.
 #[test]
-#[ignore = "requires overlap/convex hull support"]
 fn multiply_nested_rectilinear_obstacles_with_outer_overlap_convex_hull() {
     let mut b = ScenarioBuilder::new();
     // Set 1 at 0
@@ -151,7 +143,6 @@ fn multiply_nested_rectilinear_obstacles_with_outer_overlap_convex_hull() {
 /// Port: Multiply_Nested_Rectilinear_Obstacles_With_All_Overlap_Clump
 /// Nested rectangles with a rectangular overlap forcing same clump.
 #[test]
-#[ignore = "requires overlap/convex hull support"]
 fn multiply_nested_rectilinear_obstacles_with_all_overlap_clump() {
     let mut b = ScenarioBuilder::new();
     // Set 1 at 0
@@ -170,7 +161,6 @@ fn multiply_nested_rectilinear_obstacles_with_all_overlap_clump() {
 /// Port: Multiply_Nested_Rectilinear_Obstacles_With_All_Overlap_ConvexHull
 /// Nested rectangles with a non-rectangular connector forcing convex hull.
 #[test]
-#[ignore = "requires overlap/convex hull support"]
 fn multiply_nested_rectilinear_obstacles_with_all_overlap_convex_hull() {
     let mut b = ScenarioBuilder::new();
     // Set 1 at 0
@@ -192,7 +182,6 @@ fn multiply_nested_rectilinear_obstacles_with_all_overlap_convex_hull() {
 /// Test transitivity of ConvexHull creation (non-rectangular).
 /// C#: 11 obstacles (mix of rectangles and non-rect polygons), 5 routes.
 #[test]
-#[ignore = "requires overlap/convex hull support"]
 fn transitive_convex_hull_single_accretion() {
     let mut b = ScenarioBuilder::new();
     let obs0 = b.add_rectangle_bl(0.0, 15.0, 25.0, 20.0);
@@ -219,7 +208,6 @@ fn transitive_convex_hull_single_accretion() {
 /// Port: Transitive_ConvexHull_Single_Accretion_Becomes_Clump_With_Rectilinear_Shapes
 /// Same as above but all shapes replaced with their bounding rectangles.
 #[test]
-#[ignore = "requires overlap/convex hull support"]
 fn transitive_convex_hull_single_accretion_becomes_clump() {
     let mut b = ScenarioBuilder::new();
     b.add_rectangle_bl(0.0, 15.0, 25.0, 20.0);
@@ -240,7 +228,6 @@ fn transitive_convex_hull_single_accretion_becomes_clump() {
 /// Transitivity of ConvexHull with multiple accretions.
 /// C#: runs 3 sub-cases: (!both,!block,!rect), (both,!block,!rect), (both,block,!rect).
 #[test]
-#[ignore = "requires overlap/convex hull support"]
 fn transitive_convex_hull_multiple_accretion() {
     let mut b = ScenarioBuilder::new();
     let obs0 = b.add_rectangle_bl(30.0, 30.0, 40.0, 20.0);
@@ -259,7 +246,6 @@ fn transitive_convex_hull_multiple_accretion() {
 /// Port: Transitive_ConvexHull_Multiple_Accretion_Becomes_Separate_Clumps_With_Rectilinear_Shapes
 /// Same as above but with rectilinear shapes — creates separate clumps.
 #[test]
-#[ignore = "requires overlap/convex hull support"]
 fn transitive_convex_hull_multiple_accretion_becomes_separate_clumps() {
     let mut b = ScenarioBuilder::new();
     let obs0 = b.add_rectangle_bl(30.0, 30.0, 40.0, 20.0);
@@ -278,7 +264,6 @@ fn transitive_convex_hull_multiple_accretion_becomes_separate_clumps() {
 /// Convex hull transitivity is local; does not affect distant paths.
 /// C#: source/target + 1 outside square + 6 non-rect blocking obstacles.
 #[test]
-#[ignore = "requires overlap/convex hull support"]
 fn transitive_convex_hull_is_local_single_reflection() {
     let mut b = ScenarioBuilder::new();
     let src = b.add_rectangle_bl(90.0, 40.0, 10.0, 10.0);
@@ -299,7 +284,6 @@ fn transitive_convex_hull_is_local_single_reflection() {
 /// Port: Transitive_ConvexHull_Is_Local_SingleReflection_SparseVg
 /// Same as SingleReflection with sparse visibility graph.
 #[test]
-#[ignore = "requires overlap/convex hull support"]
 fn transitive_convex_hull_is_local_single_reflection_sparse_vg() {
     let mut b = ScenarioBuilder::new();
     let src = b.add_rectangle_bl(90.0, 40.0, 10.0, 10.0);
@@ -318,7 +302,6 @@ fn transitive_convex_hull_is_local_single_reflection_sparse_vg() {
 /// Port: Transitive_ConvexHull_Is_Local_DoubleReflection
 /// Same setup with double reflection (adjustment = -5).
 #[test]
-#[ignore = "requires overlap/convex hull support"]
 fn transitive_convex_hull_is_local_double_reflection() {
     let mut b = ScenarioBuilder::new();
     let src = b.add_rectangle_bl(90.0, 40.0, 10.0, 10.0);
@@ -338,7 +321,6 @@ fn transitive_convex_hull_is_local_double_reflection() {
 /// Port: Transitive_ConvexHull_Is_Local_TripleReflection
 /// Same setup with triple reflection (adjustment = -10).
 #[test]
-#[ignore = "requires overlap/convex hull support"]
 fn transitive_convex_hull_is_local_triple_reflection() {
     let mut b = ScenarioBuilder::new();
     let src = b.add_rectangle_bl(90.0, 40.0, 10.0, 10.0);

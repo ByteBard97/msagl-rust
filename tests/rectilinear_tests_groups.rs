@@ -40,7 +40,7 @@ fn add_rect_corners(b: &mut ScenarioBuilder, x1: f64, y1: f64, x2: f64, y2: f64)
 /// Obstacles: s1=(10,12)-(20,22), s2=(40,5)-(50,25), s3=(70,8)-(80,18).
 /// Edges: s1→s3, s1→s2, s2→s3.
 #[test]
-#[ignore = "requires group/cluster routing"]
+
 fn group_test_simple() {
     let mut b = ScenarioBuilder::new();
     let s1 = add_rect_corners(&mut b, 10.0, 12.0, 20.0, 22.0);
@@ -60,7 +60,7 @@ fn group_test_simple() {
 /// Group g1 is present as obstacle but has no children — not a real group.
 /// Edge: s1→s3.
 #[test]
-#[ignore = "requires group/cluster routing"]
+
 fn group_test_simple_no_group() {
     let mut b = ScenarioBuilder::new();
     let s1 = add_rect_corners(&mut b, 10.0, 12.0, 20.0, 22.0);
@@ -74,7 +74,7 @@ fn group_test_simple_no_group() {
 /// Port: GroupTest_Simple_NoGroup_PortSplice_LimitRect
 /// Same as NoGroup but with LimitPortVisibilitySpliceToEndpointBoundingBox=true.
 #[test]
-#[ignore = "requires group/cluster routing"]
+
 fn group_test_simple_no_group_port_splice_limit_rect() {
     let mut b = ScenarioBuilder::new();
     let s1 = add_rect_corners(&mut b, 10.0, 12.0, 20.0, 22.0);
@@ -130,7 +130,7 @@ fn group_test_worker(b: &mut ScenarioBuilder, want_fourth_group: bool, outside_g
 
 /// Port: GroupTest0 — no fourth group, not outside g1, not off-center
 #[test]
-#[ignore = "requires group/cluster routing"]
+
 fn group_test0() {
     let mut b = ScenarioBuilder::new();
     group_test_worker(&mut b, false, false, false);
@@ -139,7 +139,7 @@ fn group_test0() {
 
 /// Port: GroupTest0_OutsideGroup1
 #[test]
-#[ignore = "requires group/cluster routing"]
+
 fn group_test0_outside_group1() {
     let mut b = ScenarioBuilder::new();
     group_test_worker(&mut b, false, true, false);
@@ -148,7 +148,7 @@ fn group_test0_outside_group1() {
 
 /// Port: GroupTest0_OffCenter
 #[test]
-#[ignore = "requires group/cluster routing"]
+
 fn group_test0_off_center() {
     let mut b = ScenarioBuilder::new();
     group_test_worker(&mut b, false, false, true);
@@ -157,7 +157,7 @@ fn group_test0_off_center() {
 
 /// Port: GroupTest0_OutsideGroup1_OffCenter
 #[test]
-#[ignore = "requires group/cluster routing"]
+
 fn group_test0_outside_group1_off_center() {
     let mut b = ScenarioBuilder::new();
     group_test_worker(&mut b, false, true, true);
@@ -166,7 +166,7 @@ fn group_test0_outside_group1_off_center() {
 
 /// Port: GroupTest — with fourth group
 #[test]
-#[ignore = "requires group/cluster routing"]
+
 fn group_test() {
     let mut b = ScenarioBuilder::new();
     group_test_worker(&mut b, true, false, false);
@@ -175,7 +175,7 @@ fn group_test() {
 
 /// Port: GroupTest_OutsideGroup1
 #[test]
-#[ignore = "requires group/cluster routing"]
+
 fn group_test_outside_group1() {
     let mut b = ScenarioBuilder::new();
     group_test_worker(&mut b, true, true, false);
@@ -184,7 +184,7 @@ fn group_test_outside_group1() {
 
 /// Port: GroupTest_OffCenter
 #[test]
-#[ignore = "requires group/cluster routing"]
+
 fn group_test_off_center() {
     let mut b = ScenarioBuilder::new();
     group_test_worker(&mut b, true, false, true);
@@ -193,7 +193,7 @@ fn group_test_off_center() {
 
 /// Port: GroupTest_OutsideGroup1_OffCenter
 #[test]
-#[ignore = "requires group/cluster routing"]
+
 fn group_test_outside_group1_off_center() {
     let mut b = ScenarioBuilder::new();
     group_test_worker(&mut b, true, true, true);
@@ -219,7 +219,7 @@ fn group_obstacle_crossing_boundary_worker(b: &mut ScenarioBuilder, gap: f64, bl
 
 /// Port: Group_Obstacle_Crossing_Boundary_Between_Routed_Obstacles_Gap2
 #[test]
-#[ignore = "requires group/cluster routing"]
+
 fn group_obstacle_crossing_boundary_between_routed_obstacles_gap2() {
     let mut b = ScenarioBuilder::new();
     group_obstacle_crossing_boundary_worker(&mut b, 2.0, false);
@@ -228,7 +228,7 @@ fn group_obstacle_crossing_boundary_between_routed_obstacles_gap2() {
 
 /// Port: Group_Obstacle_Crossing_Boundary_Between_Routed_Obstacles_Gap4
 #[test]
-#[ignore = "requires group/cluster routing"]
+
 fn group_obstacle_crossing_boundary_between_routed_obstacles_gap4() {
     let mut b = ScenarioBuilder::new();
     group_obstacle_crossing_boundary_worker(&mut b, 4.0, false);
@@ -237,7 +237,7 @@ fn group_obstacle_crossing_boundary_between_routed_obstacles_gap4() {
 
 /// Port: Group_Obstacle_Crossing_Boundary_On_Routed_Obstacles
 #[test]
-#[ignore = "requires group/cluster routing"]
+
 fn group_obstacle_crossing_boundary_on_routed_obstacles() {
     let mut b = ScenarioBuilder::new();
     group_obstacle_crossing_boundary_worker(&mut b, 0.0, false);
@@ -246,7 +246,7 @@ fn group_obstacle_crossing_boundary_on_routed_obstacles() {
 
 /// Port: Group_Obstacle_Crossing_Boundary_Inside_Routed_Obstacles_Gap2
 #[test]
-#[ignore = "requires group/cluster routing"]
+
 fn group_obstacle_crossing_boundary_inside_routed_obstacles_gap2() {
     let mut b = ScenarioBuilder::new();
     group_obstacle_crossing_boundary_worker(&mut b, -2.0, false);
@@ -255,7 +255,7 @@ fn group_obstacle_crossing_boundary_inside_routed_obstacles_gap2() {
 
 /// Port: Group_Obstacle_Crossing_Boundary_Inside_Routed_Obstacles_Gap4
 #[test]
-#[ignore = "requires group/cluster routing"]
+
 fn group_obstacle_crossing_boundary_inside_routed_obstacles_gap4() {
     let mut b = ScenarioBuilder::new();
     group_obstacle_crossing_boundary_worker(&mut b, -4.0, false);
@@ -264,7 +264,7 @@ fn group_obstacle_crossing_boundary_inside_routed_obstacles_gap4() {
 
 /// Port: Group_Obstacle_Crossing_Boundary_Fully_Blocking_Routed_Obstacles
 #[test]
-#[ignore = "requires group/cluster routing"]
+
 fn group_obstacle_crossing_boundary_fully_blocking_routed_obstacles() {
     let mut b = ScenarioBuilder::new();
     group_obstacle_crossing_boundary_worker(&mut b, 10.0, true);
@@ -294,7 +294,7 @@ fn group_adjacent_outer_edge_worker(b: &mut ScenarioBuilder, nested: bool, gap: 
 
 /// Port: Group_AdjacentOuterEdge_Outside
 #[test]
-#[ignore = "requires group/cluster routing"]
+
 fn group_adjacent_outer_edge_outside() {
     let mut b = ScenarioBuilder::new();
     group_adjacent_outer_edge_worker(&mut b, false, 0.0);
@@ -303,7 +303,7 @@ fn group_adjacent_outer_edge_outside() {
 
 /// Port: Group_AdjacentOuterEdge_Nested
 #[test]
-#[ignore = "requires group/cluster routing"]
+
 fn group_adjacent_outer_edge_nested() {
     let mut b = ScenarioBuilder::new();
     group_adjacent_outer_edge_worker(&mut b, true, 0.0);
@@ -312,7 +312,7 @@ fn group_adjacent_outer_edge_nested() {
 
 /// Port: Group_AdjacentOuterEdge_Gap
 #[test]
-#[ignore = "requires group/cluster routing"]
+
 fn group_adjacent_outer_edge_gap() {
     let mut b = ScenarioBuilder::new();
     group_adjacent_outer_edge_worker(&mut b, false, 5.0);
@@ -321,7 +321,7 @@ fn group_adjacent_outer_edge_gap() {
 
 /// Port: Group_AdjacentOuterEdge_Straddle
 #[test]
-#[ignore = "requires group/cluster routing"]
+
 fn group_adjacent_outer_edge_straddle() {
     let mut b = ScenarioBuilder::new();
     group_adjacent_outer_edge_worker(&mut b, false, -5.0);
@@ -334,7 +334,7 @@ fn group_adjacent_outer_edge_straddle() {
 /// Complex hierarchy with 8 groups and 5 obstacles.
 /// See C# Group_Spatial_Parent_Worker for full hierarchy.
 #[test]
-#[ignore = "requires group/cluster routing"]
+
 fn group_spatial_parent() {
     let mut b = ScenarioBuilder::new();
     // Obstacles
@@ -359,7 +359,7 @@ fn group_spatial_parent() {
 /// Port: Group_Spatial_Parent_GroupOverlap (overlapping variant)
 /// Same as Group_Spatial_Parent but g1b starts at x=-25 and g2p extends to x=170.
 #[test]
-#[ignore = "requires group/cluster routing"]
+
 fn group_spatial_parent_group_overlap() {
     let mut b = ScenarioBuilder::new();
     let s1 = add_rect_corners(&mut b, 40.0, 40.0, 50.0, 50.0);
@@ -383,7 +383,7 @@ fn group_spatial_parent_group_overlap() {
 /// Collinear ports through overlapping spatial parent groups.
 /// All groups share a single dummy child (s3_dummy) to be recognized as groups.
 #[test]
-#[ignore = "requires group/cluster routing"]
+
 fn group_spatial_parent_group_overlap_collinear() {
     let mut b = ScenarioBuilder::new();
     let s1 = add_rect_corners(&mut b, 40.0, 40.0, 50.0, 50.0);
@@ -409,7 +409,7 @@ fn group_spatial_parent_group_overlap_collinear() {
 /// ga=(10,10)-(20,90), gb=(10,80)-(100,90), gc=(90,10)-(100,90), gd=(10,10)-(100,20)
 /// Each landlocking group has a dummy child.
 #[test]
-#[ignore = "requires group/cluster routing"]
+
 fn group_landlock() {
     let mut b = ScenarioBuilder::new();
     let s1 = add_rect_corners(&mut b, 50.0, 40.0, 60.0, 50.0);
@@ -441,7 +441,7 @@ fn group_landlock() {
 /// Two triangles cross the group boundaries. Triangles are non-rect so we
 /// approximate with rectangles as placeholders.
 #[test]
-#[ignore = "requires group/cluster routing"]
+
 fn group_obstacle_overlap_triangle() {
     let mut b = ScenarioBuilder::new();
     let s1 = add_rect_corners(&mut b, 50.0, 40.0, 60.0, 60.0);
@@ -461,7 +461,7 @@ fn group_obstacle_overlap_triangle() {
 /// Port: Group_Obstacle_Overlap_Triangle_Inverted
 /// Same as triangle but with 180-degree rotated triangles.
 #[test]
-#[ignore = "requires group/cluster routing"]
+
 fn group_obstacle_overlap_triangle_inverted() {
     let mut b = ScenarioBuilder::new();
     let s1 = add_rect_corners(&mut b, 50.0, 40.0, 60.0, 60.0);
@@ -480,7 +480,7 @@ fn group_obstacle_overlap_triangle_inverted() {
 /// Port: Group_Obstacle_Overlap_Rectangle
 /// A rectangle obstacle crosses the group boundaries.
 #[test]
-#[ignore = "requires group/cluster routing"]
+
 fn group_obstacle_overlap_rectangle() {
     let mut b = ScenarioBuilder::new();
     let s1 = add_rect_corners(&mut b, 50.0, 40.0, 60.0, 60.0);

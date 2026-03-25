@@ -121,7 +121,6 @@ fn reflection_block2() {
 /// Port: Reflection_Triangle1
 /// Three adjacent triangles.
 #[test]
-#[ignore = "requires non-rectangular obstacle support"]
 fn reflection_triangle1() {
     let mut b = ScenarioBuilder::new();
     let s0 = add_nonrect_placeholder(&mut b, &[(50.0,10.0),(80.0,80.0),(110.0,10.0)]);
@@ -221,7 +220,6 @@ fn reflection_long_angle_overlap_to_high_right() {
 
 /// Port: Reflection_LongAngle_Overlap_ToHighLeft
 #[test]
-#[ignore = "requires non-rectangular obstacle support"]
 fn reflection_long_angle_overlap_to_high_left() {
     let mut b = ScenarioBuilder::new();
     reflection_long_angle_overlap_worker(&mut b, -1.0, 1.0);
@@ -291,7 +289,6 @@ fn reflection_staircase_worker(b: &mut ScenarioBuilder, rotation: f64) {
 
 /// Port: Reflection_Staircase_Stops_At_BoundingBox_Side_NorthWest
 #[test]
-#[ignore = "requires non-rectangular obstacle support"]
 fn reflection_staircase_stops_northwest() {
     let mut b = ScenarioBuilder::new();
     reflection_staircase_worker(&mut b, 0.0);
@@ -301,7 +298,6 @@ fn reflection_staircase_stops_northwest() {
 
 /// Port: Reflection_Staircase_Stops_At_BoundingBox_Side_NorthEast
 #[test]
-#[ignore = "requires non-rectangular obstacle support"]
 fn reflection_staircase_stops_northeast() {
     let mut b = ScenarioBuilder::new();
     reflection_staircase_worker(&mut b, 1.5);
@@ -310,7 +306,6 @@ fn reflection_staircase_stops_northeast() {
 
 /// Port: Reflection_Staircase_Stops_At_BoundingBox_Side_SouthEast
 #[test]
-#[ignore = "requires non-rectangular obstacle support"]
 fn reflection_staircase_stops_southeast() {
     let mut b = ScenarioBuilder::new();
     reflection_staircase_worker(&mut b, 1.0);
@@ -319,7 +314,6 @@ fn reflection_staircase_stops_southeast() {
 
 /// Port: Reflection_Staircase_Stops_At_BoundingBox_Side_SouthWest
 #[test]
-#[ignore = "requires non-rectangular obstacle support"]
 fn reflection_staircase_stops_southwest() {
     let mut b = ScenarioBuilder::new();
     reflection_staircase_worker(&mut b, 0.5);
@@ -397,7 +391,6 @@ fn almost_flat_high_side_worker(
 macro_rules! almost_flat_low_side_test {
     ($name:ident, $is_open:expr, $overlap:expr, $neighbor:expr) => {
         #[test]
-        #[ignore = "requires non-rectangular obstacle support"]
         fn $name() {
             let mut b = ScenarioBuilder::new();
             almost_flat_low_side_worker(&mut b, $is_open, $overlap, $neighbor);
@@ -414,7 +407,6 @@ macro_rules! almost_flat_low_side_test {
 macro_rules! almost_flat_high_side_test {
     ($name:ident, $is_open:expr, $overlap:expr, $neighbor:expr) => {
         #[test]
-        #[ignore = "requires non-rectangular obstacle support"]
         fn $name() {
             let mut b = ScenarioBuilder::new();
             almost_flat_high_side_worker(&mut b, $is_open, $overlap, $neighbor);
@@ -517,7 +509,6 @@ fn almost_flat_multiple_inversion_worker(
 macro_rules! almost_flat_inversion_test {
     ($name:ident, $mask:expr, $is_bottom:expr) => {
         #[test]
-        #[ignore = "requires non-rectangular obstacle support"]
         fn $name() {
             let mut b = ScenarioBuilder::new();
             let ids = almost_flat_multiple_inversion_worker(&mut b, $mask, $is_bottom);

@@ -341,7 +341,6 @@ fn flat_bottom_side_with_multiple_crosses() {
 /// Two squares landlocked by overlapping angled rectangles.
 /// C#: CreateSquare at (120,120) and (420,220), then AddAllShiftedRectangles.
 #[test]
-#[ignore = "requires non-rectangular obstacle support"]
 fn route_between_two_separately_disconnected_obstacles() {
     let mut b = ScenarioBuilder::new();
     let shift_x: f64 = 300.0;
@@ -456,7 +455,6 @@ fn nonorthogonally_disconnected_worker(
 
 /// Port: Route_Between_Two_NonOrthogonally_Disconnected_Obstacles_4Reflections
 #[test]
-#[ignore = "requires non-rectangular obstacle support"]
 fn route_between_two_nonorthogonally_disconnected_4reflections() {
     let mut b = ScenarioBuilder::new();
     let (s0, s1) = nonorthogonally_disconnected_worker(&mut b, 4, 4, true);
@@ -468,7 +466,6 @@ fn route_between_two_nonorthogonally_disconnected_4reflections() {
 
 /// Port: Route_Between_Two_NonOrthogonally_AlmostDisconnected_Obstacles_4Reflections
 #[test]
-#[ignore = "requires non-rectangular obstacle support"]
 fn route_between_two_nonorthogonally_almost_disconnected_4reflections() {
     let mut b = ScenarioBuilder::new();
     let (s0, s1) = nonorthogonally_disconnected_worker(&mut b, 3, 4, true);
@@ -480,7 +477,6 @@ fn route_between_two_nonorthogonally_almost_disconnected_4reflections() {
 
 /// Port: Route_From_One_NonOrthogonally_Disconnected_Obstacle_4Reflections
 #[test]
-#[ignore = "requires non-rectangular obstacle support"]
 fn route_from_one_nonorthogonally_disconnected_4reflections() {
     let mut b = ScenarioBuilder::new();
     let (s0, s1) = nonorthogonally_disconnected_worker(&mut b, 4, 4, false);
@@ -492,7 +488,6 @@ fn route_from_one_nonorthogonally_disconnected_4reflections() {
 
 /// Port: Route_From_One_NonOrthogonally_AlmostDisconnected_Obstacle_4Reflections
 #[test]
-#[ignore = "requires non-rectangular obstacle support"]
 fn route_from_one_nonorthogonally_almost_disconnected_4reflections() {
     let mut b = ScenarioBuilder::new();
     let (s0, s1) = nonorthogonally_disconnected_worker(&mut b, 3, 4, false);
@@ -506,7 +501,6 @@ fn route_from_one_nonorthogonally_almost_disconnected_4reflections() {
 
 /// Port: Route_Between_Two_NonOrthogonally_Disconnected_Obstacles_2Reflections
 #[test]
-#[ignore = "requires non-rectangular obstacle support"]
 fn route_between_two_nonorthogonally_disconnected_2reflections() {
     let mut b = ScenarioBuilder::new();
     let (s0, s1) = nonorthogonally_disconnected_worker(&mut b, 4, 2, true);
@@ -518,7 +512,6 @@ fn route_between_two_nonorthogonally_disconnected_2reflections() {
 
 /// Port: Route_Between_Two_NonOrthogonally_AlmostDisconnected_Obstacles_2Reflections
 #[test]
-#[ignore = "requires non-rectangular obstacle support"]
 fn route_between_two_nonorthogonally_almost_disconnected_2reflections() {
     let mut b = ScenarioBuilder::new();
     let (s0, s1) = nonorthogonally_disconnected_worker(&mut b, 3, 2, true);
@@ -530,7 +523,6 @@ fn route_between_two_nonorthogonally_almost_disconnected_2reflections() {
 
 /// Port: Route_From_One_NonOrthogonally_Disconnected_Obstacle_2Reflections
 #[test]
-#[ignore = "requires non-rectangular obstacle support"]
 fn route_from_one_nonorthogonally_disconnected_2reflections() {
     let mut b = ScenarioBuilder::new();
     let (s0, s1) = nonorthogonally_disconnected_worker(&mut b, 4, 2, false);
@@ -542,7 +534,6 @@ fn route_from_one_nonorthogonally_disconnected_2reflections() {
 
 /// Port: Route_From_One_NonOrthogonally_AlmostDisconnected_Obstacle_2Reflections
 #[test]
-#[ignore = "requires non-rectangular obstacle support"]
 fn route_from_one_nonorthogonally_almost_disconnected_2reflections() {
     let mut b = ScenarioBuilder::new();
     let (s0, s1) = nonorthogonally_disconnected_worker(&mut b, 3, 2, false);
@@ -556,7 +547,6 @@ fn route_from_one_nonorthogonally_almost_disconnected_2reflections() {
 
 /// Port: Route_Between_Two_NonOrthogonally_Disconnected_Obstacles_1Reflection
 #[test]
-#[ignore = "requires non-rectangular obstacle support"]
 fn route_between_two_nonorthogonally_disconnected_1reflection() {
     let mut b = ScenarioBuilder::new();
     let (s0, s1) = nonorthogonally_disconnected_worker(&mut b, 4, 1, true);
@@ -568,7 +558,6 @@ fn route_between_two_nonorthogonally_disconnected_1reflection() {
 
 /// Port: Route_Between_Two_NonOrthogonally_AlmostDisconnected_Obstacles_1Reflection
 #[test]
-#[ignore = "requires non-rectangular obstacle support"]
 fn route_between_two_nonorthogonally_almost_disconnected_1reflection() {
     let mut b = ScenarioBuilder::new();
     let (s0, s1) = nonorthogonally_disconnected_worker(&mut b, 3, 1, true);
@@ -580,7 +569,6 @@ fn route_between_two_nonorthogonally_almost_disconnected_1reflection() {
 
 /// Port: Route_From_One_NonOrthogonally_Disconnected_Obstacle_1Reflection
 #[test]
-#[ignore = "requires non-rectangular obstacle support"]
 fn route_from_one_nonorthogonally_disconnected_1reflection() {
     let mut b = ScenarioBuilder::new();
     let (s0, s1) = nonorthogonally_disconnected_worker(&mut b, 4, 1, false);
@@ -592,7 +580,6 @@ fn route_from_one_nonorthogonally_disconnected_1reflection() {
 
 /// Port: Route_From_One_NonOrthogonally_AlmostDisconnected_Obstacle_1Reflection
 #[test]
-#[ignore = "requires non-rectangular obstacle support"]
 fn route_from_one_nonorthogonally_almost_disconnected_1reflection() {
     let mut b = ScenarioBuilder::new();
     let (s0, s1) = nonorthogonally_disconnected_worker(&mut b, 3, 1, false);

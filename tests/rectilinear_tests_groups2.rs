@@ -29,7 +29,7 @@ fn add_rect_corners(b: &mut ScenarioBuilder, x1: f64, y1: f64, x2: f64, y2: f64)
 /// Route from obstacle inside a group to a FreePort outside the group.
 /// s1=(30,30)-(40,40), g1=(20,20)-(50,50), FreePort at (60,35).
 #[test]
-#[ignore = "requires group/cluster routing"]
+
 fn group_free_port_outside_group() {
     let mut b = ScenarioBuilder::new();
     let s1 = add_rect_corners(&mut b, 30.0, 30.0, 40.0, 40.0);
@@ -45,7 +45,7 @@ fn group_free_port_outside_group() {
 /// Route from obstacle inside a group to a FreePort inside the group.
 /// s1=(30,30)-(40,40), g1=(20,20)-(70,50), FreePort at (60,35).
 #[test]
-#[ignore = "requires group/cluster routing"]
+
 fn group_free_port_inside_group() {
     let mut b = ScenarioBuilder::new();
     let s1 = add_rect_corners(&mut b, 30.0, 30.0, 40.0, 40.0);
@@ -61,7 +61,7 @@ fn group_free_port_inside_group() {
 /// s1=(30,30)-(40,40), g1=(20,20)-(70,50), g1_nested=(10,10)-(80,60).
 /// g1_nested children: [g1]. FreePort at (60,35).
 #[test]
-#[ignore = "requires group/cluster routing"]
+
 fn group_free_port_inside_group_nested() {
     let mut b = ScenarioBuilder::new();
     let s1 = add_rect_corners(&mut b, 30.0, 30.0, 40.0, 40.0);
@@ -80,7 +80,7 @@ fn group_free_port_inside_group_nested() {
 /// No routing is done — this is a data structure test.
 /// Creates 30 tiny shapes at (0..29, 0) and tests ordered intersection queries.
 #[test]
-#[ignore = "requires group/cluster routing"]
+
 fn group_boundary_crossings_test() {
     // This test exercises GroupBoundaryCrossingMap which is not yet ported.
     // When implemented, create 30 point-and-shape entries, add to map in
@@ -94,7 +94,7 @@ fn group_boundary_crossings_test() {
 /// Uses diamond-shaped group and rotated diamond reflectors (non-rectangular).
 /// All shapes approximated as rectangular placeholders.
 #[test]
-#[ignore = "requires group/cluster routing"]
+
 fn group_non_rect_blocked_reflections() {
     let mut b = ScenarioBuilder::new();
     let s1 = add_rect_corners(&mut b, 220.0, 90.0, 240.0, 110.0);
@@ -119,7 +119,7 @@ fn group_non_rect_blocked_reflections() {
 /// s1=(160,10)-(180,30), s2=(160,170)-(180,190), c1=(120,90)-(140,110) inside group.
 /// Group g1 is diamond (100,0)-(0,100)-(100,200)-(200,100), children: [c1].
 #[test]
-#[ignore = "requires group/cluster routing"]
+
 fn simple_non_rectangular_group() {
     let mut b = ScenarioBuilder::new();
     let s1 = add_rect_corners(&mut b, 160.0, 10.0, 180.0, 30.0);
@@ -141,7 +141,7 @@ fn simple_non_rectangular_group() {
 /// b1=(32,50)-(160,60) blocker.
 /// g1=(0,0)-(50,40), children: [r1].
 #[test]
-#[ignore = "requires group/cluster routing"]
+
 fn group_flat_top_blocked_reflections() {
     let mut b = ScenarioBuilder::new();
     let s1 = add_rect_corners(&mut b, 0.0, 70.0, 50.0, 80.0);
@@ -161,7 +161,7 @@ fn group_flat_top_blocked_reflections() {
 /// Simplest group test: one obstacle outside, one inside a single group.
 /// s1=(40,40)-(50,50) inside g1=(30,30)-(60,60). s2=(80,40)-(90,50) outside.
 #[test]
-#[ignore = "requires group/cluster routing"]
+
 fn group_simple_one_obstacle_inside_one_group() {
     let mut b = ScenarioBuilder::new();
     let s1 = add_rect_corners(&mut b, 40.0, 40.0, 50.0, 50.0);
@@ -181,7 +181,7 @@ fn group_simple_one_obstacle_inside_one_group() {
 /// Overlapped1: parallelogram approx (120,160)-(180,220).
 /// Overlapped2: rect (180,140)-(240,160).
 #[test]
-#[ignore = "requires group/cluster routing"]
+
 fn group_with_overlapping_obstacles() {
     // C# calls GroupAndObstacleOverlapWorker(0), (1), (2) sequentially.
     // We test the maximal case (2 overlapping obstacles).
@@ -205,7 +205,7 @@ fn group_with_overlapping_obstacles() {
 /// g1 diamond, g2 parallelogram, g3 rect. Verifies visibility polylines
 /// don't intersect and g2/g3 are inside g1's convex hull.
 #[test]
-#[ignore = "requires group/cluster routing"]
+
 fn group_with_overlapping_groups() {
     let mut b = ScenarioBuilder::new();
     let _s1 = add_rect_corners(&mut b, 160.0, 90.0, 180.0, 110.0);
@@ -227,7 +227,7 @@ fn group_with_overlapping_groups() {
 /// A rectangular group inside a rectangular obstacle — both should remain unchanged.
 /// s1=(100,100)-(200,200), g1=(120,120)-(180,180), g1 children: [s1].
 #[test]
-#[ignore = "requires group/cluster routing"]
+
 fn group_inside_rectangular_obstacle() {
     let mut b = ScenarioBuilder::new();
     let _s1 = add_rect_corners(&mut b, 100.0, 100.0, 200.0, 200.0);
@@ -241,7 +241,7 @@ fn group_inside_rectangular_obstacle() {
 /// s1=(100,100)-(200,200), g1=(120,120)-(180,180) children: [s1, s2].
 /// s2=(140,140)-(160,160) added as child of g1.
 #[test]
-#[ignore = "requires group/cluster routing"]
+
 fn group_inside_rectangular_obstacle_contains_rectangular_obstacle() {
     let mut b = ScenarioBuilder::new();
     let _s1 = add_rect_corners(&mut b, 100.0, 100.0, 200.0, 200.0);
@@ -256,7 +256,7 @@ fn group_inside_rectangular_obstacle_contains_rectangular_obstacle() {
 /// s1 is diamond (50,150)-(150,250)-(250,150)-(150,50) approx rect.
 /// g1=(120,120)-(180,180), children: [s1].
 #[test]
-#[ignore = "requires group/cluster routing"]
+
 fn group_inside_non_rectangular_obstacle() {
     let mut b = ScenarioBuilder::new();
     // Diamond s1 approx as bounding rect (50,50)-(250,250)
@@ -269,7 +269,7 @@ fn group_inside_non_rectangular_obstacle() {
 /// Port: Group_Inside_NonRectangular_Obstacle_Contains_Rectangular_Obstacle
 /// Same as above but g1 also contains s2=(140,140)-(160,160).
 #[test]
-#[ignore = "requires group/cluster routing"]
+
 fn group_inside_non_rectangular_obstacle_contains_rectangular_obstacle() {
     let mut b = ScenarioBuilder::new();
     let _s1 = add_rect_corners(&mut b, 50.0, 50.0, 250.0, 250.0);
@@ -287,7 +287,7 @@ fn group_inside_non_rectangular_obstacle_contains_rectangular_obstacle() {
 /// Corners: (90,90)-(110,110), (90,190)-(110,210), (190,190)-(210,210), (190,90)-(210,110).
 /// Sides: (90,140)-(110,160), (140,190)-(160,210), (190,140)-(210,160), (140,90)-(160,110).
 #[test]
-#[ignore = "requires group/cluster routing"]
+
 fn rectangular_obstacles_overlapping_rectangular_group_sides_and_corners() {
     let mut b = ScenarioBuilder::new();
     // The "group" obstacle

@@ -461,7 +461,6 @@ fn overlap_gaps_on_all_boundaries_target_upper_left() {
 /// Uses non-rectangular polygons (pentagon, triangles, diamond) — requires
 /// convex hull support.
 #[test]
-#[ignore = "requires non-rectangular polygon / convex hull support"]
 fn overlap_splice_across_obstacle() {
     // C# test uses irregular pentagons, triangles, and diamonds.
     // Cannot faithfully represent with rectangle-only Shape.
@@ -482,7 +481,6 @@ fn overlap_splice_across_obstacle() {
 /// Uses non-rectangular polygons (triangles, rectangles from CurveFromPoints)
 /// — partially requires convex hull support.
 #[test]
-#[ignore = "requires non-rectangular polygon / convex hull support"]
 fn overlap_reflection_token() {
     // C# test uses triangles and irregular shapes via CurveFromPoints.
     let mut b = ScenarioBuilder::new();

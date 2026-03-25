@@ -19,7 +19,6 @@ use test_harness::verifier::RECTILINEAR_TOLERANCE;
 /// FreePorts outside of the graph bounds defined by its obstacles.
 /// C#: single rectangle (20,20)-(100,100) with 20 free ports around it.
 #[test]
-#[ignore = "requires free port support"]
 fn freeports_out_of_bounds() {
     let mut b = ScenarioBuilder::new();
     let _obs = b.add_rectangle_bl(20.0, 20.0, 80.0, 80.0);
@@ -33,7 +32,6 @@ fn freeports_out_of_bounds() {
 /// Port: FreePorts_OutOfBounds_Dup
 /// Duplicate FreePorts outside of the graph bounds.
 #[test]
-#[ignore = "requires free port support"]
 fn freeports_out_of_bounds_dup() {
     let mut b = ScenarioBuilder::new();
     let _obs = b.add_rectangle_bl(20.0, 20.0, 80.0, 80.0);
@@ -44,7 +42,6 @@ fn freeports_out_of_bounds_dup() {
 /// Port: FreePorts_OobCorner_BendUsedTwice_Vertical
 /// Two freePorts above the same bend, one higher than the other.
 #[test]
-#[ignore = "requires free port support"]
 fn freeports_oob_corner_bend_used_twice_vertical() {
     let mut b = ScenarioBuilder::new();
     let _obs = b.add_rectangle_bl(20.0, 20.0, 80.0, 80.0);
@@ -55,7 +52,6 @@ fn freeports_oob_corner_bend_used_twice_vertical() {
 /// Port: FreePorts_OobCorner_BendReusedAsFreePort
 /// Reusing a bend vertex as an out-of-bounds free vertex.
 #[test]
-#[ignore = "requires free port support"]
 fn freeports_oob_corner_bend_reused_as_freeport() {
     let mut b = ScenarioBuilder::new();
     let _obs = b.add_rectangle_bl(20.0, 20.0, 80.0, 80.0);
@@ -66,7 +62,6 @@ fn freeports_oob_corner_bend_reused_as_freeport() {
 /// Port: FreePorts_OobCorner_FreePortReusedAsBend
 /// Reusing an out-of-bounds free vertex as a bend vertex.
 #[test]
-#[ignore = "requires free port support"]
 fn freeports_oob_corner_freeport_reused_as_bend() {
     let mut b = ScenarioBuilder::new();
     let _obs = b.add_rectangle_bl(20.0, 20.0, 80.0, 80.0);
@@ -77,7 +72,6 @@ fn freeports_oob_corner_freeport_reused_as_bend() {
 /// Port: FreePorts_OobCorner_BendUsedTwiceHorizontal
 /// Using a bend vertex twice for out-of-bounds freeports (horizontal).
 #[test]
-#[ignore = "requires free port support"]
 fn freeports_oob_corner_bend_used_twice_horizontal() {
     let mut b = ScenarioBuilder::new();
     let _obs = b.add_rectangle_bl(20.0, 20.0, 80.0, 80.0);
@@ -88,7 +82,6 @@ fn freeports_oob_corner_bend_used_twice_horizontal() {
 /// Port: FreePorts_OobCorner_TwoBends
 /// Two bend vertices for out-of-bounds freeports.
 #[test]
-#[ignore = "requires free port support"]
 fn freeports_oob_corner_two_bends() {
     let mut b = ScenarioBuilder::new();
     let _obs = b.add_rectangle_bl(20.0, 20.0, 80.0, 80.0);
@@ -99,7 +92,6 @@ fn freeports_oob_corner_two_bends() {
 /// Port: FreePorts_OobCorner_TwoBends_Rep1Free_Rem3210
 /// Two bends, one replaced as free, remove order 3-2-1-0.
 #[test]
-#[ignore = "requires free port support"]
 fn freeports_oob_corner_two_bends_rep1free_rem3210() {
     let mut b = ScenarioBuilder::new();
     let _obs = b.add_rectangle_bl(20.0, 20.0, 80.0, 80.0);
@@ -110,7 +102,6 @@ fn freeports_oob_corner_two_bends_rep1free_rem3210() {
 /// Port: FreePorts_Oob_NoBendsThree
 /// Three collinear out-of-bounds freeports.
 #[test]
-#[ignore = "requires free port support"]
 fn freeports_oob_no_bends_three() {
     let mut b = ScenarioBuilder::new();
     let _obs = b.add_rectangle_bl(20.0, 20.0, 80.0, 80.0);
@@ -121,7 +112,6 @@ fn freeports_oob_no_bends_three() {
 /// Port: FreePorts_OnPaddedBorder
 /// Freeports on the padded border of an object at the outer limit.
 #[test]
-#[ignore = "requires free port support"]
 fn freeports_on_padded_border() {
     let mut b = ScenarioBuilder::new();
     let _obs = b.add_rectangle_bl(20.0, 20.0, 80.0, 80.0);
@@ -132,7 +122,6 @@ fn freeports_on_padded_border() {
 /// Port: FreePorts_OnPaddedBorder_Plus_Collinear_Outer
 /// Freeports on padded border plus collinear freeports just outside.
 #[test]
-#[ignore = "requires free port support"]
 fn freeports_on_padded_border_plus_collinear_outer() {
     let mut b = ScenarioBuilder::new();
     let _obs = b.add_rectangle_bl(20.0, 20.0, 80.0, 80.0);
@@ -145,7 +134,6 @@ fn freeports_on_padded_border_plus_collinear_outer() {
 /// Two collinear freeports on the same horizontal line.
 /// C#: Two test squares with sentinels; ports at (110,30) and (120,30).
 #[test]
-#[ignore = "requires free port support"]
 fn freeports_on_same_line() {
     let mut b = ScenarioBuilder::new();
     // Left and right squares
@@ -163,7 +151,6 @@ fn freeports_on_same_line() {
 /// Multiple collinear freeports, routing from obstacle 0.
 /// C#: 10 lines x 20 ports per line = 200 floating ports between two squares.
 #[test]
-#[ignore = "requires free port support"]
 fn multiple_collinear_freeports_route_from_obstacle0() {
     let mut b = ScenarioBuilder::new();
     b.add_rectangle_bl(20.0, 20.0, 80.0, 80.0);
@@ -179,7 +166,6 @@ fn multiple_collinear_freeports_route_from_obstacle0() {
 /// Multiple collinear freeports, routing from all obstacles.
 /// C# has this marked [Ignore] too (nudger performance bug).
 #[test]
-#[ignore = "requires free port support"]
 fn multiple_collinear_freeports_route_from_all_obstacles() {
     let mut b = ScenarioBuilder::new();
     b.add_rectangle_bl(20.0, 20.0, 80.0, 80.0);
@@ -190,7 +176,6 @@ fn multiple_collinear_freeports_route_from_all_obstacles() {
 /// Port: FreePortLocationRelativeToTransientVisibilityEdges
 /// Splicing FreePort visibility when freeport is on a TransientVisibilityEdge.
 #[test]
-#[ignore = "requires free port support"]
 fn freeport_location_relative_to_transient_visibility_edges() {
     let mut b = ScenarioBuilder::new();
     // 8 small squares arranged in two rows
@@ -206,7 +191,6 @@ fn freeport_location_relative_to_transient_visibility_edges() {
 /// Port: FreePortLocationRelativeToTransientVisibilityEdges_SparseVg
 /// Same as above but with sparse visibility graph.
 #[test]
-#[ignore = "requires free port support"]
 fn freeport_location_relative_to_transient_visibility_edges_sparse_vg() {
     let mut b = ScenarioBuilder::new();
     for i in 0..4 {
@@ -224,7 +208,6 @@ fn freeport_location_relative_to_transient_visibility_edges_sparse_vg() {
 /// Tests that the visibility graph stays intact after removing a freeport
 /// that was on another freeport line.
 #[test]
-#[ignore = "requires free port support"]
 fn update_freeport() {
     let mut b = ScenarioBuilder::new();
     let left = b.add_rectangle_bl(20.0, 20.0, 80.0, 80.0);
@@ -240,7 +223,6 @@ fn update_freeport() {
 /// Port: UpdatePortPosition_Without_UpdateObstacles
 /// Auto-detection of changes in Shape.Ports membership.
 #[test]
-#[ignore = "requires free port support"]
 fn update_port_position_without_update_obstacles() {
     let mut b = ScenarioBuilder::new();
     let left = b.add_rectangle_bl(20.0, 20.0, 80.0, 80.0);
@@ -256,7 +238,6 @@ fn update_port_position_without_update_obstacles() {
 /// Port: AddRemovePorts_Without_UpdateObstacles
 /// Adding and removing ports without explicit router.UpdateObstacles().
 #[test]
-#[ignore = "requires free port support"]
 fn add_remove_ports_without_update_obstacles() {
     let mut b = ScenarioBuilder::new();
     let left = b.add_rectangle_bl(20.0, 20.0, 80.0, 80.0);
@@ -274,7 +255,6 @@ fn add_remove_ports_without_update_obstacles() {
 /// Port: MoveOneObstacle_ManuallyUpdateAbsolutePorts
 /// Movement of non-relative obstacle ports with manual update.
 #[test]
-#[ignore = "requires incremental update API"]
 fn move_one_obstacle_manually_update_absolute_ports() {
     let mut b = ScenarioBuilder::new();
     let left = b.add_rectangle_bl(20.0, 20.0, 80.0, 80.0);
@@ -290,7 +270,6 @@ fn move_one_obstacle_manually_update_absolute_ports() {
 /// Port: MoveOneObstacle_NoUpdateAbsolutePorts_FreePoint_InAndOut
 /// Movement of obstacle causing a freeport to be inside then outside.
 #[test]
-#[ignore = "requires incremental update API"]
 fn move_one_obstacle_no_update_absolute_ports_freepoint_in_and_out() {
     let mut b = ScenarioBuilder::new();
     let left = b.add_rectangle_bl(20.0, 20.0, 80.0, 80.0);
@@ -306,7 +285,6 @@ fn move_one_obstacle_no_update_absolute_ports_freepoint_in_and_out() {
 /// Port: MoveOneObstacle_AutomaticallyUpdateAbsolutePorts
 /// Automatic update of absolute obstacle ports when obstacle is moved.
 #[test]
-#[ignore = "requires incremental update API"]
 fn move_one_obstacle_automatically_update_absolute_ports() {
     let mut b = ScenarioBuilder::new();
     let left = b.add_rectangle_bl(20.0, 20.0, 80.0, 80.0);
@@ -322,7 +300,6 @@ fn move_one_obstacle_automatically_update_absolute_ports() {
 /// Port: MoveOneObstacle_AutomaticallyUpdateRelativePorts
 /// Automatic update of relative obstacle ports when obstacle is moved.
 #[test]
-#[ignore = "requires incremental update API"]
 fn move_one_obstacle_automatically_update_relative_ports() {
     let mut b = ScenarioBuilder::new();
     let left = b.add_rectangle_bl(20.0, 20.0, 80.0, 80.0);
@@ -342,7 +319,6 @@ fn move_one_obstacle_automatically_update_relative_ports() {
 /// unpaddedBorderIntersect; clockwise-rotated non-rectangular obstacle.
 /// C#: a rotated parallelogram + a rectangle.
 #[test]
-#[ignore = "requires non-rectangular obstacle support"]
 fn secondary_port_visibility_rotated_clockwise() {
     let mut b = ScenarioBuilder::new();
     // C# CurveFromPoints: (50,0),(20,10),(30,40),(60,30) — non-rectangular
@@ -356,7 +332,6 @@ fn secondary_port_visibility_rotated_clockwise() {
 /// Port: Secondary_Port_Visibility_RotatedCounterclockwise
 /// Visibility chains from unpaddedBorderIntersect; counter-clockwise rotation.
 #[test]
-#[ignore = "requires non-rectangular obstacle support"]
 fn secondary_port_visibility_rotated_counterclockwise() {
     let mut b = ScenarioBuilder::new();
     // C# CurveFromPoints: (20,10),(10,40),(40,50),(50,20) — non-rectangular
@@ -369,7 +344,6 @@ fn secondary_port_visibility_rotated_counterclockwise() {
 /// Port: PortEntry_Diamond_AboveCorner_TargetAboveCorner_MiddleObstacle_PortsMoved
 /// Route between a diamond source and rectangle target with a middle blocking obstacle.
 #[test]
-#[ignore = "requires non-rectangular obstacle support"]
 fn port_entry_diamond_above_corner_target_above_corner_middle_obstacle() {
     let mut b = ScenarioBuilder::new();
     // Source is a diamond (non-rect), target is rectangle
@@ -389,7 +363,6 @@ fn port_entry_diamond_above_corner_target_above_corner_middle_obstacle() {
 /// Port visibility splices do not cross when extending to a sloped triangle side.
 /// C#: two rectangles + a triangle.
 #[test]
-#[ignore = "requires non-rectangular obstacle support"]
 fn splice_source_to_extend_point_to_triangle_side() {
     let mut b = ScenarioBuilder::new();
     let obs0 = b.add_rectangle_bl(65.0, 0.0, 90.0, 20.0);
@@ -404,7 +377,6 @@ fn splice_source_to_extend_point_to_triangle_side() {
 /// Port visibility splices do not cross when extending to a sloped arrow side.
 /// C#: two rectangles + an arrow-shaped polygon.
 #[test]
-#[ignore = "requires non-rectangular obstacle support"]
 fn splice_source_to_extend_to_arrow_side() {
     let mut b = ScenarioBuilder::new();
     let obs0 = b.add_rectangle_bl(65.0, 0.0, 90.0, 20.0);
@@ -419,7 +391,6 @@ fn splice_source_to_extend_to_arrow_side() {
 /// A port that is outside its curve is treated as a FreePort.
 /// C#: three rectangles; port on obstacle[1] actually uses obstacle[2]'s curve.
 #[test]
-#[ignore = "requires free port support"]
 fn port_not_on_its_curve() {
     let mut b = ScenarioBuilder::new();
     let obs0 = b.add_rectangle_bl(10.0, 10.0, 10.0, 10.0);
@@ -453,7 +424,6 @@ fn closed_vertex_with_bends_8_port_entrances() {
 /// Port: ClosedVertexWithBends_2PortEntrances
 /// C#: 3 rectangles; source is a free port at (20,15), target on obstacle[1].
 #[test]
-#[ignore = "requires free port support"]
 fn closed_vertex_with_bends_2_port_entrances() {
     let mut b = ScenarioBuilder::new();
     let _obs0 = b.add_rectangle_bl(10.0, 10.0, 5.0, 10.0);
@@ -510,7 +480,6 @@ fn nudger_no_extra_bends_with_rectangles() {
 /// Handling of collinear OpenVertex and CloseVertex events.
 /// C#: 5 triangles — non-rectangular.
 #[test]
-#[ignore = "requires non-rectangular obstacle support"]
 fn multiple_collinear_open_and_close_vertices() {
     let mut b = ScenarioBuilder::new();
     // These are triangles in C# — approximate with bounding rectangles
@@ -528,7 +497,6 @@ fn multiple_collinear_open_and_close_vertices() {
 /// Collinear OpenVertex and CloseVertex events collinear with an intersection.
 /// C#: 4 obstacles (2 triangles, 1 wider triangle, 1 rectangle).
 #[test]
-#[ignore = "requires non-rectangular obstacle support"]
 fn collinear_open_vertex_and_intersection() {
     let mut b = ScenarioBuilder::new();
     let obs0 = b.add_rectangle_bl(10.0, 10.0, 10.0, 10.0);
@@ -543,7 +511,6 @@ fn collinear_open_vertex_and_intersection() {
 /// Obstacle port just outside the obstacle unpadded boundary.
 /// C#: a tiny triangle (center outside its borders) + a rectangle.
 #[test]
-#[ignore = "requires non-rectangular obstacle support"]
 fn triangle_obstacle_port_outside_obstacle() {
     let mut b = ScenarioBuilder::new();
     // Triangle with center outside its borders — approximate with bbox
@@ -557,7 +524,6 @@ fn triangle_obstacle_port_outside_obstacle() {
 /// VisibilityBorderIntersect is on an incoming ScanSegment.
 /// C#: modified source square (near-vertical side) + blocker + sentinels.
 #[test]
-#[ignore = "requires non-rectangular obstacle support"]
 fn padded_border_intersect_meets_incoming_scan_segment() {
     let mut b = ScenarioBuilder::new();
     // Source is modified to have a near-vertical right side — non-rect
@@ -579,7 +545,6 @@ fn padded_border_intersect_meets_incoming_scan_segment() {
 /// BorderIntersect transient edges.
 /// C#: two overlapping triangles.
 #[test]
-#[ignore = "requires overlap/convex hull support"]
 fn routing_between_collinear_obstacles_in_convex_hull() {
     let mut b = ScenarioBuilder::new();
     // Triangles: (50,50),(60,80),(70,50) and (65,50),(75,80),(85,50)
@@ -594,7 +559,6 @@ fn routing_between_collinear_obstacles_in_convex_hull() {
 /// with WantPaths=false.
 /// C#: multiple rectangles with overlap, routes between first two obstacles.
 #[test]
-#[ignore = "requires overlap/convex hull support"]
 fn document_illustration2() {
     let mut b = ScenarioBuilder::new();
     // Source and target
@@ -616,7 +580,6 @@ fn document_illustration2() {
 /// Correct removal of vertices that are ApproximateComparer.Close.
 /// This is a polyline utility test, not a routing test.
 #[test]
-#[ignore = "requires polyline vertex removal API"]
 fn remove_close_vertices_from_polyline() {
     // C# creates an octagon, duplicates each point with a tiny offset,
     // and verifies RemoveCloseAndCollinearVerticesInPlace removes them.
@@ -627,7 +590,6 @@ fn remove_close_vertices_from_polyline() {
 /// Correct removal of vertices that are collinear with other vertices.
 /// This is a polyline utility test, not a routing test.
 #[test]
-#[ignore = "requires polyline vertex removal API"]
 fn remove_collinear_vertices_from_polyline() {
     // C# creates an octagon, adds midpoints on each edge,
     // and verifies RemoveCloseAndCollinearVerticesInPlace removes them.
