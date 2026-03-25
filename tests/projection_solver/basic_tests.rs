@@ -4,6 +4,7 @@ use msagl_rust::projection_solver::block::{Block, BlockIndex};
 use msagl_rust::projection_solver::parameters::Parameters;
 use msagl_rust::projection_solver::solution::Solution;
 use msagl_rust::projection_solver::constraint_vector::ConstraintVector;
+use msagl_rust::projection_solver::violation_cache::ViolationCache;
 
 #[test]
 fn variable_default_fields() {
@@ -114,4 +115,45 @@ fn constraint_vector_round_trip() {
     assert_eq!(cv.active_count(), 2);
     cv.activate(ConIndex(1));
     assert_eq!(cv.active_count(), 3);
+}
+
+#[test]
+fn violation_cache_insert_and_find() {
+    let mut cache = ViolationCache::new();
+    cache.insert(ConIndex(5), 10.0);
+    cache.insert(ConIndex(3), 20.0);
+    cache.insert(ConIndex(7), 5.0);
+    let result = cache.find_if_greater(15.0);
+    assert!(result.is_some());
+    assert_eq!(result.unwrap().0, ConIndex(3));
+}
+
+#[test]
+fn violation_cache_clear() {
+    let mut cache = ViolationCache::new();
+    cache.insert(ConIndex(0), 100.0);
+    cache.clear();
+    assert_eq!(cache.find_if_greater(0.0), None);
+}
+
+#[test]
+fn violation_cache_capacity_limit() {
+    let mut cache = ViolationCache::new();
+    for i in 0..25 {
+        cache.insert(ConIndex(i), i as f64);
+    }
+    // Top 20 should remain; lowest should be >= 5
+    assert!(cache.find_if_greater(4.0).is_some());
+}
+
+#[test]
+fn violation_cache_filter() {
+    let mut cache = ViolationCache::new();
+    cache.insert(ConIndex(0), 10.0);
+    cache.insert(ConIndex(1), 20.0);
+    cache.insert(ConIndex(2), 30.0);
+    // Filter out ConIndex 1
+    let remaining = cache.filter_block(|ci| ci == ConIndex(1));
+    assert!(remaining);
+    assert_eq!(cache.find_if_greater(0.0).unwrap().0, ConIndex(2));
 }
