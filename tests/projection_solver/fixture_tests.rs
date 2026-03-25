@@ -130,10 +130,10 @@ macro_rules! fixture_test_ignored {
 // These involve unsatisfiable constraint cycles where QPSC convergence differs
 // significantly from C#, likely due to iteration-order sensitivity in cycle
 // detection/handling. Re-enable when QPSC cycle handling is refined.
-fixture_test_ignored!(cycles_vars100_constraintsmax10_equalityconstraints_posmax1m_gapmax100k_weightmax10k_cycles10, "Cycles_Vars100_ConstraintsMax10_EqualityConstraints_PosMax1M_GapMax100K_WeightMax10K_Cycles10.txt", "QPSC cycle convergence");
-fixture_test_ignored!(cycles_vars100_constraintsmax10_posmax1m_gapmax100k_weightmax10k_cycles10, "Cycles_Vars100_ConstraintsMax10_PosMax1M_GapMax100K_WeightMax10K_Cycles10.txt", "QPSC cycle convergence");
-fixture_test_ignored!(cycles_vars500_constraintsmax10_equalityconstraints_posmax1m_gapmax100k_weightmax10k_cycles10, "Cycles_Vars500_ConstraintsMax10_EqualityConstraints_PosMax1M_GapMax100K_WeightMax10K_Cycles10.txt", "QPSC cycle convergence");
-fixture_test_ignored!(cycles_vars500_constraintsmax10_posmax1m_gapmax100k_weightmax10k_cycles10, "Cycles_Vars500_ConstraintsMax10_PosMax1M_GapMax100K_WeightMax10K_Cycles10.txt", "QPSC cycle convergence");
+fixture_test!(cycles_vars100_constraintsmax10_equalityconstraints_posmax1m_gapmax100k_weightmax10k_cycles10, "Cycles_Vars100_ConstraintsMax10_EqualityConstraints_PosMax1M_GapMax100K_WeightMax10K_Cycles10.txt");
+fixture_test!(cycles_vars100_constraintsmax10_posmax1m_gapmax100k_weightmax10k_cycles10, "Cycles_Vars100_ConstraintsMax10_PosMax1M_GapMax100K_WeightMax10K_Cycles10.txt");
+fixture_test!(cycles_vars500_constraintsmax10_equalityconstraints_posmax1m_gapmax100k_weightmax10k_cycles10, "Cycles_Vars500_ConstraintsMax10_EqualityConstraints_PosMax1M_GapMax100K_WeightMax10K_Cycles10.txt");
+fixture_test!(cycles_vars500_constraintsmax10_posmax1m_gapmax100k_weightmax10k_cycles10, "Cycles_Vars500_ConstraintsMax10_PosMax1M_GapMax100K_WeightMax10K_Cycles10.txt");
 
 // ---------------------------------------------------------------------------
 // Neighbors (16 fixtures)
@@ -143,9 +143,10 @@ fixture_test!(neighbors_vars10_constraintsmax10_neighborsmax10_weightmax100, "Ne
 fixture_test!(neighbors_vars10_constraintsmax3_neighborsmax3_weightmax100, "Neighbors_Vars10_ConstraintsMax3_NeighborsMax3_WeightMax100.txt");
 fixture_test!(neighbors_vars100_constraintsmax10_neighborsmax10_weightmax100, "Neighbors_Vars100_ConstraintsMax10_NeighborsMax10_WeightMax100.txt");
 fixture_test!(neighbors_vars100_constraintsmax3_neighborsmax3_weightmax100, "Neighbors_Vars100_ConstraintsMax3_NeighborsMax3_WeightMax100.txt");
-// Variable weights spanning 6 orders of magnitude cause QPSC convergence
-// differences vs C#. Error ~24 on range ~144. Re-enable when QPSC scaling
-// is refined for extreme weight ratios.
+// Variable weights spanning 6 orders of magnitude (1 to 1e6) cause QPSC
+// convergence to a slightly different local minimum. Error ~24 on range ~144.
+// The diagonal scaling computation accumulates floating-point errors at
+// these extreme weight ratios. Needs deeper QPSC precision investigation.
 fixture_test_ignored!(neighbors_vars1000_constraintsmax10_neighborsmax10_neighborweightmax100_varweights_1_to_1e6_at_10_percent, "Neighbors_Vars1000_ConstraintsMax10_NeighborsMax10_NeighborWeightMax100_VarWeights_1_To_1E6_At_10_Percent.txt", "extreme weight ratio convergence");
 fixture_test!(neighbors_vars1000_constraintsmax10_neighborsmax10_weightmax100, "Neighbors_Vars1000_ConstraintsMax10_NeighborsMax10_WeightMax100.txt");
 fixture_test!(neighbors_vars1000_constraintsmax3_neighborsmax3_weightmax100, "Neighbors_Vars1000_ConstraintsMax3_NeighborsMax3_WeightMax100.txt");
@@ -154,9 +155,7 @@ fixture_test!(neighbors_vars200_constraintsmax3_neighborsmax3_weightmax100, "Nei
 fixture_test!(neighbors_vars2500_constraintsmax10_neighborsmax10_weightmax100, "Neighbors_Vars2500_ConstraintsMax10_NeighborsMax10_WeightMax100.txt");
 fixture_test!(neighbors_vars300_constraintsmax10_neighborsmax10_weightmax100, "Neighbors_Vars300_ConstraintsMax10_NeighborsMax10_WeightMax100.txt");
 fixture_test!(neighbors_vars300_constraintsmax3_neighborsmax3_weightmax100, "Neighbors_Vars300_ConstraintsMax3_NeighborsMax3_WeightMax100.txt");
-// This specific fixture has a QPSC convergence difference (error ~23 on
-// range ~108). Other Vars400 fixtures pass. Re-enable when QPSC is refined.
-fixture_test_ignored!(neighbors_vars400_constraintsmax10_neighborsmax10_weightmax100, "Neighbors_Vars400_ConstraintsMax10_NeighborsMax10_WeightMax100.txt", "QPSC convergence edge case");
+fixture_test!(neighbors_vars400_constraintsmax10_neighborsmax10_weightmax100, "Neighbors_Vars400_ConstraintsMax10_NeighborsMax10_WeightMax100.txt");
 fixture_test!(neighbors_vars400_constraintsmax3_neighborsmax3_weightmax100, "Neighbors_Vars400_ConstraintsMax3_NeighborsMax3_WeightMax100.txt");
 fixture_test!(neighbors_vars500_constraintsmax10_neighborsmax10_weightmax100, "Neighbors_Vars500_ConstraintsMax10_NeighborsMax10_WeightMax100.txt");
 fixture_test!(neighbors_vars500_constraintsmax3_neighborsmax3_weightmax100, "Neighbors_Vars500_ConstraintsMax3_NeighborsMax3_WeightMax100.txt");
@@ -241,3 +240,9 @@ fixture_test!(solver6_vars100_constraintsmax3, "Solver6_Vars100_ConstraintsMax3.
 fixture_test!(solver7_vars100_constraintsmax3, "Solver7_Vars100_ConstraintsMax3.txt");
 fixture_test!(solver8_vars100_constraintsmax3, "Solver8_Vars100_ConstraintsMax3.txt");
 fixture_test!(solver9_vars100_constraintsmax3, "Solver9_Vars100_ConstraintsMax3.txt");
+
+// ---------------------------------------------------------------------------
+// Manual cycle test
+// ---------------------------------------------------------------------------
+
+// Manual cycle tests removed -- cycle behavior tested via fixtures

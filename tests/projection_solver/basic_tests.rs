@@ -117,45 +117,64 @@ fn constraint_vector_round_trip() {
     assert_eq!(cv.active_count(), 3);
 }
 
+/// Helper: store a simple violation value for testing. Maps ConIndex to f64.
+fn test_vio(violations: &[(usize, f64)]) -> impl Fn(ConIndex) -> f64 + '_ {
+    move |ci| {
+        violations
+            .iter()
+            .find(|(id, _)| *id == ci.0)
+            .map(|(_, v)| *v)
+            .unwrap_or(0.0)
+    }
+}
+
 #[test]
 fn violation_cache_insert_and_find() {
+    let vios = [(5, 10.0), (3, 20.0), (7, 5.0)];
     let mut cache = ViolationCache::new();
-    cache.insert(ConIndex(5), 10.0);
-    cache.insert(ConIndex(3), 20.0);
-    cache.insert(ConIndex(7), 5.0);
-    let result = cache.find_if_greater(15.0);
+    cache.insert(ConIndex(5), 10.0, &test_vio(&vios));
+    cache.insert(ConIndex(3), 20.0, &test_vio(&vios));
+    cache.insert(ConIndex(7), 5.0, &test_vio(&vios));
+    let result = cache.find_if_greater(15.0, &test_vio(&vios));
     assert!(result.is_some());
-    assert_eq!(result.unwrap().0, ConIndex(3));
+    assert_eq!(result.unwrap(), ConIndex(3));
 }
 
 #[test]
 fn violation_cache_clear() {
+    let vios = [(0, 100.0)];
     let mut cache = ViolationCache::new();
-    cache.insert(ConIndex(0), 100.0);
+    cache.insert(ConIndex(0), 100.0, &test_vio(&vios));
     cache.clear();
-    assert_eq!(cache.find_if_greater(0.0), None);
+    assert_eq!(cache.find_if_greater(0.0, &test_vio(&vios)), None);
 }
 
 #[test]
 fn violation_cache_capacity_limit() {
+    let vios: Vec<(usize, f64)> = (0..25).map(|i| (i, i as f64)).collect();
     let mut cache = ViolationCache::new();
     for i in 0..25 {
-        cache.insert(ConIndex(i), i as f64);
+        cache.insert(ConIndex(i), i as f64, &test_vio(&vios));
     }
     // Top 20 should remain; lowest should be >= 5
-    assert!(cache.find_if_greater(4.0).is_some());
+    assert!(cache.find_if_greater(4.0, &test_vio(&vios)).is_some());
 }
 
 #[test]
 fn violation_cache_filter() {
+    let vios = [(0, 10.0), (1, 20.0), (2, 30.0)];
     let mut cache = ViolationCache::new();
-    cache.insert(ConIndex(0), 10.0);
-    cache.insert(ConIndex(1), 20.0);
-    cache.insert(ConIndex(2), 30.0);
+    cache.insert(ConIndex(0), 10.0, &test_vio(&vios));
+    cache.insert(ConIndex(1), 20.0, &test_vio(&vios));
+    cache.insert(ConIndex(2), 30.0, &test_vio(&vios));
     // Filter out ConIndex 1
-    let remaining = cache.filter_block(|ci| ci == ConIndex(1));
+    let remaining =
+        cache.filter_block(|ci| ci == ConIndex(1), test_vio(&vios));
     assert!(remaining);
-    assert_eq!(cache.find_if_greater(0.0).unwrap().0, ConIndex(2));
+    assert_eq!(
+        cache.find_if_greater(0.0, &test_vio(&vios)).unwrap(),
+        ConIndex(2)
+    );
 }
 
 // ===== Solver tests =====

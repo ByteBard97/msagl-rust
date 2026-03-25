@@ -23,6 +23,23 @@ impl ConstraintVector {
         }
     }
 
+    /// Create with a specific initial ordering (matching C#'s per-variable
+    /// left-constraint ordering for deterministic constraint selection).
+    pub fn with_order(count: usize, order: Vec<ConIndex>) -> Self {
+        debug_assert_eq!(order.len(), count, "order length must match count");
+        let mut positions = vec![0usize; count];
+        for (pos, &ci) in order.iter().enumerate() {
+            positions[ci.0] = pos;
+        }
+        Self {
+            positions,
+            order,
+            first_active: count,
+            max_constraint_tree_depth: 0,
+            number_of_unsatisfiable_constraints: 0,
+        }
+    }
+
     pub fn active_count(&self) -> usize {
         self.order.len() - self.first_active
     }
