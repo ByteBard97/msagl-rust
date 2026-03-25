@@ -139,9 +139,6 @@ impl Verifier {
 
     /// Assert that edges are separated by at least `min_separation` on any
     /// shared horizontal or vertical coordinate.
-    ///
-    /// Checks that for each pair of edges, no two waypoints that share the same
-    /// axis coordinate are closer than `min_separation` on the perpendicular axis.
     #[allow(dead_code)]
     pub fn assert_edges_separated(result: &RoutingResult, min_separation: f64) {
         let edges = &result.edges;
@@ -152,7 +149,6 @@ impl Verifier {
                         // Collinear horizontal: same Y, check X separation.
                         if (pi.y() - pj.y()).abs() < 0.01 {
                             let sep = (pi.x() - pj.x()).abs();
-                            // Only care if they are in the same "lane" region — skip endpoints far apart.
                             if sep < min_separation * 5.0 {
                                 assert!(
                                     sep >= min_separation - 0.5,
