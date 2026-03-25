@@ -1,5 +1,7 @@
 use std::collections::{BTreeSet, HashMap};
 use crate::geometry::point::Point;
+use crate::routing::compass_direction::CompassDirection;
+use crate::routing::vertex_entry::VertexEntryIndex;
 use super::edge::VisEdge;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
@@ -12,6 +14,7 @@ pub struct VertexData {
     pub distance: f64,
     pub prev_vertex: Option<VertexId>,
     pub is_terminal: bool,
+    pub vertex_entries: [Option<VertexEntryIndex>; 4],
 }
 
 pub struct VisibilityGraph {
@@ -36,6 +39,7 @@ impl VisibilityGraph {
             distance: f64::INFINITY,
             prev_vertex: None,
             is_terminal: false,
+            vertex_entries: [None; 4],
         });
         self.point_to_vertex.insert(point, id);
         id
@@ -85,6 +89,23 @@ impl VisibilityGraph {
 
     pub fn out_edges(&self, v: VertexId) -> impl Iterator<Item = &VisEdge> {
         self.vertices[v.0].out_edges.iter()
+    }
+
+    /// Get the entry index for a vertex from a specific direction.
+    pub fn vertex_entry(&self, v: VertexId, dir: CompassDirection) -> Option<VertexEntryIndex> {
+        self.vertices[v.0].vertex_entries[dir.index()]
+    }
+
+    /// Set the entry index for a vertex from a specific direction.
+    pub fn set_vertex_entry(&mut self, v: VertexId, dir: CompassDirection, entry: Option<VertexEntryIndex>) {
+        self.vertices[v.0].vertex_entries[dir.index()] = entry;
+    }
+
+    /// Clear all vertex entries (for reuse between path searches).
+    pub fn clear_vertex_entries(&mut self) {
+        for vd in &mut self.vertices {
+            vd.vertex_entries = [None; 4];
+        }
     }
 }
 
