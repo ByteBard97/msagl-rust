@@ -8,6 +8,7 @@ pub mod path_merger;
 pub mod linked_point;
 pub mod linked_point_splitter;
 pub mod combinatorial_nudger;
+mod free_space_finder_types;
 pub mod free_space_finder;
 pub mod longest_nudged_segment;
 pub mod nudger;
