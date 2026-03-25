@@ -8,6 +8,9 @@ use super::compass_direction::CompassDirection;
 /// Number of compass directions (used for the best-cost table).
 const NUM_DIRECTIONS: usize = 4;
 
+/// Tolerance for treating two coordinates as equal in bend estimation.
+const BEND_ESTIMATION_EPSILON: f64 = 1e-9;
+
 /// Default bend penalty as a percentage of source-target Manhattan distance.
 /// Matches TS `SsstRectilinearPath.DefaultBendPenaltyAsAPercentageOfDistance = 4`.
 pub const DEFAULT_BEND_PENALTY_AS_PERCENTAGE_OF_DISTANCE: f64 = 4.0;
@@ -298,19 +301,19 @@ pub fn estimated_bends_to_target(
     let dx = target.x() - point.x();
     let dy = target.y() - point.y();
 
-    if dx.abs() < 1e-9 && dy.abs() < 1e-9 {
+    if dx.abs() < BEND_ESTIMATION_EPSILON && dy.abs() < BEND_ESTIMATION_EPSILON {
         return 0;
     }
 
     let going_toward = match direction {
-        CompassDirection::East  => dx > 1e-9,
-        CompassDirection::West  => dx < -1e-9,
-        CompassDirection::North => dy > 1e-9,
-        CompassDirection::South => dy < -1e-9,
+        CompassDirection::East  => dx > BEND_ESTIMATION_EPSILON,
+        CompassDirection::West  => dx < -BEND_ESTIMATION_EPSILON,
+        CompassDirection::North => dy > BEND_ESTIMATION_EPSILON,
+        CompassDirection::South => dy < -BEND_ESTIMATION_EPSILON,
     };
 
-    let need_horizontal = dx.abs() > 1e-9;
-    let need_vertical   = dy.abs() > 1e-9;
+    let need_horizontal = dx.abs() > BEND_ESTIMATION_EPSILON;
+    let need_vertical   = dy.abs() > BEND_ESTIMATION_EPSILON;
 
     if !need_horizontal && !need_vertical {
         0

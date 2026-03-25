@@ -4,6 +4,7 @@
 //! obstacle rectangles rather than using a full sweep-line.
 
 use crate::geometry::point::Point;
+use crate::geometry::point_comparer::GeomConstants;
 use crate::geometry::rectangle::Rectangle;
 use crate::routing::scan_direction::Direction;
 
@@ -60,17 +61,17 @@ fn bound_edge_by_obstacles(
         let (obs_along_min, obs_along_max) = obstacle_along_range(obs, direction);
 
         // Check if the obstacle overlaps along the axis edge's direction.
-        if obs_along_max < along_min + 1e-6 || obs_along_min > along_max - 1e-6 {
+        if obs_along_max < along_min + GeomConstants::DISTANCE_EPSILON || obs_along_min > along_max - GeomConstants::DISTANCE_EPSILON {
             continue;
         }
 
         // If obstacle is to the left (lower perp), it constrains left bound.
-        if obs_perp_max <= perp_pos + 1e-6 {
+        if obs_perp_max <= perp_pos + GeomConstants::DISTANCE_EPSILON {
             let bound = obs_perp_max;
             axis_edges[ae_id].bound_from_left(bound);
         }
         // If obstacle is to the right (higher perp), it constrains right bound.
-        if obs_perp_min >= perp_pos - 1e-6 {
+        if obs_perp_min >= perp_pos - GeomConstants::DISTANCE_EPSILON {
             let bound = obs_perp_min;
             axis_edges[ae_id].bound_from_right(bound);
         }
@@ -88,7 +89,7 @@ fn find_right_neighbors(
     sorted.sort_by(|&a, &b| {
         let pa = perp_coord(axis_edges[a].source, direction);
         let pb = perp_coord(axis_edges[b].source, direction);
-        pa.partial_cmp(&pb).unwrap()
+        pa.partial_cmp(&pb).unwrap_or(std::cmp::Ordering::Equal)
     });
 
     // For each consecutive pair, check if their projections overlap.
@@ -100,7 +101,7 @@ fn find_right_neighbors(
             let right_perp = perp_coord(axis_edges[right_id].source, direction);
 
             // Only immediate neighbors (no edge between them).
-            if (right_perp - left_perp).abs() < 1e-6 {
+            if (right_perp - left_perp).abs() < GeomConstants::DISTANCE_EPSILON {
                 continue; // Same position, skip.
             }
 
@@ -123,7 +124,7 @@ fn find_right_neighbors(
 fn projections_overlap(left: &AxisEdge, right: &AxisEdge, direction: Direction) -> bool {
     let (l_min, l_max) = along_range(left.source, left.target, direction);
     let (r_min, r_max) = along_range(right.source, right.target, direction);
-    let eps = 1e-6;
+    let eps = GeomConstants::DISTANCE_EPSILON;
     !(l_max < r_min - eps || r_max < l_min - eps)
 }
 
