@@ -94,12 +94,7 @@ fn four_boxes_all_pairs() {
 
 /// Source and target with a blocking obstacle in the middle.
 /// The route must go around the blocker.
-///
-/// Currently ignored: the router falls back to a straight-line path through
-/// the blocker. Will pass once the visibility graph generator is faithfully
-/// ported (PRD defect #2).
 #[test]
-#[ignore = "router does not yet route around blocking obstacles (PRD defect #2)"]
 fn obstacle_in_between() {
     let mut b = ScenarioBuilder::new();
     let o0 = b.add_rectangle(0.0, 50.0, 60.0, 60.0);
@@ -120,11 +115,7 @@ fn obstacle_in_between() {
 
 /// Three obstacles stacked vertically, route from top to bottom
 /// must go around the middle obstacle.
-///
-/// Currently ignored: same as `obstacle_in_between` — the router does not
-/// yet avoid blocking obstacles.
 #[test]
-#[ignore = "router does not yet route around blocking obstacles (PRD defect #2)"]
 fn vertically_stacked_obstacles() {
     let mut b = ScenarioBuilder::new();
     let o0 = b.add_rectangle(100.0, 0.0, 80.0, 40.0);
@@ -166,14 +157,8 @@ fn wide_horizontal_gap() {
 /// Source is above and to the left of the target — the direct path is a
 /// diagonal, so the router must introduce at least one bend.
 ///
-/// Currently ignored: the router returns only 2 waypoints (a straight line)
-/// for offset source/target pairs instead of generating the required bend.
-/// Will pass once the visibility graph generator is faithfully ported
-/// (PRD defect #2).
-///
 /// Mirrors the C# `Clust5_Minimal` pattern (source-above, target-right).
 #[test]
-#[ignore = "router produces straight 2-point path instead of bending for offset pairs (PRD defect #2)"]
 fn l_shaped_routing() {
     let mut b = ScenarioBuilder::new();
     let o0 = b.add_rectangle(0.0, 200.0, 60.0, 60.0);
@@ -193,11 +178,7 @@ fn l_shaped_routing() {
 
 /// Source and target are on the same side of a blocking wall.
 /// The router must detour around the wall, producing a U-shaped path.
-///
-/// Currently ignored: the router does not yet route around blocking obstacles
-/// (PRD defect #2).
 #[test]
-#[ignore = "router does not yet route around blocking obstacles (PRD defect #2)"]
 fn u_shaped_routing() {
     let mut b = ScenarioBuilder::new();
     // Wall spans most of the gap between the two boxes.
@@ -254,16 +235,12 @@ fn close_obstacles() {
     assert_eq!(result.edges.len(), 1);
 }
 
-/// 3×3 grid of obstacles (spacing of 150 units), route between the
+/// 3x3 grid of obstacles (spacing of 150 units), route between the
 /// top-left and bottom-right corners.
 ///
 /// The direct path crosses through interior grid obstacles, so the router
 /// must navigate around them.
-///
-/// Currently ignored: the router does not yet route around blocking obstacles
-/// (PRD defect #2).
 #[test]
-#[ignore = "router does not yet route around blocking obstacles (PRD defect #2)"]
 fn large_grid_corner_to_corner() {
     let mut b = ScenarioBuilder::new();
     let mut ids = [[0usize; 3]; 3];
@@ -295,14 +272,8 @@ fn large_grid_corner_to_corner() {
 /// No obstacle lies directly in the straight-line path, so the route can be
 /// computed without bypass logic.
 ///
-/// Currently ignored: the router returns only 2 waypoints (a straight line)
-/// for diagonally offset source/target pairs instead of generating the
-/// required bend.  Will pass once the visibility graph generator is faithfully
-/// ported (PRD defect #2).
-///
 /// Mirrors the C# diagonal-arrangement layout pattern.
 #[test]
-#[ignore = "router produces straight 2-point path instead of bending for diagonal pairs (PRD defect #2)"]
 fn diagonal_arrangement() {
     let mut b = ScenarioBuilder::new();
     // Place five boxes along a diagonal (step 120 in both x and y).
@@ -329,13 +300,9 @@ fn diagonal_arrangement() {
     );
 }
 
-/// Five boxes in a single horizontal row.  Route from the leftmost box to the
+/// Five boxes in a single horizontal row. Route from the leftmost box to the
 /// rightmost; the three middle boxes are in the direct path.
-///
-/// Currently ignored: the router does not yet route around blocking obstacles
-/// (PRD defect #2).
 #[test]
-#[ignore = "router does not yet route around blocking obstacles (PRD defect #2)"]
 fn same_row_multiple() {
     let mut b = ScenarioBuilder::new();
     let mut ids = Vec::new();

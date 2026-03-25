@@ -105,6 +105,14 @@ impl RectilinearScanLine {
         self.sides.is_empty()
     }
 
+    /// Return all sides currently on the scanline, ordered by their scan coordinate.
+    ///
+    /// Used by the VG generator to enumerate all gaps between consecutive sides
+    /// and emit full-width scan segments at each event row.
+    pub fn all_sides_ordered(&self) -> Vec<&ObstacleSide> {
+        self.sides.values().collect()
+    }
+
     /// Compute the coordinate used for ordering this side on the scanline.
     ///
     /// For horizontal scan (sweeping in Y): sides are vertical edges, keyed by their X position.

@@ -36,6 +36,9 @@ pub fn nudge_paths(
         return;
     }
 
+    // Save pre-nudge paths in case nudging introduces obstacle crossings.
+    let original_paths: Vec<Vec<Point>> = paths.to_vec();
+
     // Run nudging in both directions (like the TS: North, East, North).
     calculate(paths, obstacles, edge_separation, Direction::North);
     calculate(paths, obstacles, edge_separation, Direction::East);
@@ -48,6 +51,11 @@ pub fn nudge_paths(
     for path in paths.iter_mut() {
         remove_switchbacks(path);
     }
+
+    // Safety: if nudging caused any path to cross an obstacle it didn't
+    // cross before, restore the original path. This guards against nudger
+    // bugs collapsing detour paths into straight lines through obstacles.
+    restore_if_crossing(paths, &original_paths, obstacles);
 }
 
 /// Run one pass of nudging in the given direction.
@@ -464,6 +472,62 @@ fn is_switchback(a: Point, b: Point, c: Point) -> bool {
     // Vertical switchback.
     if GeomConstants::close(dx1, 0.0) && GeomConstants::close(dx2, 0.0) {
         return dy1 * dy2 < 0.0;
+    }
+    false
+}
+
+/// Restore original paths if nudging introduced obstacle crossings.
+///
+/// For each path, check if any interior segment midpoint (excluding
+/// source/target obstacle) now lies strictly inside an obstacle that
+/// the original path did not cross. If so, restore the original path.
+fn restore_if_crossing(
+    paths: &mut [Vec<Point>],
+    original: &[Vec<Point>],
+    obstacles: &[Rectangle],
+) {
+    for (i, path) in paths.iter_mut().enumerate() {
+        if path_crosses_intermediate_obstacle(path, obstacles)
+            && !path_crosses_intermediate_obstacle(&original[i], obstacles)
+        {
+            *path = original[i].clone();
+        }
+    }
+}
+
+/// Check if any segment midpoint lies strictly inside an obstacle that
+/// does not contain the path endpoints.
+fn path_crosses_intermediate_obstacle(path: &[Point], obstacles: &[Rectangle]) -> bool {
+    if path.len() < 2 {
+        return false;
+    }
+    let source = path.first().unwrap();
+    let target = path.last().unwrap();
+    let eps = 0.1;
+
+    for w in path.windows(2) {
+        let mid = Point::new((w[0].x() + w[1].x()) / 2.0, (w[0].y() + w[1].y()) / 2.0);
+        for obs in obstacles {
+            // Skip obstacles containing source or target.
+            let contains_source = source.x() > obs.left() + eps
+                && source.x() < obs.right() - eps
+                && source.y() > obs.bottom() + eps
+                && source.y() < obs.top() - eps;
+            let contains_target = target.x() > obs.left() + eps
+                && target.x() < obs.right() - eps
+                && target.y() > obs.bottom() + eps
+                && target.y() < obs.top() - eps;
+            if contains_source || contains_target {
+                continue;
+            }
+            let strictly_inside = mid.x() > obs.left() + eps
+                && mid.x() < obs.right() - eps
+                && mid.y() > obs.bottom() + eps
+                && mid.y() < obs.top() - eps;
+            if strictly_inside {
+                return true;
+            }
+        }
     }
     false
 }

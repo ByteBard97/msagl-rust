@@ -243,7 +243,12 @@ fn process_open_vertex(
     });
 }
 
-/// Process a CloseVertex event: create segments in the gaps being opened, then remove sides.
+/// Process a CloseVertex event: create segments before AND after removing sides.
+///
+/// Before removal: segments fill the gaps with the obstacle's sides still present.
+/// After removal: segments fill the newly opened gap where the obstacle was.
+/// Both are needed because other obstacles may still be on the scanline and
+/// create different gap patterns before vs. after removal.
 fn process_close_vertex(
     site: Point,
     obstacle_index: usize,
@@ -265,7 +270,7 @@ fn process_close_vertex(
     let low_coord = side_scan_coord(&low_side, scan_direction);
     let high_coord = side_scan_coord(&high_side, scan_direction);
 
-    // Create segments in the gaps (same as open, but before removing sides)
+    // Create segments with obstacle sides still present.
     create_scan_segments_at_event(
         site, low_coord, high_coord, scan_line, seg_tree, scan_direction,
     );
@@ -273,47 +278,50 @@ fn process_close_vertex(
     // Remove sides from scanline
     scan_line.remove(&low_side);
     scan_line.remove(&high_side);
+
+    // Create segments again after removal — the gap where the obstacle was
+    // is now open, creating new/larger segments.
+    create_scan_segments_at_event(
+        site, low_coord, high_coord, scan_line, seg_tree, scan_direction,
+    );
 }
 
-/// Create scan segments at an event by looking at the gaps between the obstacle's
-/// sides and their neighbors on the scanline.
+/// Create scan segments at an event by enumerating ALL gaps between consecutive
+/// sides on the scanline.
 ///
-/// This creates up to 3 segments:
-/// 1. From low neighbor to obstacle's low side (gap on the low side)
-/// 2. Across the obstacle itself (only if obstacle is overlapped — skipped for now)
-/// 3. From obstacle's high side to high neighbor (gap on the high side)
+/// The MSAGL TS VisibilityGraphGenerator creates segments spanning the full
+/// graph bounding box at each event coordinate, with gaps only where obstacles
+/// block. This is critical: without full-width segments, ports at coordinates
+/// that don't coincide with an obstacle boundary won't have VG vertices to
+/// connect to.
+///
+/// A "gap" is the space between a High side (right/top boundary of an obstacle,
+/// facing inward) and the next Low side (left/bottom boundary, facing inward).
+/// Between these two sides there is open space where a scan segment should exist.
 fn create_scan_segments_at_event(
     site: Point,
-    low_coord: f64,
-    high_coord: f64,
+    _low_coord: f64,
+    _high_coord: f64,
     scan_line: &RectilinearScanLine,
     seg_tree: &mut ScanSegmentTree,
     scan_direction: ScanDirection,
 ) {
     let perp = scan_direction.perp_coord(site);
+    let all_sides = scan_line.all_sides_ordered();
 
-    // Find the low neighbor (below the obstacle's low side)
-    let low_nbor_coord = scan_line
-        .low_neighbor(low_coord)
-        .map(|s| side_scan_coord_from_side(s, scan_direction));
+    // Walk consecutive pairs. A gap exists between a High side and the next Low side.
+    // Sentinel sides are: left/bottom sentinel has SideType::High, right/top has SideType::Low.
+    // So the pattern is: High(sentinel) ... Low(obs) High(obs) ... Low(obs) High(obs) ... Low(sentinel)
+    // Gaps are between each High and the following Low.
+    for pair in all_sides.windows(2) {
+        let left = pair[0];
+        let right = pair[1];
 
-    // Find the high neighbor (above the obstacle's high side)
-    let high_nbor_coord = scan_line
-        .high_neighbor(high_coord)
-        .map(|s| side_scan_coord_from_side(s, scan_direction));
-
-    // Segment from low neighbor to obstacle's low side
-    if let Some(ln_coord) = low_nbor_coord {
-        add_segment_if_valid(
-            ln_coord, low_coord, perp, scan_direction, seg_tree,
-        );
-    }
-
-    // Segment from obstacle's high side to high neighbor
-    if let Some(hn_coord) = high_nbor_coord {
-        add_segment_if_valid(
-            high_coord, hn_coord, perp, scan_direction, seg_tree,
-        );
+        if left.side_type() == SideType::High && right.side_type() == SideType::Low {
+            let start_coord = side_scan_coord_from_side(left, scan_direction);
+            let end_coord = side_scan_coord_from_side(right, scan_direction);
+            add_segment_if_valid(start_coord, end_coord, perp, scan_direction, seg_tree);
+        }
     }
 }
 

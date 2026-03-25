@@ -58,29 +58,55 @@ impl Verifier {
         }
     }
 
-    /// No path segment midpoint should lie strictly inside a padded obstacle.
+    /// No path segment midpoint should lie strictly inside a padded obstacle,
+    /// unless that obstacle contains the path's source or target endpoint.
     ///
-    /// We check segment midpoints rather than full segment intersection
-    /// because paths are allowed to touch obstacle boundaries.
+    /// Ports are typically at obstacle centers, so the first/last path segments
+    /// naturally pass through the source/target obstacle. Only intermediate
+    /// obstacle crossings are violations.
     pub fn assert_no_obstacle_crossings(
         result: &RoutingResult,
         shapes: &[Shape],
         padding: f64,
     ) {
+        let padded_bboxes: Vec<Rectangle> = shapes
+            .iter()
+            .map(|shape| {
+                let bb = shape.bounding_box();
+                Rectangle::new(
+                    bb.left() - padding,
+                    bb.bottom() - padding,
+                    bb.right() + padding,
+                    bb.top() + padding,
+                )
+            })
+            .collect();
+
         for (i, edge) in result.edges.iter().enumerate() {
+            let source = edge.points.first().unwrap();
+            let target = edge.points.last().unwrap();
+
+            // Find which obstacles contain the source and target endpoints.
+            let endpoint_obstacles: Vec<usize> = padded_bboxes
+                .iter()
+                .enumerate()
+                .filter(|(_k, padded)| {
+                    Self::point_inside(source, padded) || Self::point_inside(target, padded)
+                })
+                .map(|(k, _)| k)
+                .collect();
+
             for (j, w) in edge.points.windows(2).enumerate() {
                 let mid = Point::new(
                     (w[0].x() + w[1].x()) / 2.0,
                     (w[0].y() + w[1].y()) / 2.0,
                 );
-                for (k, shape) in shapes.iter().enumerate() {
-                    let bb = shape.bounding_box();
-                    let padded = Rectangle::new(
-                        bb.left() - padding,
-                        bb.bottom() - padding,
-                        bb.right() + padding,
-                        bb.top() + padding,
-                    );
+                for (k, padded) in padded_bboxes.iter().enumerate() {
+                    // Skip source/target obstacles — the path naturally exits
+                    // through them.
+                    if endpoint_obstacles.contains(&k) {
+                        continue;
+                    }
                     let strictly_inside = mid.x() > padded.left() + BOUNDARY_EPSILON
                         && mid.x() < padded.right() - BOUNDARY_EPSILON
                         && mid.y() > padded.bottom() + BOUNDARY_EPSILON
@@ -103,5 +129,13 @@ impl Verifier {
                 }
             }
         }
+    }
+
+    /// Check if a point is strictly inside a padded rectangle.
+    fn point_inside(p: &Point, r: &Rectangle) -> bool {
+        p.x() > r.left() + BOUNDARY_EPSILON
+            && p.x() < r.right() - BOUNDARY_EPSILON
+            && p.y() > r.bottom() + BOUNDARY_EPSILON
+            && p.y() < r.top() - BOUNDARY_EPSILON
     }
 }
