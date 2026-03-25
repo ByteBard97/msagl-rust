@@ -51,3 +51,39 @@ fn obstacle_padded_corners() {
     assert_eq!(corners[2], Point::new(12.0, 12.0)); // right_top
     assert_eq!(corners[3], Point::new(12.0, -2.0)); // right_bottom
 }
+
+// Task 5: ObstacleTree tests
+use msagl_rust::routing::obstacle_tree::ObstacleTree;
+use msagl_rust::Rectangle;
+
+#[test]
+fn obstacle_tree_query_point() {
+    let shapes = vec![
+        Shape::rectangle(0.0, 0.0, 10.0, 10.0),
+        Shape::rectangle(20.0, 0.0, 10.0, 10.0),
+    ];
+    let tree = ObstacleTree::new(&shapes, 4.0);
+    let hits = tree.query_point(Point::new(5.0, 5.0));
+    assert_eq!(hits.len(), 1);
+    assert_eq!(hits[0], 0);
+}
+
+#[test]
+fn obstacle_tree_query_rect() {
+    let shapes = vec![
+        Shape::rectangle(0.0, 0.0, 10.0, 10.0),
+        Shape::rectangle(20.0, 0.0, 10.0, 10.0),
+        Shape::rectangle(50.0, 0.0, 10.0, 10.0),
+    ];
+    let tree = ObstacleTree::new(&shapes, 4.0);
+    let hits = tree.query_rect(&Rectangle::new(-5.0, -5.0, 35.0, 15.0));
+    assert_eq!(hits.len(), 2);
+}
+
+#[test]
+fn obstacle_tree_no_hits() {
+    let shapes = vec![Shape::rectangle(0.0, 0.0, 10.0, 10.0)];
+    let tree = ObstacleTree::new(&shapes, 2.0);
+    let hits = tree.query_point(Point::new(100.0, 100.0));
+    assert!(hits.is_empty());
+}
