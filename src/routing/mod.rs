@@ -8,3 +8,7 @@ pub mod scan_line;
 pub mod event_queue;
 pub mod segment_intersector;
 pub mod visibility_graph_generator;
+pub mod port;
+pub mod edge_geometry;
+pub mod path_search;
+pub mod port_manager;
