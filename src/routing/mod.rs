@@ -1,4 +1,5 @@
 pub mod compass_direction;
+pub mod vertex_entry;
 pub mod shape;
 pub mod obstacle;
 pub mod obstacle_side;
