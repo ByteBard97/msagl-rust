@@ -1,4 +1,5 @@
-use msagl_rust::routing::scan_line::{RectilinearScanLine, ActiveSide};
+use msagl_rust::routing::scan_line::RectilinearScanLine;
+use msagl_rust::routing::obstacle_side::{ObstacleSide, SideType};
 use msagl_rust::routing::scan_direction::ScanDirection;
 use msagl_rust::Point;
 
@@ -7,46 +8,44 @@ fn scan_line_insert_and_neighbors() {
     let sd = ScanDirection::horizontal();
     let mut sl = RectilinearScanLine::new(sd);
 
-    // Insert side at y=5 (perp coord for horizontal sweep)
-    sl.insert(ActiveSide {
-        obstacle_index: 0,
-        perp_coord: 5.0,
-        start: Point::new(0.0, 5.0),
-        end: Point::new(10.0, 5.0),
-        is_low_side: true,
-    });
+    // Insert vertical side at x=5 (horizontal sweep, keyed by X)
+    sl.insert(ObstacleSide::new(
+        SideType::Low,
+        Point::new(5.0, 0.0),
+        Point::new(5.0, 10.0),
+        0,
+    ));
 
-    // Insert side at y=15
-    sl.insert(ActiveSide {
-        obstacle_index: 1,
-        perp_coord: 15.0,
-        start: Point::new(0.0, 15.0),
-        end: Point::new(10.0, 15.0),
-        is_low_side: false,
-    });
+    // Insert vertical side at x=15
+    sl.insert(ObstacleSide::new(
+        SideType::High,
+        Point::new(15.0, 0.0),
+        Point::new(15.0, 10.0),
+        1,
+    ));
 
-    // Query neighbors at y=10
+    // Query neighbors at x=10
     let low = sl.low_neighbor(10.0);
     assert!(low.is_some());
-    assert_eq!(low.unwrap().obstacle_index, 0);
+    assert_eq!(low.unwrap().obstacle_ordinal(), 0);
 
     let high = sl.high_neighbor(10.0);
     assert!(high.is_some());
-    assert_eq!(high.unwrap().obstacle_index, 1);
+    assert_eq!(high.unwrap().obstacle_ordinal(), 1);
 }
 
 #[test]
 fn scan_line_remove() {
     let sd = ScanDirection::horizontal();
     let mut sl = RectilinearScanLine::new(sd);
-    sl.insert(ActiveSide {
-        obstacle_index: 0,
-        perp_coord: 5.0,
-        start: Point::new(0.0, 5.0),
-        end: Point::new(10.0, 5.0),
-        is_low_side: true,
-    });
+    let side = ObstacleSide::new(
+        SideType::Low,
+        Point::new(5.0, 0.0),
+        Point::new(5.0, 10.0),
+        0,
+    );
+    sl.insert(side.clone());
     assert_eq!(sl.len(), 1);
-    sl.remove(0, 5.0);
+    sl.remove(&side);
     assert_eq!(sl.len(), 0);
 }
