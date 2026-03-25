@@ -1,4 +1,5 @@
 pub mod geometry;
+pub mod projection_solver;
 mod arenas;
 
 pub use geometry::point::Point;
