@@ -140,7 +140,7 @@ impl Qpsc {
     /// If scaling is enabled, computes diagonal scale factors and transforms
     /// Q to S*Q*S form. Sets each variable's desired_pos to its current actual_pos
     /// and weight to 1.0 for the QPSC iterations.
-    pub fn variables_complete(&self, variables: &mut [Variable]) {
+    pub fn variables_complete(&mut self, variables: &mut [Variable]) {
         for qvar in &self.saved_vars {
             let var = &mut variables[qvar.var_index];
             let ordinal = var.ordinal as usize;
@@ -155,7 +155,16 @@ impl Qpsc {
                     if !var.scale.is_finite() {
                         var.scale = 1.0;
                     }
+
+                    // Scale actual position into S-space: y = x / s
+                    var.actual_pos /= var.scale;
+
+                    // Scale the b vector: b' = S * b
+                    self.vector_b[ordinal] *= var.scale;
                 }
+
+                // Record current (possibly scaled) position
+                self.curr_y[ordinal] = var.actual_pos;
             }
 
             var.desired_pos = var.actual_pos;
@@ -163,27 +172,18 @@ impl Qpsc {
         }
     }
 
-    /// Apply scaling to b vector and Q matrix after variables_complete set scales.
+    /// Apply Q matrix scaling after variables_complete set scales and b vector.
     /// Must be called after variables_complete.
     pub fn apply_scaling(&mut self, variables: &[Variable]) {
         if !self.use_scaling {
-            // Even without scaling, record current positions
+            // Without scaling, just record current positions (b and curr_y
+            // were not set in variables_complete for the non-scaling path).
             for qvar in &self.saved_vars {
                 let var = &variables[qvar.var_index];
                 let ordinal = var.ordinal as usize;
                 self.curr_y[ordinal] = var.actual_pos;
-                // Scale b by variable scale (which is 1.0 when not scaling)
-                self.vector_b[ordinal] *= var.scale;
             }
             return;
-        }
-
-        // Scale b' = S*b and record positions
-        for qvar in &self.saved_vars {
-            let var = &variables[qvar.var_index];
-            let ordinal = var.ordinal as usize;
-            self.vector_b[ordinal] *= var.scale;
-            self.curr_y[ordinal] = var.actual_pos;
         }
 
         // Build a scale lookup for all ordinals

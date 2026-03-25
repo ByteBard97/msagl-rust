@@ -179,6 +179,12 @@ impl Solver {
     }
 
     fn split_block(&mut self, bi: BlockIndex) -> Option<BlockIndex> {
+        if self.is_qpsc {
+            // In QPSC mode, PreProject has updated desired positions, so
+            // recompute block reference positions before splitting.
+            self.full_update_reference_pos(bi);
+        }
+
         if self.blocks[bi.0].variables.len() < 2 {
             return None;
         }
