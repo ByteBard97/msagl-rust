@@ -363,25 +363,49 @@ impl TransientGraphUtility {
 
     /// Remove all transient additions, restoring the graph to its pre-splicing state.
     ///
-    /// Faithfully ports `RemoveFromGraph` from the TS source.
+    /// Faithfully ports `RemoveFromGraph` from TransientGraphUtility.ts lines 178-182.
+    /// Order matters: vertices first (removes all incident edges), then remaining
+    /// edges, then restore split edges.
     pub fn remove_from_graph(&mut self, graph: &mut VisibilityGraph) {
-        // Remove added edges.
+        self.remove_added_vertices(graph);
+        self.remove_added_edges(graph);
+        self.restore_removed_edges(graph);
+    }
+
+    /// Remove all transient vertices (and their incident edges) from the graph.
+    ///
+    /// Faithfully ports `RemoveAddedVertices` from TransientGraphUtility.ts lines 184-193.
+    fn remove_added_vertices(&mut self, graph: &mut VisibilityGraph) {
+        for &vertex in &self.added_vertices {
+            // Removing all transient vertices will remove all associated transient
+            // edges as well.
+            if graph.find_vertex(graph.point(vertex)).is_some() {
+                graph.remove_vertex(vertex);
+            }
+        }
+        self.added_vertices.clear();
+    }
+
+    /// Remove any remaining transient edges that weren't already removed by vertex removal.
+    ///
+    /// Faithfully ports `RemoveAddedEdges` from TransientGraphUtility.ts lines 195-203.
+    fn remove_added_edges(&mut self, graph: &mut VisibilityGraph) {
         for &(s, t) in &self.added_edges {
-            // If either vertex was already removed (by vertex removal), skip.
-            if graph.find_vertex(graph.point(s)).is_some()
-                && graph.find_vertex(graph.point(t)).is_some()
-            {
+            // If either vertex was removed, so was the edge, so just check source.
+            if graph.find_vertex(graph.point(s)).is_some() {
                 graph.remove_edge(s, t);
             }
         }
+        self.added_edges.clear();
+    }
 
-        // Restore edges that were split.
+    /// Restore original edges that were split during transient splicing.
+    ///
+    /// Faithfully ports `RestoreRemovedEdges` from TransientGraphUtility.ts lines 206-218.
+    fn restore_removed_edges(&mut self, graph: &mut VisibilityGraph) {
         for &(s, t, w, _toll_free) in &self.edges_to_restore {
             graph.add_edge(s, t, w);
         }
-
-        self.added_vertices.clear();
-        self.added_edges.clear();
         self.edges_to_restore.clear();
     }
 
