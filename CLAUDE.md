@@ -79,6 +79,42 @@ Commit after each component. Push at least after each major piece.
 
 The answer to "how should this work?" is always in the TypeScript or C# source. Read it. Don't guess.
 
+### 9. SKELETON-FIRST WORKFLOW FOR ALGORITHM PORTING
+
+**This is mandatory for any file rated SIMPLIFIED or DIVERGENT in the algorithmic parity audit.**
+
+LLM agents have a documented tendency to substitute brute-force approximations for complex algorithms, even when explicitly told not to. Research shows this is a default behavior affecting ~50% of code translations when measured by efficiency. Saying "do not take shortcuts" does NOT prevent it — negative prompts actually make the problem worse.
+
+The mitigation that works is structural: **lock in the algorithm before the agent writes implementation code.**
+
+**Required workflow:**
+
+1. **Human or supervising agent writes a skeleton file** with:
+   - All method signatures matching the C# reference (with C# line numbers in comments)
+   - All data structure fields with types already chosen (BTreeMap, BinaryHeap, etc.)
+   - `todo!()` bodies for each method
+   - Comments on every tree/map operation saying "MUST use BTreeMap range query — NOT linear scan"
+
+2. **Implementing agent fills in only the `todo!()` bodies** by reading the C# reference
+   - MUST NOT change method signatures, field types, or data structures
+   - MUST NOT add new fields or methods beyond the skeleton
+   - MUST run `cargo bench` and verify performance is equal to or better than before
+
+3. **Verification:** A fresh-context agent reviews the diff against C# reference, specifically checking that no tree operation was replaced with a linear scan
+
+**Why this works:** The skeleton locks in O(n log n) data structures. The agent cannot substitute O(n²) brute-force because the BTreeMap fields are already defined — there's no Vec to iterate over.
+
+### 10. USE POSITIVE DIRECTIVES, NOT NEGATIVE ONES
+
+Research shows LLMs perform WORSE with negative instructions ("do NOT simplify", "do NOT take shortcuts"). Instead, use affirmative directives that name the exact algorithm and data structures:
+
+**Bad:** "Do NOT use brute force. Do NOT use nested for loops."
+**Good:** "MUST implement sweep-line using BTreeMap<SideKey, ObstacleSide> for active obstacle trees. MUST use BTreeMap range() queries for FindFirst/FindLast operations. MUST process events via BinaryHeap in priority order."
+
+### 11. Performance Verification is Mandatory
+
+Every algorithm port MUST include a `cargo bench` comparison before and after. If the new implementation is slower than the old one on the large benchmark (210 obstacles, 500 edges), it has a bug. Fix the bug — do not ship slower code.
+
 ## Acceptance Criteria
 
 1. All 86 projection solver fixture tests pass (currently 80/86 — fix the 6 failures)
