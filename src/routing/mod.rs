@@ -10,6 +10,7 @@ pub mod obstacle_tree;
 pub mod obstacle_tree_overlap;
 pub mod overlap_convex_hull;
 pub mod path_search;
+pub mod path_search_wrapper;
 pub mod port;
 pub mod port_manager;
 pub mod rectilinear_edge_router;
