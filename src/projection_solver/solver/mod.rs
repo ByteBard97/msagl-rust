@@ -44,6 +44,11 @@ pub struct Solver {
     // Reusable pools to avoid repeated allocation (C#'s DfDvRecycleStack pattern)
     dfdv_node_pool: Vec<DfDvNode>,
     dfdv_stack_pool: Vec<usize>,
+    /// Generation counter for get_connected_variables.
+    /// Increment before each call. Check variable.last_visited_gen == this value
+    /// to determine if a variable has been visited. ZERO ALLOCATION.
+    /// C# ref: uses VariableDoneEval on DfDvNode instead of a visited array.
+    pub(crate) visited_generation: u64,
 }
 
 impl Default for Solver {
@@ -72,6 +77,7 @@ impl Solver {
             violation_cache_min_block_cutoff: usize::MAX,
             dfdv_node_pool: Vec::new(),
             dfdv_stack_pool: Vec::new(),
+            visited_generation: 0,
         }
     }
 

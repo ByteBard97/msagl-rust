@@ -24,6 +24,11 @@ pub struct Variable {
     pub right_constraints: Vec<ConIndex>,
     pub neighbors: Vec<NeighborAndWeight>,
     pub ordinal: u32,
+    /// Generation counter for get_connected_variables — avoids allocating
+    /// a visited array on every call. C# uses VariableDoneEval on DfDvNode.
+    /// Rust adaptation: compare against Solver.visited_generation.
+    /// MUST be checked as `self.last_visited_gen == solver.visited_generation`.
+    pub last_visited_gen: u64,
 }
 
 impl Variable {
@@ -41,6 +46,7 @@ impl Variable {
             right_constraints: Vec::new(),
             neighbors: Vec::new(),
             ordinal: 0,
+            last_visited_gen: 0,
         }
     }
 
