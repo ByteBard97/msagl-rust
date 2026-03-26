@@ -1,6 +1,6 @@
 use crate::geometry::point::Point;
 
-/// Four compass directions for VertexEntry[4] indexing and path search.
+/// Four compass directions for `VertexEntry` indexing and path search.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum CompassDirection {
     North = 0,
