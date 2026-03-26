@@ -95,19 +95,16 @@ fn inter_overlap_all_borders_worker(mid_count: usize, mid_horizontal: bool) {
 }
 
 #[test]
-#[ignore = "requires full SkipToNeighbor VG — path search fails through horizontal overlap interiors"]
 fn inter_overlap_all_borders_h1() {
     inter_overlap_all_borders_worker(1, true);
 }
 
 #[test]
-#[ignore = "requires full SkipToNeighbor VG — path search fails through horizontal overlap interiors"]
 fn inter_overlap_all_borders_h2() {
     inter_overlap_all_borders_worker(2, true);
 }
 
 #[test]
-#[ignore = "requires full SkipToNeighbor VG — path search fails through horizontal overlap interiors"]
 fn inter_overlap_all_borders_h3() {
     inter_overlap_all_borders_worker(3, true);
 }
@@ -123,7 +120,6 @@ fn inter_overlap_all_borders_v2() {
 }
 
 #[test]
-#[ignore = "nudger pushes waypoint slightly inside obstacle boundary (restore_if_crossing regression)"]
 fn inter_overlap_all_borders_v3() {
     inter_overlap_all_borders_worker(3, false);
 }
@@ -180,7 +176,6 @@ fn adjoining_obstacles_dip_to_overlapped() {
 /// Port: AdjoiningObstacles_DipToOverlapped_Collinear_CloseOpen
 /// Adjoining obstacles with OpenVertexEvent collinear with CloseVertexEvent.
 #[test]
-#[ignore = "needs VisibilityGraph.RemoveVertex in unsplice to prevent orphaned vertex reuse across edges"]
 fn adjoining_obstacles_dip_to_overlapped_collinear_close_open() {
     let mut b = ScenarioBuilder::new();
     b.add_rectangle_corners(60.0, 86.0, 64.0, 91.0);

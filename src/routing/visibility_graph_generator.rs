@@ -1,4 +1,5 @@
 use super::event_queue::{EventQueue, SweepEvent};
+use super::neighbor_sides::NeighborSides;
 use super::obstacle::Obstacle;
 use super::obstacle_side::{ObstacleSide, SideType};
 use super::obstacle_tree::ObstacleTree;
@@ -68,7 +69,7 @@ fn run_sweep(
         scan_direction,
     );
 
-    // Merge adjacent segments with the same weight
+    // Merge adjacent/overlapping segments with the same weight
     seg_tree.merge_segments();
 
     // Collect all segments
@@ -76,9 +77,6 @@ fn run_sweep(
 }
 
 /// Insert sentinel obstacle sides at the graph boundaries.
-///
-/// For horizontal scan: sentinels are vertical lines at far left and far right.
-/// For vertical scan: sentinels are horizontal lines at far bottom and far top.
 fn insert_sentinels(
     scan_line: &mut RectilinearScanLine,
     scan_direction: ScanDirection,
@@ -87,8 +85,6 @@ fn insert_sentinels(
     let offset = SENTINEL_OFFSET;
 
     if scan_direction.is_horizontal() {
-        // Horizontal scan (sweeping in Y): sentinels are vertical lines.
-        // Low sentinel at far left (its High side faces inward).
         let low_x = graph_box.left() - offset;
         let low_sentinel = ObstacleSide::new(
             SideType::High,
@@ -98,7 +94,6 @@ fn insert_sentinels(
         );
         scan_line.insert(low_sentinel);
 
-        // High sentinel at far right (its Low side faces inward).
         let high_x = graph_box.right() + offset;
         let high_sentinel = ObstacleSide::new(
             SideType::Low,
@@ -108,8 +103,6 @@ fn insert_sentinels(
         );
         scan_line.insert(high_sentinel);
     } else {
-        // Vertical scan (sweeping in X): sentinels are horizontal lines.
-        // Low sentinel at far bottom.
         let low_y = graph_box.bottom() - offset;
         let low_sentinel = ObstacleSide::new(
             SideType::High,
@@ -119,7 +112,6 @@ fn insert_sentinels(
         );
         scan_line.insert(low_sentinel);
 
-        // High sentinel at far top.
         let high_y = graph_box.top() + offset;
         let high_sentinel = ObstacleSide::new(
             SideType::Low,
@@ -132,10 +124,6 @@ fn insert_sentinels(
 }
 
 /// Enqueue OpenVertex events for all obstacles.
-///
-/// Faithful port of TS `EnqueueBottomVertexEvents()`.
-/// Uses `GetOpenVertex` to find the lowest polyline vertex, then
-/// calls `CreateInitialSides` from that vertex.
 fn enqueue_open_events(
     queue: &mut EventQueue,
     obstacles: &mut [Obstacle],
@@ -192,13 +180,15 @@ fn process_events(
                     scan_direction,
                 );
             }
-            // For rectangular obstacles, bend and reflection events don't occur.
             _ => {}
         }
     }
 }
 
-/// Process an OpenVertex event: add sides to scanline, create segments in gaps.
+/// Process an OpenVertex event: add sides to scanline, find neighbors, create segments.
+///
+/// Uses SkipToNeighbor to find the actual visibility neighbors of each side,
+/// then creates scan segments between them (with overlap handling).
 fn process_open_vertex(
     site: Point,
     obstacle_index: usize,
@@ -218,33 +208,41 @@ fn process_open_vertex(
         .expect("obstacle should have high side after create_initial_sides")
         .clone();
 
-    // Insert sides into scanline
     scan_line.insert(low_side.clone());
     scan_line.insert(high_side.clone());
 
-    // Find neighbors and create segments
-    let low_coord = side_scan_coord(&low_side, scan_direction);
-    let high_coord = side_scan_coord(&high_side, scan_direction);
+    let low_side_key = scan_line.find(&low_side).expect("just inserted low side");
+    let high_side_key = scan_line.find(&high_side).expect("just inserted high side");
 
-    create_scan_segments_at_event(
-        site,
-        low_coord,
-        high_coord,
-        scan_line,
-        seg_tree,
-        scan_direction,
-        obstacles,
+    let low_neighbors = find_neighbors_for_side(
+        scan_line, &low_side_key, &low_side,
+        low_side.start(),
+        scan_direction, obstacles,
+    );
+    let high_neighbors = find_neighbors_for_side(
+        scan_line, &high_side_key, &high_side,
+        high_side.start(),
+        scan_direction, obstacles,
     );
 
-    // Enqueue CloseVertex event at the top of this obstacle
+    create_scan_segments_from_neighbors(site, &low_neighbors, seg_tree, scan_direction, obstacles);
+
+    let need_high = match (low_neighbors.high_neighbor(), high_neighbors.high_neighbor()) {
+        (Some(a), Some(b)) => {
+            a.obstacle_ordinal() != b.obstacle_ordinal() || a.side_type() != b.side_type()
+        }
+        _ => true,
+    };
+    if need_high {
+        create_scan_segments_from_neighbors(site, &high_neighbors, seg_tree, scan_direction, obstacles);
+    }
+
     let bb = obs.padded_bounding_box();
     let close_site = if scan_direction.is_horizontal() {
-        bb.left_top() // highest Y
+        bb.left_top()
     } else {
-        bb.right_bottom() // highest X (right side)
+        bb.right_bottom()
     };
-    // TODO: Once polyline-based obstacles are implemented, use the actual
-    // close vertex key from polyline traversal instead of default.
     queue.enqueue(SweepEvent::CloseVertex {
         site: close_site,
         obstacle_index,
@@ -252,12 +250,7 @@ fn process_open_vertex(
     });
 }
 
-/// Process a CloseVertex event: create segments before AND after removing sides.
-///
-/// Before removal: segments fill the gaps with the obstacle's sides still present.
-/// After removal: segments fill the newly opened gap where the obstacle was.
-/// Both are needed because other obstacles may still be on the scanline and
-/// create different gap patterns before vs. after removal.
+/// Process a CloseVertex event: find neighbors, create segments, remove sides.
 fn process_close_vertex(
     site: Point,
     obstacle_index: usize,
@@ -267,155 +260,167 @@ fn process_close_vertex(
     scan_direction: ScanDirection,
 ) {
     let obs = &obstacles[obstacle_index];
-    let low_side = obs
-        .active_low_side()
-        .expect("obstacle should have low side")
-        .clone();
-    let high_side = obs
-        .active_high_side()
-        .expect("obstacle should have high side")
-        .clone();
+    let low_side = obs.active_low_side().expect("obstacle should have low side").clone();
+    let high_side = obs.active_high_side().expect("obstacle should have high side").clone();
 
-    let low_coord = side_scan_coord(&low_side, scan_direction);
-    let high_coord = side_scan_coord(&high_side, scan_direction);
+    let mut low_side_key = scan_line.find(&low_side).expect("low side should be in scanline");
+    let mut high_side_key = scan_line.find(&high_side).expect("high side should be in scanline");
 
-    // Create segments with obstacle sides still present.
-    create_scan_segments_at_event(
-        site,
-        low_coord,
-        high_coord,
-        scan_line,
-        seg_tree,
-        scan_direction,
-        obstacles,
+    if low_side_key > high_side_key {
+        std::mem::swap(&mut low_side_key, &mut high_side_key);
+    }
+
+    let low_in_sl = scan_line.get(&low_side_key).cloned().unwrap_or(low_side.clone());
+    let high_in_sl = scan_line.get(&high_side_key).cloned().unwrap_or(high_side.clone());
+
+    let low_neighbors = find_neighbors_for_side(
+        scan_line, &low_side_key, &low_in_sl,
+        low_in_sl.end(),
+        scan_direction, obstacles,
+    );
+    let high_neighbors = find_neighbors_for_side(
+        scan_line, &high_side_key, &high_in_sl,
+        high_in_sl.end(),
+        scan_direction, obstacles,
     );
 
-    // Remove sides from scanline
+    create_scan_segments_from_neighbors(site, &low_neighbors, seg_tree, scan_direction, obstacles);
+
+    let need_high = match (low_neighbors.high_neighbor(), high_neighbors.high_neighbor()) {
+        (Some(a), Some(b)) => {
+            a.obstacle_ordinal() != b.obstacle_ordinal() || a.side_type() != b.side_type()
+        }
+        _ => true,
+    };
+    if need_high {
+        create_scan_segments_from_neighbors(site, &high_neighbors, seg_tree, scan_direction, obstacles);
+    }
+
     scan_line.remove(&low_side);
     scan_line.remove(&high_side);
-
-    // Create segments again after removal — the gap where the obstacle was
-    // is now open, creating new/larger segments.
-    create_scan_segments_at_event(
-        site,
-        low_coord,
-        high_coord,
-        scan_line,
-        seg_tree,
-        scan_direction,
-        obstacles,
-    );
 }
 
-/// Create scan segments at an event.
-///
-/// Faithful port of C# FullVisibilityGraphGenerator.CreateScanSegments
-/// (lines 210-283). Creates normal segments in open-space gaps between
-/// obstacles, and overlapped segments through overlap regions where
-/// multiple obstacle interiors intersect.
-///
-/// Uses a depth counter to track how many obstacle interiors we're inside:
-/// - depth == 0: open space → Normal segment
-/// - depth >= 2: overlap region → Overlapped segment
-/// - depth == 1 inside an overlapped (clumped) obstacle → Overlapped segment
-/// - depth == 1 inside a non-overlapped obstacle → no segment
-///
-/// A Low side increments depth (entering an obstacle). A High side
-/// decrements depth (leaving). Sentinels are excluded from depth tracking.
-fn create_scan_segments_at_event(
-    site: Point,
-    _low_coord: f64,
-    _high_coord: f64,
+// ---------------------------------------------------------------------------
+// SkipToNeighbor traversal
+// ---------------------------------------------------------------------------
+
+/// Find neighbors for one side of an obstacle using SkipToNeighbor.
+fn find_neighbors_for_side(
     scan_line: &RectilinearScanLine,
-    seg_tree: &mut ScanSegmentTree,
+    side_key: &super::scan_line::SideKey,
+    side: &ObstacleSide,
+    side_reference_point: Point,
+    scan_direction: ScanDirection,
+    obstacles: &[Obstacle],
+) -> NeighborSides {
+    let mut neighbors = NeighborSides::new();
+
+    if let Some((low_key, _)) = scan_line.next_low(side_key) {
+        skip_to_neighbor(
+            scan_line, false, side, side_reference_point,
+            &low_key.clone(), &mut neighbors, scan_direction, obstacles,
+        );
+    }
+
+    if let Some((high_key, _)) = scan_line.next_high(side_key) {
+        skip_to_neighbor(
+            scan_line, true, side, side_reference_point,
+            &high_key.clone(), &mut neighbors, scan_direction, obstacles,
+        );
+    }
+
+    neighbors
+}
+
+/// Walk the scanline to find the actual neighbor, tracking overlap boundaries.
+///
+/// Faithful port of TS `SkipToNeighbor` (lines 679-722).
+/// Uses `scan_line_crosses_obstacle` to detect geometric overlap boundaries,
+/// and `obstacle_is_overlapped` to confirm the obstacle is in a clump.
+fn skip_to_neighbor(
+    scan_line: &RectilinearScanLine,
+    ascending: bool,
+    side: &ObstacleSide,
+    side_reference_point: Point,
+    initial_nbor_key: &super::scan_line::SideKey,
+    neighbors: &mut NeighborSides,
     scan_direction: ScanDirection,
     obstacles: &[Obstacle],
 ) {
-    let perp = scan_direction.perp_coord(site);
-    let all_sides = scan_line.all_sides_ordered();
+    let mut overlap_side: Option<ObstacleSide> = None;
+    let mut current_key = initial_nbor_key.clone();
 
-    if all_sides.len() < 2 {
-        return;
-    }
+    loop {
+        let current_side = match scan_line.get(&current_key) {
+            Some(s) => s.clone(),
+            None => break,
+        };
 
-    // Track depth: how many obstacle interiors we're inside.
-    // At depth 0, we're in open space. At depth >= 1, we're inside at least
-    // one obstacle. At depth >= 2, we're in an overlap region.
-    let mut depth: i32 = 0;
-    // Track whether we're inside any overlapped (clumped) obstacles.
-    // When depth == 1 inside a clumped obstacle, we still generate
-    // an overlapped segment for traversability.
-    let mut overlapped_depth: i32 = 0;
-
-    for pair in all_sides.windows(2) {
-        let left = pair[0];
-        let right = pair[1];
-
-        // Update depth based on the left side type.
-        // Sentinels don't affect depth.
-        if !is_sentinel_side(left) {
-            let is_overlapped_obs = obstacle_is_overlapped(left.obstacle_ordinal(), obstacles);
-            match left.side_type() {
-                SideType::Low => {
-                    depth += 1;
-                    if is_overlapped_obs {
-                        overlapped_depth += 1;
-                    }
-                }
-                SideType::High => {
-                    depth -= 1;
-                    if is_overlapped_obs {
-                        overlapped_depth -= 1;
-                    }
-                }
+        // Skip the opposite side of the same obstacle
+        if current_side.obstacle_ordinal() == side.obstacle_ordinal() {
+            match scan_line.next_in_direction(&current_key, ascending) {
+                Some((next_key, _)) => { current_key = next_key.clone(); continue; }
+                None => break,
             }
         }
 
-        let start_coord = side_scan_coord_from_side(left, scan_direction);
-        let end_coord = side_scan_coord_from_side(right, scan_direction);
+        // Check for overlap-ending obstacle: a side whose type means we're
+        // leaving an obstacle in this traversal direction.
+        let is_overlap_ender = match (ascending, current_side.side_type()) {
+            (true, SideType::High) => true,
+            (false, SideType::Low) => true,
+            _ => false,
+        };
 
-        if GeomConstants::close(start_coord, end_coord) || end_coord <= start_coord {
-            continue;
+        if is_overlap_ender {
+            // Only record as overlap if the scanline geometrically crosses through
+            // this obstacle AND the obstacle is marked as overlapped (in a clump).
+            if scan_line_crosses_obstacle(
+                side_reference_point, &current_side, scan_direction, obstacles,
+            ) && obstacle_is_overlapped(current_side.obstacle_ordinal(), obstacles) {
+                overlap_side = Some(current_side);
+            }
+            match scan_line.next_in_direction(&current_key, ascending) {
+                Some((next_key, _)) => { current_key = next_key.clone(); continue; }
+                None => break,
+            }
         }
 
-        let start = scan_direction.make_point(start_coord, perp);
-        let end = scan_direction.make_point(end_coord, perp);
-        let is_vertical = scan_direction.is_vertical();
-
-        if depth <= 0 {
-            // Open space: normal segment
-            seg_tree.insert_unique(ScanSegment::new(
-                start,
-                end,
-                SegmentWeight::Normal,
-                is_vertical,
-            ));
-        } else if depth >= 2 {
-            // Overlap region (inside 2+ obstacles): overlapped segment.
-            seg_tree.insert_unique(ScanSegment::new(
-                start,
-                end,
-                SegmentWeight::Overlapped,
-                is_vertical,
-            ));
-        } else if depth == 1 && overlapped_depth > 0 {
-            // Inside exactly one obstacle, but it's an overlapped obstacle.
-            // Create an overlapped segment for traversability through the
-            // clump's interior. This matches C# behavior where overlapped
-            // obstacle interiors are traversable at high cost.
-            seg_tree.insert_unique(ScanSegment::new(
-                start,
-                end,
-                SegmentWeight::Overlapped,
-                is_vertical,
-            ));
-        }
-        // depth == 1 with overlapped_depth == 0: inside a non-overlapped
-        // obstacle. No segment created — paths should go around.
+        // Found the neighbor
+        neighbors.set_sides_for_direction(ascending, current_side, overlap_side);
+        return;
     }
 }
 
+/// Check whether the event site's perpendicular coordinate is strictly inside
+/// the obstacle's bounding box.
+fn scan_line_crosses_obstacle(
+    event_site: Point,
+    nbor_side: &ObstacleSide,
+    scan_direction: ScanDirection,
+    obstacles: &[Obstacle],
+) -> bool {
+    if is_sentinel_side(nbor_side) {
+        return false;
+    }
+    let obs_ordinal = nbor_side.obstacle_ordinal();
+    let obs = match obstacles.iter().find(|o| o.ordinal() == obs_ordinal) {
+        Some(o) => o,
+        None => return false,
+    };
+    let bb = obs.padded_bounding_box();
+    let perp = scan_direction.perp_coord(event_site);
+    let bb_low = scan_direction.perp_coord(bb.left_bottom());
+    let bb_high = scan_direction.perp_coord(bb.right_top());
+    perp > bb_low + GeomConstants::DISTANCE_EPSILON
+        && perp < bb_high - GeomConstants::DISTANCE_EPSILON
+}
+
 /// Check whether an obstacle with the given ordinal is overlapped (in a clump).
+///
+/// An overlapped obstacle's interior should be traversable (at high cost)
+/// so that paths can route through overlap regions. Non-overlapped obstacle
+/// interiors are impassable.
 fn obstacle_is_overlapped(ordinal: usize, obstacles: &[Obstacle]) -> bool {
     if ordinal < Obstacle::FIRST_NON_SENTINEL_ORDINAL {
         return false; // sentinel
@@ -428,19 +433,105 @@ fn obstacle_is_overlapped(ordinal: usize, obstacles: &[Obstacle]) -> bool {
     }
 }
 
-/// Check if an obstacle side belongs to a sentinel (boundary marker).
 fn is_sentinel_side(side: &ObstacleSide) -> bool {
     side.obstacle_ordinal() < Obstacle::FIRST_NON_SENTINEL_ORDINAL
 }
 
-/// Get the scan-parallel coordinate of an obstacle side.
-/// For horizontal scan: this is the X coordinate of the side.
-/// For vertical scan: this is the Y coordinate of the side.
-fn side_scan_coord(side: &ObstacleSide, scan_direction: ScanDirection) -> f64 {
-    scan_direction.coord(side.start())
+// ---------------------------------------------------------------------------
+// Segment creation from neighbors
+// ---------------------------------------------------------------------------
+
+/// Create scan segments from neighbor information.
+///
+/// Faithful port of C# `FullVisibilityGraphGenerator.CreateScanSegments()`.
+/// Creates up to 3 segments: Normal, Overlapped, Normal — where the overlap
+/// region corresponds to obstacle interiors that have been marked as overlapped.
+fn create_scan_segments_from_neighbors(
+    site: Point,
+    neighbors: &NeighborSides,
+    seg_tree: &mut ScanSegmentTree,
+    scan_direction: ScanDirection,
+    obstacles: &[Obstacle],
+) {
+    let low_nbor = match neighbors.low_neighbor() {
+        Some(s) => s,
+        None => return,
+    };
+    let high_nbor = match neighbors.high_neighbor() {
+        Some(s) => s,
+        None => return,
+    };
+
+    let low_nbor_intersect = low_nbor.scanline_intersect(site, scan_direction);
+    let high_nbor_intersect = high_nbor.scanline_intersect(site, scan_direction);
+    let is_vertical = scan_direction.is_vertical();
+
+    let low_overlap = neighbors.low_overlap_end();
+    let high_overlap = neighbors.high_overlap_end();
+
+    if low_overlap.is_none() && high_overlap.is_none() {
+        // No overlaps detected during SkipToNeighbor traversal.
+        // Check if both neighbors belong to overlapped obstacles —
+        // if so, the entire span between them is an overlap region.
+        let low_is_overlapped = obstacle_is_overlapped(low_nbor.obstacle_ordinal(), obstacles);
+        let high_is_overlapped = obstacle_is_overlapped(high_nbor.obstacle_ordinal(), obstacles);
+        let weight = if low_is_overlapped && high_is_overlapped {
+            SegmentWeight::Overlapped
+        } else {
+            SegmentWeight::Normal
+        };
+        add_segment(
+            low_nbor_intersect, high_nbor_intersect,
+            weight, is_vertical, seg_tree, scan_direction,
+        );
+        return;
+    }
+
+    // Compute overlap boundary intersections
+    let low_ov_intersect = match low_overlap {
+        Some(s) => s.scanline_intersect(site, scan_direction),
+        None => low_nbor_intersect,
+    };
+    let high_ov_intersect = match high_overlap {
+        Some(s) => s.scanline_intersect(site, scan_direction),
+        None => high_nbor_intersect,
+    };
+
+    // Normal from low neighbor to overlap start
+    add_segment(
+        low_nbor_intersect, low_ov_intersect,
+        SegmentWeight::Normal, is_vertical, seg_tree, scan_direction,
+    );
+    // Overlapped region
+    add_segment(
+        low_ov_intersect, high_ov_intersect,
+        SegmentWeight::Overlapped, is_vertical, seg_tree, scan_direction,
+    );
+    // Normal from overlap end to high neighbor
+    if high_overlap.is_some() {
+        add_segment(
+            high_ov_intersect, high_nbor_intersect,
+            SegmentWeight::Normal, is_vertical, seg_tree, scan_direction,
+        );
+    }
 }
 
-/// Same as side_scan_coord but takes a reference.
-fn side_scan_coord_from_side(side: &ObstacleSide, scan_direction: ScanDirection) -> f64 {
-    scan_direction.coord(side.start())
+/// Add a segment to the tree if start and end differ.
+fn add_segment(
+    start: Point,
+    end: Point,
+    weight: SegmentWeight,
+    is_vertical: bool,
+    seg_tree: &mut ScanSegmentTree,
+    scan_direction: ScanDirection,
+) {
+    let (s, e) = if scan_direction.coord(start) <= scan_direction.coord(end) {
+        (start, end)
+    } else {
+        (end, start)
+    };
+    if GeomConstants::close(scan_direction.coord(s), scan_direction.coord(e)) {
+        return;
+    }
+    seg_tree.insert_unique(ScanSegment::new(s, e, weight, is_vertical));
 }

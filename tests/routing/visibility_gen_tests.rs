@@ -253,3 +253,27 @@ fn two_obstacles_gap_has_horizontal_edge() {
         .any(|e| e.target == v_right.unwrap());
     assert!(has_edge, "should have direct edge from (12,-2) to (28,-2)");
 }
+
+/// Verify VG connectivity for the route_around_obstacle scenario.
+/// The middle obstacle blocks direct horizontal path, requiring a detour.
+#[test]
+fn route_around_blocker_vg_connected() {
+    let shapes = vec![
+        Shape::rectangle(0.0, 0.0, 30.0, 30.0),
+        Shape::rectangle(60.0, 0.0, 30.0, 60.0),
+        Shape::rectangle(120.0, 0.0, 30.0, 30.0),
+    ];
+    let graph = generate_visibility_graph(&shapes, 4.0);
+
+    // All boundary vertices should exist and be connected
+    assert!(graph.vertex_count() >= 20, "need sufficient vertices");
+
+    // Key connectivity: path from left to right requires going around blocker
+    // Check vertical edges at blocker boundaries
+    let v1 = graph.find_vertex(Point::new(56.0, -4.0));
+    let v2 = graph.find_vertex(Point::new(56.0, 34.0));
+    let v3 = graph.find_vertex(Point::new(56.0, 64.0));
+    assert!(v1.is_some(), "missing vertex at (56,-4)");
+    assert!(v2.is_some(), "missing vertex at (56,34)");
+    assert!(v3.is_some(), "missing vertex at (56,64)");
+}

@@ -148,6 +148,22 @@ impl RectilinearScanLine {
             .next()
     }
 
+    /// Return the next side in the given direction from the given key.
+    ///
+    /// Matches TS: `RectilinearScanLine.Next(direction, sideNode)`.
+    /// `ascending`: true for high direction, false for low direction.
+    pub fn next_in_direction(
+        &self,
+        key: &SideKey,
+        ascending: bool,
+    ) -> Option<(&SideKey, &ObstacleSide)> {
+        if ascending {
+            self.next_high(key)
+        } else {
+            self.next_low(key)
+        }
+    }
+
     /// Return all sides currently on the scanline, ordered by their scan coordinate.
     ///
     /// Used by the VG generator to enumerate all gaps between consecutive sides
