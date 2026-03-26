@@ -48,6 +48,12 @@ impl PortManager {
             if let Some(intersection) = Self::find_nearest_crossing_edge(graph, location, direction)
             {
                 let (edge_source, edge_target, intersect_point) = intersection;
+                // Detect zombie vertices: vertices left behind by a previous
+                // splice that was unspliced, leaving them completely disconnected.
+                let pre_existing = graph.find_vertex(intersect_point);
+                let was_orphan = pre_existing
+                    .is_some_and(|v| graph.out_degree(v) == 0 && graph.in_degree(v) == 0);
+
                 let split_vertex = tgu.add_edge_to_target_edge(
                     graph,
                     port_vertex,
@@ -55,6 +61,15 @@ impl PortManager {
                     edge_target,
                     intersect_point,
                 );
+
+                // If the vertex was orphaned and the original VG edge still
+                // exists unsplit, split it to reconnect the vertex to the VG.
+                if was_orphan
+                    && graph.find_edge(edge_source, edge_target).is_some()
+                {
+                    tgu.split_edge(graph, edge_source, edge_target, split_vertex);
+                }
+
                 let dist = ((intersect_point.x() - location.x()).powi(2)
                     + (intersect_point.y() - location.y()).powi(2))
                 .sqrt();
@@ -161,16 +176,6 @@ impl PortManager {
             }
         }
 
-        if best.is_none() && (location.x() - 70.0).abs() < 0.1 && (location.y() - 70.0).abs() < 0.1
-        {
-            eprintln!(
-                "  find_crossing({:?}) from ({},{}) found NOTHING in {} verts",
-                direction,
-                location.x(),
-                location.y(),
-                graph.vertex_count()
-            );
-        }
         best.map(|(s, t, p, _)| (s, t, p))
     }
 
