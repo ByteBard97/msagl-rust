@@ -6,6 +6,9 @@
 pub mod axis_edge;
 pub mod combinatorial_nudger;
 pub mod free_space_finder;
+pub mod free_space_finder_simple;
+pub mod free_space_finder_sweep;
+mod free_space_finder_sweep_helpers;
 pub mod linked_point;
 pub mod linked_point_splitter;
 pub mod longest_nudged_segment;
