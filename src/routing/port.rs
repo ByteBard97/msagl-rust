@@ -13,6 +13,7 @@ pub struct FloatingPort {
 }
 
 impl FloatingPort {
+    /// Create a port on the obstacle at `obstacle_index` at the given `location`.
     pub fn new(obstacle_index: usize, location: Point) -> Self {
         Self { obstacle_index, location }
     }

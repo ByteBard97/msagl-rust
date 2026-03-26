@@ -5,6 +5,7 @@ use std::ops::{Add, Sub, Mul, Div, Neg};
 
 use crate::geometry::point_comparer::GeomConstants;
 
+/// A 2D point with coordinates rounded to microsecond precision for stable hashing.
 #[derive(Clone, Copy)]
 pub struct Point {
     x: OrderedFloat<f64>,

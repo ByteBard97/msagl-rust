@@ -1,5 +1,6 @@
 use std::cmp::Ordering;
 
+/// Geometric tolerance constants and comparison helpers used throughout the crate.
 pub struct GeomConstants;
 
 const MULT: f64 = 1_000_000.0; // 10^6
