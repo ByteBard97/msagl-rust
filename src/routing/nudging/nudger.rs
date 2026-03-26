@@ -36,36 +36,46 @@ pub fn nudge_paths(paths: &mut [Vec<Point>], obstacles: &[Rectangle], edge_separ
     let original_paths: Vec<Vec<Point>> = paths.to_vec();
 
     // Run nudging in both directions (like the TS: North, East, North).
-    calculate(paths, obstacles, edge_separation, Direction::North);
-    calculate(paths, obstacles, edge_separation, Direction::East);
-    calculate(paths, obstacles, edge_separation, Direction::North);
+    // TS: nudger.Calculate(Direction.North, true)  — merge paths on first call
+    // TS: nudger.Calculate(Direction.East, false)
+    // TS: nudger.Calculate(Direction.North, false)
+    calculate(paths, obstacles, edge_separation, Direction::North, true);
+    calculate(paths, obstacles, edge_separation, Direction::East, false);
+    calculate(paths, obstacles, edge_separation, Direction::North, false);
 
     // Remove staircases.
     staircase_remover::remove_staircases(paths, obstacles);
 
-    // Final cleanup: remove switchbacks and middle points.
-    for path in paths.iter_mut() {
-        remove_switchbacks(path);
-    }
-
     // Safety: if nudging caused any path to cross an obstacle it didn't
-    // cross before, restore the original path. This guards against nudger
-    // bugs collapsing detour paths into straight lines through obstacles.
+    // cross before, restore the original path. This guards against the
+    // simplified FreeSpaceFinder allowing nudges through obstacles.
+    // NOTE: not present in TS/C# (their FreeSpaceFinder is fully implemented).
     restore_if_crossing(paths, &original_paths, obstacles);
 }
 
 /// Run one pass of nudging in the given direction.
+///
+/// Faithfully matches TS `Nudger.Calculate(direction, mergePaths)`:
+/// 1. Refine paths (+ optional merge on first call)
+/// 2. Build axis-edge DAG and get path ordering
+/// 3. Find free space (obstacle bounds)
+/// 4. Group into LongestNudgedSegments
+/// 5. Solve positions
+/// 6. Apply positions + remove switchbacks per path
 fn calculate(
     paths: &mut [Vec<Point>],
     obstacles: &[Rectangle],
     edge_separation: f64,
     direction: Direction,
+    merge_paths: bool,
 ) {
     // Step 1: Refine paths.
     path_refiner::refine_paths(paths);
 
-    // Step 1b: Merge paths — remove self-cycles.
-    PathMerger::merge_paths(paths);
+    // Step 1b: Merge paths — only on first Calculate call (like TS).
+    if merge_paths {
+        PathMerger::merge_paths(paths);
+    }
 
     // Step 2: Build axis-edge DAG and get path ordering.
     let mut result = combinatorial_nudger::get_order(paths);
@@ -95,7 +105,8 @@ fn calculate(
         direction,
     );
 
-    // Step 6: Apply solved positions back to paths.
+    // Step 6: Apply solved positions back to paths, then remove switchbacks.
+    // TS: ShiftPathEdges → GetShiftedPoints → RemoveSwitchbacksAndMiddlePoints
     apply_positions(
         paths,
         &result.path_edges,
@@ -105,6 +116,16 @@ fn calculate(
         &positions,
         direction,
     );
+
+    // Switchback/middle-point removal applied per path after shifting.
+    // Faithful to TS: GetShiftedPoints wraps GetShiftedPointsSimple with
+    // RemoveSwitchbacksAndMiddlePoints.
+    for path in paths.iter_mut() {
+        let cleaned = remove_switchbacks_and_middle_points(path);
+        if cleaned.len() >= 2 {
+            *path = cleaned;
+        }
+    }
 }
 
 /// Group consecutive PathEdges parallel to the nudging direction into
@@ -384,82 +405,92 @@ fn opposite_dir(_d: Direction) -> Direction {
     _d
 }
 
-/// Remove switchbacks (direction reversals) and collinear middle points.
-fn remove_switchbacks(path: &mut Vec<Point>) {
-    if path.len() < 3 {
-        return;
+/// Compass direction bitflags, matching the TS/C# `Direction` enum.
+/// Used by `remove_switchbacks_and_middle_points` for direction tracking.
+///
+/// TS reference: `direction.ts` — `None=0, North=1, East=2, South=4, West=8`.
+mod compass_dir {
+    pub const NONE: u8 = 0;
+    pub const NORTH: u8 = 1;
+    pub const EAST: u8 = 2;
+    pub const SOUTH: u8 = 4;
+    pub const WEST: u8 = 8;
+
+    /// Compute compass direction from point `a` to point `b`.
+    /// Faithfully ports `CompassVector.VectorDirectionPP` from TS.
+    pub fn vector_direction(a: super::Point, b: super::Point) -> u8 {
+        let eps = super::GeomConstants::DISTANCE_EPSILON;
+        let mut r: u8 = NONE;
+        let horizontal_diff = b.x() - a.x();
+        let vertical_diff = b.y() - a.y();
+        if horizontal_diff > eps {
+            r = EAST;
+        } else if -horizontal_diff > eps {
+            r = WEST;
+        }
+        if vertical_diff > eps {
+            r |= NORTH;
+        } else if -vertical_diff > eps {
+            r |= SOUTH;
+        }
+        r
     }
 
-    let mut result: Vec<Point> = Vec::with_capacity(path.len());
-    result.push(path[0]);
-
-    let mut i = 1;
-    while i < path.len() {
-        let a = *result.last().unwrap();
-        let b = path[i];
-
-        if a.close_to(b) {
-            i += 1;
-            continue;
+    /// Return the opposite compass direction.
+    /// Faithfully ports `CompassVector.OppositeDir` from TS.
+    pub fn opposite_dir(dir: u8) -> u8 {
+        match dir {
+            NORTH => SOUTH,
+            SOUTH => NORTH,
+            EAST => WEST,
+            WEST => EAST,
+            _ => dir, // combined or None — no simple opposite
         }
+    }
+}
 
-        if i + 1 < path.len() {
-            let c = path[i + 1];
-            // Check if b is collinear between a and c.
-            if is_collinear(a, b, c) {
-                // Skip b, it's a middle point.
-                i += 1;
-                continue;
+/// Remove switchbacks (direction reversals) and collinear middle points.
+///
+/// Faithful port of TS `Nudger.RemoveSwitchbacksAndMiddlePoints`.
+/// Algorithm: walk the point sequence tracking compass direction. When the
+/// direction from `b` to the next point is the same as `prevDir`, its
+/// opposite, or `None`, we keep accumulating (skipping middle/switchback
+/// points). Otherwise we emit the accumulated point.
+fn remove_switchbacks_and_middle_points(points: &[Point]) -> Vec<Point> {
+    if points.len() < 2 {
+        return points.to_vec();
+    }
+
+    let mut ret: Vec<Point> = Vec::with_capacity(points.len());
+    let mut a = points[0];
+    ret.push(a);
+    let mut b = points[1];
+    let mut prev_dir = compass_dir::vector_direction(a, b);
+
+    let mut i = 2;
+    while i < points.len() {
+        let dir = compass_dir::vector_direction(b, points[i]);
+        // Continue walking along the same straight line, maybe going backwards.
+        if !(dir == prev_dir
+            || compass_dir::opposite_dir(dir) == prev_dir
+            || dir == compass_dir::NONE)
+        {
+            // Direction changed — emit a point if a and b are not too close.
+            if !a.close_to(b) {
+                a = rectilinearise(a, b);
+                ret.push(a);
             }
-            // Check for switchback: a-b reverses at b-c.
-            if is_switchback(a, b, c) {
-                // Skip b.
-                i += 1;
-                continue;
-            }
+            prev_dir = dir;
         }
-
-        // Rectilinearise: snap to nearest axis.
-        result.push(rectilinearise(a, b));
+        b = points[i];
         i += 1;
     }
 
-    // Add the last point if not already there.
-    if let Some(&last) = path.last() {
-        if let Some(&r_last) = result.last() {
-            if !r_last.close_to(last) {
-                result.push(rectilinearise(*result.last().unwrap(), last));
-            }
-        }
+    // Emit the final point.
+    if !a.close_to(b) {
+        ret.push(rectilinearise(a, b));
     }
-
-    if result.len() >= 2 {
-        *path = result;
-    }
-}
-
-/// Check if three points are collinear (all on same horizontal or vertical line).
-fn is_collinear(a: Point, b: Point, c: Point) -> bool {
-    (GeomConstants::close(a.x(), b.x()) && GeomConstants::close(b.x(), c.x()))
-        || (GeomConstants::close(a.y(), b.y()) && GeomConstants::close(b.y(), c.y()))
-}
-
-/// Check if a-b-c is a switchback (reversal of direction).
-fn is_switchback(a: Point, b: Point, c: Point) -> bool {
-    let dx1 = b.x() - a.x();
-    let dy1 = b.y() - a.y();
-    let dx2 = c.x() - b.x();
-    let dy2 = c.y() - b.y();
-
-    // Horizontal switchback: both horizontal but opposite direction.
-    if GeomConstants::close(dy1, 0.0) && GeomConstants::close(dy2, 0.0) {
-        return dx1 * dx2 < 0.0;
-    }
-    // Vertical switchback.
-    if GeomConstants::close(dx1, 0.0) && GeomConstants::close(dx2, 0.0) {
-        return dy1 * dy2 < 0.0;
-    }
-    false
+    ret
 }
 
 /// Restore original paths if nudging introduced obstacle crossings or
@@ -495,15 +526,20 @@ fn restore_if_crossing(paths: &mut [Vec<Point>], original: &[Vec<Point>], obstac
     }
 }
 
-/// Check if any segment midpoint or interior waypoint lies strictly inside
-/// an obstacle that does not contain the path endpoints.
+/// Tolerance for strictly-inside tests in the obstacle crossing check.
+/// Larger than DISTANCE_EPSILON to avoid false positives from paths
+/// that legitimately brush obstacle boundaries.
+const CROSSING_CHECK_TOLERANCE: f64 = 0.1;
+
+/// Check if any segment midpoint lies strictly inside an obstacle that
+/// does not contain the path endpoints.
 fn path_crosses_intermediate_obstacle(path: &[Point], obstacles: &[Rectangle]) -> bool {
     if path.len() < 2 {
         return false;
     }
     let source = path.first().unwrap();
     let target = path.last().unwrap();
-    let eps = 0.1;
+    let eps = CROSSING_CHECK_TOLERANCE;
 
     // Collect test points: segment midpoints and interior waypoints.
     let mut test_points: Vec<Point> = Vec::new();
