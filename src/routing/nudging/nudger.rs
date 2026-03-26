@@ -8,11 +8,15 @@
 //! 6. Solve
 //! 7. Apply solved positions back to path points
 
+use std::collections::HashMap;
+
 use crate::geometry::point::Point;
 use crate::geometry::point_comparer::GeomConstants;
 use crate::geometry::rectangle::Rectangle;
 use crate::projection_solver::uniform_solver::UniformOneDimensionalSolver;
 use crate::routing::scan_direction::Direction;
+
+use super::axis_edge::AxisEdgeId;
 
 use super::axis_edge::AxisEdge;
 use super::combinatorial_nudger;
@@ -248,11 +252,16 @@ fn solve_positions(
         }
     }
 
+    // Build an index: AxisEdgeId -> Vec<segment IDs> for direct lookup.
+    // This mirrors the C#/TS `AxisEdge.LongestNudgedSegments` set, but stored
+    // externally as a HashMap (Rust adaptation of the object-reference pattern).
+    let ae_to_segs = build_axis_edge_segment_index(segments, path_edges);
+
     // Create constraints between segments on neighboring axis edges.
     for seg in segments {
         let right_neighbor_segs =
-            collect_right_neighbor_segs(seg, path_edges, axis_edges, segments);
-        for &rsid in &right_neighbor_segs {
+            collect_right_neighbor_segs(seg, path_edges, axis_edges, &ae_to_segs);
+        for rsid in right_neighbor_segs {
             if rsid != seg.id {
                 solver.add_constraint(var_ids[seg.id], var_ids[rsid], edge_separation);
             }
@@ -262,24 +271,46 @@ fn solve_positions(
     solver.solve()
 }
 
+/// Build a HashMap mapping each AxisEdgeId to the set of LongestNudgedSegment
+/// IDs that have edges on that axis edge. This is the Rust equivalent of the
+/// C#/TS `AxisEdge.setOfLongestSegs` / `AxisEdge.LongestNudgedSegments`.
+fn build_axis_edge_segment_index(
+    segments: &[LongestNudgedSegment],
+    path_edges: &[PathEdge],
+) -> HashMap<AxisEdgeId, Vec<usize>> {
+    let mut index: HashMap<AxisEdgeId, Vec<usize>> = HashMap::new();
+    for seg in segments {
+        for &pe_id in &seg.edges {
+            let ae_id = path_edges[pe_id].axis_edge_id;
+            let entry = index.entry(ae_id).or_default();
+            if !entry.contains(&seg.id) {
+                entry.push(seg.id);
+            }
+        }
+    }
+    index
+}
+
 /// Collect LongestNudgedSegment IDs that are right neighbors of this segment.
+///
+/// Faithful to C#/TS: for each path edge's axis edge, iterate its right
+/// neighbor axis edges, and collect all LongestNudgedSegments on those
+/// neighbors via the pre-built index. Uses a HashSet for deduplication.
 fn collect_right_neighbor_segs(
     seg: &LongestNudgedSegment,
     path_edges: &[PathEdge],
     axis_edges: &[AxisEdge],
-    all_segs: &[LongestNudgedSegment],
+    ae_to_segs: &HashMap<AxisEdgeId, Vec<usize>>,
 ) -> Vec<usize> {
+    let mut seen = std::collections::HashSet::new();
     let mut result = Vec::new();
     for &pe_id in &seg.edges {
         let ae_id = path_edges[pe_id].axis_edge_id;
         for &rn_id in &axis_edges[ae_id].right_neighbors {
-            // Find LongestNudgedSegments on the right neighbor axis edge.
-            for other_seg in all_segs {
-                for &other_pe_id in &other_seg.edges {
-                    if path_edges[other_pe_id].axis_edge_id == rn_id
-                        && !result.contains(&other_seg.id)
-                    {
-                        result.push(other_seg.id);
+            if let Some(neighbor_segs) = ae_to_segs.get(&rn_id) {
+                for &nsid in neighbor_segs {
+                    if seen.insert(nsid) {
+                        result.push(nsid);
                     }
                 }
             }

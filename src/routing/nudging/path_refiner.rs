@@ -9,6 +9,9 @@ use crate::geometry::point::Point;
 use crate::geometry::point_comparer::GeomConstants;
 use std::collections::{BTreeMap, BTreeSet};
 
+use super::linked_point::{LinkedPointIndex, LinkedPointList};
+use super::linked_point_splitter::LinkedPointSplitter;
+
 use ordered_float::OrderedFloat;
 
 /// Refine a set of paths in-place.
@@ -120,62 +123,97 @@ fn refine_in_direction(paths: &mut [Vec<Point>], horizontal: bool) {
 }
 
 /// Insert crossing points where a horizontal segment intersects a vertical one.
+///
+/// Uses the sweep-line `LinkedPointSplitter` (ported from C#/TS) instead of
+/// brute-force O(H*V) comparison. The splitter processes events sorted by Y,
+/// maintaining a balanced tree of active vertical segments for O((H+V) log V)
+/// performance.
 fn cross_vertical_and_horizontal(paths: &mut [Vec<Point>]) {
-    // Collect all horizontal and vertical segments across all paths.
-    struct Seg {
+    // Build LinkedPointLists for horizontal and vertical segments across all paths.
+    // We track (path_index, segment_start_in_path) so we can write results back.
+    let mut h_list = LinkedPointList::new();
+    let mut v_list = LinkedPointList::new();
+    let mut h_starts: Vec<LinkedPointIndex> = Vec::new();
+    let mut v_starts: Vec<LinkedPointIndex> = Vec::new();
+
+    // Track which linked-point nodes belong to which path segment, so we can
+    // reconstruct paths afterwards. Each entry: (path_idx, seg_idx_in_path, start_node, is_horizontal).
+    struct SegInfo {
         path_idx: usize,
         seg_idx: usize,
-        p0: Point,
-        p1: Point,
+        start: LinkedPointIndex,
+        is_horizontal: bool,
     }
-
-    let mut horizontals: Vec<Seg> = Vec::new();
-    let mut verticals: Vec<Seg> = Vec::new();
+    let mut seg_infos: Vec<SegInfo> = Vec::new();
 
     for (pi, path) in paths.iter().enumerate() {
         for si in 0..path.len().saturating_sub(1) {
             let (p0, p1) = (path[si], path[si + 1]);
-            if GeomConstants::close(p0.y(), p1.y()) {
-                horizontals.push(Seg {
+            if GeomConstants::close(p0.y(), p1.y()) && !GeomConstants::close(p0.x(), p1.x()) {
+                // Horizontal segment.
+                let start = h_list.add(p0);
+                let end = h_list.add(p1);
+                // Link start -> end.
+                h_list.insert_after_raw(start, end);
+                h_starts.push(start);
+                seg_infos.push(SegInfo {
                     path_idx: pi,
                     seg_idx: si,
-                    p0,
-                    p1,
+                    start,
+                    is_horizontal: true,
                 });
-            } else if GeomConstants::close(p0.x(), p1.x()) {
-                verticals.push(Seg {
+            } else if GeomConstants::close(p0.x(), p1.x()) && !GeomConstants::close(p0.y(), p1.y())
+            {
+                // Vertical segment.
+                let start = v_list.add(p0);
+                let end = v_list.add(p1);
+                v_list.insert_after_raw(start, end);
+                v_starts.push(start);
+                seg_infos.push(SegInfo {
                     path_idx: pi,
                     seg_idx: si,
-                    p0,
-                    p1,
+                    start,
+                    is_horizontal: false,
                 });
             }
         }
     }
 
-    // For each (horizontal, vertical) pair from different paths,
-    // check if they cross and record insertion points.
-    // insertions[path_idx] = list of (seg_idx, point)
+    if h_starts.is_empty() || v_starts.is_empty() {
+        return; // No crossings possible.
+    }
+
+    // Run the sweep-line splitter — inserts crossing points into both lists.
+    LinkedPointSplitter::split(&mut h_list, &h_starts, &mut v_list, &v_starts);
+
+    // Collect insertion points per path segment. For each segment, walk from
+    // its start node to the original endpoint, collecting any newly-inserted
+    // intermediate points.
+    // insertions[path_idx] = Vec<(seg_idx, point)>
     let mut insertions: Vec<Vec<(usize, Point)>> = vec![Vec::new(); paths.len()];
 
-    for h in &horizontals {
-        for v in &verticals {
-            if h.path_idx == v.path_idx {
-                continue;
+    for info in &seg_infos {
+        let list = if info.is_horizontal {
+            &h_list
+        } else {
+            &v_list
+        };
+        // Walk linked list from start. The original segment was just start -> end.
+        // Any nodes between them are crossing points inserted by the splitter.
+        let start_pt = list.point(info.start);
+        let mut cur = list.next(info.start);
+        while let Some(idx) = cur {
+            let pt = list.point(idx);
+            let next = list.next(idx);
+            if next.is_none() {
+                // This is the original endpoint — don't insert it.
+                break;
             }
-            let hy = h.p0.y();
-            let vx = v.p0.x();
-            let hx_min = h.p0.x().min(h.p1.x());
-            let hx_max = h.p0.x().max(h.p1.x());
-            let vy_min = v.p0.y().min(v.p1.y());
-            let vy_max = v.p0.y().max(v.p1.y());
-
-            let eps = GeomConstants::DISTANCE_EPSILON;
-            if vx > hx_min + eps && vx < hx_max - eps && hy > vy_min + eps && hy < vy_max - eps {
-                let cross = Point::new(vx, hy);
-                insertions[h.path_idx].push((h.seg_idx, cross));
-                insertions[v.path_idx].push((v.seg_idx, cross));
+            // This is an intermediate crossing point.
+            if !pt.close_to(start_pt) {
+                insertions[info.path_idx].push((info.seg_idx, pt));
             }
+            cur = next;
         }
     }
 
@@ -184,6 +222,7 @@ fn cross_vertical_and_horizontal(paths: &mut [Vec<Point>]) {
         if ins.is_empty() {
             continue;
         }
+        // Sort by segment index, then by distance from segment start for stability.
         ins.sort_by(|a, b| a.0.cmp(&b.0));
         let path = &paths[pi];
         let mut new_path: Vec<Point> = Vec::with_capacity(path.len() + ins.len());
@@ -191,11 +230,11 @@ fn cross_vertical_and_horizontal(paths: &mut [Vec<Point>]) {
         for (i, &pt) in path.iter().enumerate() {
             new_path.push(pt);
             while ins_idx < ins.len() && ins[ins_idx].0 == i {
-                let pt = ins[ins_idx].1;
+                let cross_pt = ins[ins_idx].1;
                 // Only insert if not too close to last added point.
                 if let Some(&last) = new_path.last() {
-                    if !last.close_to(pt) {
-                        new_path.push(pt);
+                    if !last.close_to(cross_pt) {
+                        new_path.push(cross_pt);
                     }
                 }
                 ins_idx += 1;
