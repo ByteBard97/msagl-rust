@@ -15,6 +15,7 @@ pub mod visibility_graph_generator;
 pub mod port;
 pub mod edge_geometry;
 pub mod path_search;
+pub mod msmt_path;
 pub mod port_manager;
 pub mod nudging;
 pub mod neighbor_sides;

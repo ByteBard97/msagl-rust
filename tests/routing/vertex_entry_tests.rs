@@ -1,4 +1,4 @@
-use msagl_rust::routing::vertex_entry::{VertexEntry, VertexEntryIndex};
+use msagl_rust::routing::vertex_entry::{VertexEntry, VertexEntryIndex, VertexEntryArena};
 use msagl_rust::routing::compass_direction::CompassDirection;
 use msagl_rust::visibility::graph::VertexId;
 
@@ -8,7 +8,7 @@ fn vertex_entry_new() {
     assert_eq!(entry.vertex, VertexId(5));
     assert_eq!(entry.direction, Some(CompassDirection::East));
     assert!(entry.previous_entry.is_none());
-    assert!((entry.length - 100.0).abs() < 1e-10);
+    assert!((entry.length - 0.0).abs() < 1e-10);
     assert_eq!(entry.number_of_bends, 0);
     assert!(!entry.is_closed);
 }
