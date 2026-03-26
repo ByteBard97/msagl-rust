@@ -14,7 +14,6 @@
 use std::collections::{HashMap, VecDeque};
 
 use crate::geometry::point::Point;
-use crate::geometry::point_comparer::GeomConstants;
 use crate::routing::compass_direction::CompassDirection;
 use crate::routing::scan_direction::Direction;
 
@@ -128,20 +127,42 @@ fn order_path_edges_sharing_edge(
     }
 
     // Sort using CompareTwoPathEdges — the walk-ahead comparison.
-    order.sort_by(|&a_id, &b_id| {
-        let cmp = compare_two_path_edges(a_id, b_id, path_edges, axis_edges);
-        if cmp < 0 {
-            std::cmp::Ordering::Less
-        } else if cmp > 0 {
-            std::cmp::Ordering::Greater
-        } else {
-            std::cmp::Ordering::Equal
-        }
+    //
+    // The walk-ahead comparison (ported from C#/TS) can produce non-transitive
+    // orderings in complex topologies (e.g., a < b, b < c, but a > c) because
+    // different pairs walk to different fork points. C#'s List.Sort and JS's
+    // Array.sort silently tolerate this, but Rust's sort_by detects the
+    // violation and panics.
+    //
+    // Fix: use insertion sort, which performs only pairwise comparisons and
+    // does not check transitivity. This faithfully matches the C# behavior.
+    // The lists are small (paths sharing a single axis edge), so O(n^2) is fine.
+    insertion_sort_by(order, |&a_id, &b_id| {
+        compare_two_path_edges(a_id, b_id, path_edges, axis_edges)
     });
 
     // Fill the index — C#: `pathEdge.Index = i++`
     for (idx, &pe_id) in order.iter().enumerate() {
         path_edges[pe_id].index = idx as i32;
+    }
+}
+
+/// Insertion sort: tolerates non-transitive comparison functions.
+///
+/// Unlike Rust's built-in sort (which panics on total-ordering violations),
+/// insertion sort performs only direct pairwise comparisons and produces a
+/// valid permutation regardless of transitivity. This matches the behavior
+/// of C#'s `List<T>.Sort` and JS's `Array.sort` for this use case.
+fn insertion_sort_by<T, F>(slice: &mut [T], mut cmp: F)
+where
+    F: FnMut(&T, &T) -> i32,
+{
+    for i in 1..slice.len() {
+        let mut j = i;
+        while j > 0 && cmp(&slice[j - 1], &slice[j]) > 0 {
+            slice.swap(j - 1, j);
+            j -= 1;
+        }
     }
 }
 
@@ -419,8 +440,13 @@ fn to_compass(d: Direction) -> CompassDirection {
 }
 
 /// Compare two f64 values, returning -1, 0, or 1.
+///
+/// Uses exact comparison (f64::total_cmp), matching C#'s Double.CompareTo
+/// which the original code uses at fork-point projections. The previous
+/// epsilon-based GeomConstants::compare introduced intransitivity:
+/// a ≈ b and b ≈ c within epsilon, but a < c outside epsilon.
 fn compare_f64(a: f64, b: f64) -> i32 {
-    match GeomConstants::compare(a, b) {
+    match a.total_cmp(&b) {
         std::cmp::Ordering::Less => -1,
         std::cmp::Ordering::Equal => 0,
         std::cmp::Ordering::Greater => 1,
