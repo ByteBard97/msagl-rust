@@ -2,7 +2,9 @@
 ///
 /// ScenarioBuilder accumulates rectangular obstacles and edge requests, then
 /// runs the router and returns the RoutingResult for verification.
-use msagl_rust::{EdgeGeometry, FloatingPort, Point, RectilinearEdgeRouter, RoutingResult, Shape};
+use msagl_rust::{
+    EdgeGeometry, FloatingPort, Point, RectilinearEdgeRouter, RoutingResult, Shape,
+};
 
 /// Default padding around obstacles used in rectilinear scenario tests.
 const SCENARIO_PADDING: f64 = 1.0;
@@ -73,6 +75,20 @@ impl ScenarioBuilder {
         let height = (y1 - y0).abs();
         self.shapes
             .push(Shape::rectangle(left, bottom, width, height));
+        idx
+    }
+
+    /// Add a polygon obstacle from a list of vertex points. Returns the obstacle index.
+    pub fn add_polygon(&mut self, points: &[Point]) -> usize {
+        let idx = self.shapes.len();
+        self.shapes.push(Shape::polygon(points));
+        idx
+    }
+
+    /// Add a circle obstacle approximated as a polygon. Returns the obstacle index.
+    pub fn add_circle(&mut self, center: Point, radius: f64) -> usize {
+        let idx = self.shapes.len();
+        self.shapes.push(Shape::circle(center, radius));
         idx
     }
 

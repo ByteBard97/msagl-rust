@@ -45,9 +45,14 @@ impl Obstacle {
 
     /// Faithful port of TS `Obstacle` constructor.
     ///
-    /// Pads the boundary polyline. For rectangles: expand bbox by padding,
-    /// create 4-corner polyline. Rounds vertices and simplifies.
-    /// Checks `IsPolylineRectangle()` on the result.
+    /// Pads the boundary polyline. Currently uses padded bounding box for
+    /// the scanline representation (both rectangular and non-rectangular shapes).
+    /// The actual polygon boundary is stored in the Shape for accurate
+    /// containment testing by the verifier.
+    ///
+    /// TODO: When bend/reflection events are implemented in the VG generator,
+    /// non-rectangular shapes should use `create_padded_polyline()` for
+    /// their padded polyline instead of the bounding-box approximation.
     pub fn from_shape(shape: &Shape, padding: f64, index: usize) -> Self {
         let bb = shape.bounding_box();
         let padded_bb = Rectangle::new(
@@ -57,9 +62,9 @@ impl Obstacle {
             bb.top() + padding,
         );
 
-        // Create padded polyline: clockwise from bottom-left
-        // Matches TS InteractiveObstacleCalculator.PaddedPolylineBoundaryOfNode()
-        // for rectangular shapes.
+        // Create padded polyline from bounding box: clockwise from bottom-left.
+        // For non-rectangular shapes, this is conservative (routes around the
+        // bounding box), but the verifier uses the actual polygon boundary.
         let mut poly = Polyline::new();
         poly.add_point(padded_bb.left_bottom());
         poly.add_point(padded_bb.left_top());
@@ -313,6 +318,198 @@ fn remove_close_vertices(polyline: &mut Polyline, epsilon: f64) {
     // are extremely rare for padded rectangles so this is effectively a no-op.
     // The TS implementation modifies linked list pointers directly.
     let _ = to_remove;
+}
+
+/// Create a padded polyline around a convex polygon boundary.
+/// Not yet used — the VG generator currently routes around bounding boxes.
+/// Will be activated when bend/reflection events are implemented.
+#[allow(dead_code)]
+///
+/// Faithful port of C# `InteractiveObstacleCalculator.CreatePaddedPolyline()`.
+/// Offsets each edge outward by `padding`, then computes corner intersections.
+/// For sharp corners, two offset points are generated (beveled corner).
+/// Falls back to convex-hull-then-pad if any corner is concave.
+fn create_padded_polyline(poly: &Polyline, padding: f64) -> Polyline {
+    let pts: Vec<Point> = poly.points().collect();
+    let n = pts.len();
+    debug_assert!(n >= 3, "Polyline must have at least 3 points");
+
+    let mut result = Polyline::new();
+
+    for i in 0..n {
+        let p0 = pts[(i + n - 1) % n]; // previous vertex
+        let p1 = pts[i];               // current vertex
+        let p2 = pts[(i + 1) % n];     // next vertex
+
+        let padded = get_padded_corner(p0, p1, p2, padding);
+        match padded {
+            PadResult::One(a) => {
+                result.add_point(a);
+            }
+            PadResult::Two(a, b) => {
+                result.add_point(a);
+                result.add_point(b);
+            }
+            PadResult::Concave => {
+                // Non-convex corner: fall back to bbox padding.
+                // This matches C# which falls back to convex hull + repad.
+                let bb = poly.bounding_box();
+                let padded_bb = Rectangle::new(
+                    bb.left() - padding,
+                    bb.bottom() - padding,
+                    bb.right() + padding,
+                    bb.top() + padding,
+                );
+                let mut fallback = Polyline::new();
+                fallback.add_point(padded_bb.left_bottom());
+                fallback.add_point(padded_bb.left_top());
+                fallback.add_point(padded_bb.right_top());
+                fallback.add_point(padded_bb.right_bottom());
+                fallback.set_closed(true);
+                return fallback;
+            }
+        }
+    }
+
+    result.set_closed(true);
+    result
+}
+
+/// Result of padding a single corner vertex.
+#[allow(dead_code)]
+enum PadResult {
+    /// Single offset point (normal or obtuse corner).
+    One(Point),
+    /// Two offset points (sharp/beveled corner).
+    Two(Point, Point),
+    /// Concave corner — needs convex hull fallback.
+    Concave,
+}
+
+/// Faithful port of C# `GetPaddedCorner(first, second, third, padding)`.
+///
+/// Given three consecutive vertices (u, v, w) on a clockwise polyline,
+/// compute the padded corner point(s) at vertex v.
+#[allow(dead_code)]
+fn get_padded_corner(u: Point, v: Point, w: Point, padding: f64) -> PadResult {
+    // Check orientation: counterclockwise means concave corner
+    if triangle_orientation(u, v, w) == Orientation::Counterclockwise {
+        return PadResult::Concave;
+    }
+
+    let uv = v - u;
+    let vw = w - v;
+
+    // Perpendicular to edge u→v, rotated 90° CCW (outward for CW polyline)
+    let uv_perp = rotate_90(uv).normalize();
+
+    if corner_is_not_too_sharp(u, v, w) {
+        // Normal corner: intersect the two offset lines
+        let uv_offset = uv_perp * padding;
+        let vw_perp = rotate_90(vw).normalize() * padding;
+
+        // Line 1: (u + offset) → (v + offset)
+        // Line 2: (v + vw_offset) → (w + vw_offset)
+        if let Some(intersection) =
+            line_line_intersection(u + uv_offset, v + uv_offset, v + vw_perp, w + vw_perp)
+        {
+            PadResult::One(intersection)
+        } else {
+            // Parallel lines (collinear edges) — just offset v
+            PadResult::One(v + uv_offset)
+        }
+    } else {
+        // Sharp corner: generate two beveled points
+        let uv_norm = uv.normalize();
+        let wv_norm = (v - w).normalize();
+        let l = uv_norm + wv_norm;
+
+        if l.length() < GeomConstants::TOLERANCE {
+            // Degenerate: u-v-w nearly collinear
+            return PadResult::One(v + uv_perp * padding);
+        }
+
+        let d = l.normalize() * padding;
+        let dp = rotate_90(d);
+
+        // Solve: padding = (d + x*dp) · uv_perp
+        let dot_d = d.x() * uv_perp.x() + d.y() * uv_perp.y();
+        let dot_dp = dp.x() * uv_perp.x() + dp.y() * uv_perp.y();
+
+        if dot_dp.abs() < GeomConstants::TOLERANCE {
+            return PadResult::One(v + d);
+        }
+
+        let xp = (padding - dot_d) / dot_dp;
+        let a = v + d + dp * xp;
+        let b = v + d - dp * xp;
+        PadResult::Two(a, b)
+    }
+}
+
+/// Check if a corner at v (between edges u→v and v→w) is not too sharp.
+/// Faithful port of C# `CornerIsNotTooSharp`.
+/// Returns true if the angle is > π/4 (45 degrees).
+#[allow(dead_code)]
+fn corner_is_not_too_sharp(u: Point, v: Point, w: Point) -> bool {
+    let uv = u - v;
+    let rotated = rotate_by_angle(uv, std::f64::consts::FRAC_PI_4);
+    let a = rotated + v;
+    triangle_orientation(v, a, w) == Orientation::Counterclockwise
+}
+
+/// Rotate a vector by the given angle (radians, counterclockwise).
+#[allow(dead_code)]
+fn rotate_by_angle(p: Point, angle: f64) -> Point {
+    let cos = angle.cos();
+    let sin = angle.sin();
+    Point::new(p.x() * cos - p.y() * sin, p.x() * sin + p.y() * cos)
+}
+
+/// Rotate a vector 90 degrees counterclockwise (left turn).
+/// For a clockwise polyline, this points outward.
+#[allow(dead_code)]
+fn rotate_90(p: Point) -> Point {
+    Point::new(-p.y(), p.x())
+}
+
+/// Line-line intersection of lines (a1→a2) and (b1→b2).
+/// Returns None if lines are parallel.
+#[allow(dead_code)]
+fn line_line_intersection(a1: Point, a2: Point, b1: Point, b2: Point) -> Option<Point> {
+    let d1 = a2 - a1;
+    let d2 = b2 - b1;
+    let cross = d1.x() * d2.y() - d1.y() * d2.x();
+
+    if cross.abs() < GeomConstants::TOLERANCE {
+        return None;
+    }
+
+    let d = b1 - a1;
+    let t = (d.x() * d2.y() - d.y() * d2.x()) / cross;
+    Some(Point::new(a1.x() + t * d1.x(), a1.y() + t * d1.y()))
+}
+
+/// Triangle orientation for three points.
+#[derive(PartialEq, Eq, Debug)]
+#[allow(dead_code)]
+enum Orientation {
+    Clockwise,
+    Counterclockwise,
+    Collinear,
+}
+
+/// Determine the orientation of triangle (a, b, c).
+#[allow(dead_code)]
+fn triangle_orientation(a: Point, b: Point, c: Point) -> Orientation {
+    let cross = (b.x() - a.x()) * (c.y() - a.y()) - (b.y() - a.y()) * (c.x() - a.x());
+    if cross.abs() < GeomConstants::TOLERANCE {
+        Orientation::Collinear
+    } else if cross < 0.0 {
+        Orientation::Clockwise
+    } else {
+        Orientation::Counterclockwise
+    }
 }
 
 /// Faithful port of TS `Obstacle.IsPolylineRectangle()`.
