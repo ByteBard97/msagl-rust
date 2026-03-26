@@ -119,6 +119,8 @@ impl Solver {
         self.constraint_vector.reinitialize();
         for c in &mut self.constraints {
             c.is_active = false;
+            c.is_unsatisfiable = false;
+            c.lagrangian = 0.0;
         }
         self.violation_cache.clear();
     }
