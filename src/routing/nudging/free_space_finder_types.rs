@@ -143,7 +143,6 @@ impl AxisEdgesContainer {
 pub(super) struct ObstacleSide {
     pub start: Point,
     pub end: Point,
-    #[allow(dead_code)]
     pub obstacle_id: ObstacleId,
 }
 
