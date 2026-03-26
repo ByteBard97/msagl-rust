@@ -26,6 +26,9 @@ use super::scan_direction::ScanDirection;
 /// Matches TS `RectilinearScanLine.Compare()` which uses
 /// `ScanLineIntersectSidePBS` to compute the intersection position, then falls
 /// back to side type and obstacle ordinal.
+///
+/// Public so callers can hold a handle to a specific position in the scanline
+/// (matching TS `RBNode<BasicObstacleSide>` usage in `Find`, `NextLow`, `NextHigh`).
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub struct SideKey {
     /// The scan coordinate where this side intersects the current sweep line.

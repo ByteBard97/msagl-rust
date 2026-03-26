@@ -21,6 +21,7 @@
 
 use std::collections::BinaryHeap;
 use std::cmp::Ordering;
+use crate::arenas::PolylinePointKey;
 use crate::geometry::point::Point;
 use crate::geometry::point_comparer::GeomConstants;
 use super::scan_direction::ScanDirection;
@@ -28,33 +29,23 @@ use super::scan_direction::ScanDirection;
 /// Full sweep event hierarchy for the rectilinear visibility sweep line.
 ///
 /// Mirrors the TS EventQueue.ts hierarchy:
-///   SweepEvent (base)
-///   ├── BasicVertexEvent (carries Obstacle + PolylinePoint)
-///   │   ├── OpenVertexEvent
-///   │   ├── CloseVertexEvent
-///   │   ├── LowBendVertexEvent
-///   │   └── HighBendVertexEvent
-///   └── BasicReflectionEvent (carries initial/reflecting obstacle + site)
-///       ├── LowReflectionEvent (carries LowObstacleSide)
-///       └── HighReflectionEvent (carries HighObstacleSide)
+///   SweepEvent
+///   ├── VertexEvent  (OpenVertex, CloseVertex, LowBend, HighBend)
+///   └── ReflectionEvent (LowReflection, HighReflection)
 ///
-/// In Rust we flatten this into an enum. Vertex events carry `obstacle_index`
-/// (matching TS BasicVertexEvent.Obstacle). Reflection events carry
-/// `initial_obstacle` and `reflecting_obstacle` (matching TS BasicReflectionEvent).
+/// Vertex events carry a `vertex_key` that identifies the PolylinePoint in
+/// the obstacle's boundary polyline. This matches the TS where each vertex
+/// event holds a `PolylinePoint` giving both the point and traversal position.
 #[derive(Clone, Debug)]
 pub enum SweepEvent {
     /// Obstacle corner entering sweep range (low side of obstacle).
-    /// Matches TS: `OpenVertexEvent extends BasicVertexEvent`
-    OpenVertex { site: Point, obstacle_index: usize },
+    OpenVertex { site: Point, obstacle_index: usize, vertex_key: PolylinePointKey },
     /// Obstacle corner leaving sweep range (high side of obstacle).
-    /// Matches TS: `CloseVertexEvent extends BasicVertexEvent`
-    CloseVertex { site: Point, obstacle_index: usize },
+    CloseVertex { site: Point, obstacle_index: usize, vertex_key: PolylinePointKey },
     /// Low bend at obstacle corner (between open and close).
-    /// Matches TS: `LowBendVertexEvent extends BasicVertexEvent`
-    LowBend { site: Point, obstacle_index: usize },
+    LowBend { site: Point, obstacle_index: usize, vertex_key: PolylinePointKey },
     /// High bend at obstacle corner (between open and close).
-    /// Matches TS: `HighBendVertexEvent extends BasicVertexEvent`
-    HighBend { site: Point, obstacle_index: usize },
+    HighBend { site: Point, obstacle_index: usize, vertex_key: PolylinePointKey },
     /// Reflection event off a low obstacle side.
     /// Matches TS: `LowReflectionEvent extends BasicReflectionEvent`
     ///
@@ -101,6 +92,17 @@ impl SweepEvent {
             | Self::CloseVertex { obstacle_index, .. }
             | Self::LowBend { obstacle_index, .. }
             | Self::HighBend { obstacle_index, .. } => Some(*obstacle_index),
+            Self::LowReflection { .. } | Self::HighReflection { .. } => None,
+        }
+    }
+
+    /// The polyline point key for vertex events; `None` for reflection events.
+    pub fn vertex_key(&self) -> Option<PolylinePointKey> {
+        match self {
+            Self::OpenVertex { vertex_key, .. }
+            | Self::CloseVertex { vertex_key, .. }
+            | Self::LowBend { vertex_key, .. }
+            | Self::HighBend { vertex_key, .. } => Some(*vertex_key),
             Self::LowReflection { .. } | Self::HighReflection { .. } => None,
         }
     }
@@ -338,14 +340,16 @@ impl EventQueue {
 mod tests {
     use super::*;
 
+    fn dk() -> PolylinePointKey { PolylinePointKey::default() }
+
     #[test]
     fn events_dequeued_in_perp_coord_order() {
         let sd = ScanDirection::horizontal();
         let mut q = EventQueue::new(sd);
 
-        q.enqueue(SweepEvent::OpenVertex { site: Point::new(0.0, 10.0), obstacle_index: 0 });
-        q.enqueue(SweepEvent::OpenVertex { site: Point::new(0.0, 5.0), obstacle_index: 1 });
-        q.enqueue(SweepEvent::OpenVertex { site: Point::new(0.0, 15.0), obstacle_index: 2 });
+        q.enqueue(SweepEvent::OpenVertex { site: Point::new(0.0, 10.0), obstacle_index: 0, vertex_key: dk() });
+        q.enqueue(SweepEvent::OpenVertex { site: Point::new(0.0, 5.0), obstacle_index: 1, vertex_key: dk() });
+        q.enqueue(SweepEvent::OpenVertex { site: Point::new(0.0, 15.0), obstacle_index: 2, vertex_key: dk() });
 
         // For horizontal scan, perp_coord = y. Should come out 5, 10, 15.
         let e1 = q.dequeue().unwrap();
@@ -361,7 +365,7 @@ mod tests {
         let mut q = EventQueue::new(sd);
 
         // Vertex event at y=5
-        q.enqueue(SweepEvent::OpenVertex { site: Point::new(3.0, 5.0), obstacle_index: 0 });
+        q.enqueue(SweepEvent::OpenVertex { site: Point::new(3.0, 5.0), obstacle_index: 0, vertex_key: dk() });
         // Reflection event at y=5
         q.enqueue(SweepEvent::new_basic_reflection(Point::new(3.0, 5.0), 1, 2));
 
@@ -377,8 +381,8 @@ mod tests {
         let mut q = EventQueue::new(sd);
 
         // Two open vertex events at same y=5, different x
-        q.enqueue(SweepEvent::OpenVertex { site: Point::new(10.0, 5.0), obstacle_index: 0 });
-        q.enqueue(SweepEvent::OpenVertex { site: Point::new(3.0, 5.0), obstacle_index: 1 });
+        q.enqueue(SweepEvent::OpenVertex { site: Point::new(10.0, 5.0), obstacle_index: 0, vertex_key: dk() });
+        q.enqueue(SweepEvent::OpenVertex { site: Point::new(3.0, 5.0), obstacle_index: 1, vertex_key: dk() });
 
         let first = q.dequeue().unwrap();
         let second = q.dequeue().unwrap();
@@ -421,8 +425,8 @@ mod tests {
         let mut q = EventQueue::new(sd);
 
         // For vertical scan: perp_coord = x, scan_coord = y
-        q.enqueue(SweepEvent::OpenVertex { site: Point::new(10.0, 0.0), obstacle_index: 0 });
-        q.enqueue(SweepEvent::OpenVertex { site: Point::new(3.0, 0.0), obstacle_index: 1 });
+        q.enqueue(SweepEvent::OpenVertex { site: Point::new(10.0, 0.0), obstacle_index: 0, vertex_key: dk() });
+        q.enqueue(SweepEvent::OpenVertex { site: Point::new(3.0, 0.0), obstacle_index: 1, vertex_key: dk() });
 
         let first = q.dequeue().unwrap();
         let second = q.dequeue().unwrap();
@@ -437,10 +441,10 @@ mod tests {
         let y = 5.0;
 
         // Enqueue events at same perp coord (y=5), same scan coord (x=3)
-        q.enqueue(SweepEvent::CloseVertex { site: Point::new(3.0, y), obstacle_index: 0 });
-        q.enqueue(SweepEvent::HighBend { site: Point::new(3.0, y), obstacle_index: 0 });
-        q.enqueue(SweepEvent::OpenVertex { site: Point::new(3.0, y), obstacle_index: 0 });
-        q.enqueue(SweepEvent::LowBend { site: Point::new(3.0, y), obstacle_index: 0 });
+        q.enqueue(SweepEvent::CloseVertex { site: Point::new(3.0, y), obstacle_index: 0, vertex_key: dk() });
+        q.enqueue(SweepEvent::HighBend { site: Point::new(3.0, y), obstacle_index: 0, vertex_key: dk() });
+        q.enqueue(SweepEvent::OpenVertex { site: Point::new(3.0, y), obstacle_index: 0, vertex_key: dk() });
+        q.enqueue(SweepEvent::LowBend { site: Point::new(3.0, y), obstacle_index: 0, vertex_key: dk() });
         q.enqueue(SweepEvent::new_basic_reflection(Point::new(3.0, y), 0, 1));
 
         // Reflection should come first, rest ordered by scan coord (same here)

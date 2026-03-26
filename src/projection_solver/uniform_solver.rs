@@ -1,6 +1,10 @@
 use super::parameters::Parameters;
 use super::solver_shell::SolverShell;
 
+/// Weight for anchor variables used to enforce bounds.
+/// High weight ensures the anchor stays near the boundary position.
+const ANCHOR_WEIGHT: f64 = 1e8;
+
 /// One-dimensional projection solver with optional per-variable bounds.
 ///
 /// Used by the nudging pipeline.  Bounds are implemented as high-weight
@@ -33,13 +37,13 @@ impl UniformOneDimensionalSolver {
 
     /// Constrain `var[var_id] <= bound` by anchoring a high-weight variable at `bound`.
     pub fn set_upper_bound(&mut self, var_id: usize, bound: f64) {
-        let anchor = self.shell.add_variable(None, bound, 1e8, 1.0);
+        let anchor = self.shell.add_variable(None, bound, ANCHOR_WEIGHT, 1.0);
         self.shell.add_left_right_constraint(var_id, anchor, 0.0);
     }
 
     /// Constrain `var[var_id] >= bound` by anchoring a high-weight variable at `bound`.
     pub fn set_lower_bound(&mut self, var_id: usize, bound: f64) {
-        let anchor = self.shell.add_variable(None, bound, 1e8, 1.0);
+        let anchor = self.shell.add_variable(None, bound, ANCHOR_WEIGHT, 1.0);
         self.shell.add_left_right_constraint(anchor, var_id, 0.0);
     }
 

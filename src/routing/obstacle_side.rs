@@ -28,51 +28,16 @@ pub enum SideType {
 #[derive(Debug, Clone)]
 pub struct ObstacleSide {
     side_type: SideType,
-    obstacle_ordinal: usize,
+    obstacle_index: usize,
     start: Point,
     end: Point,
-    /// PolylinePointKey for start vertex (None for sentinels/legacy).
-    start_key: Option<PolylinePointKey>,
-    /// PolylinePointKey for end vertex (None for sentinels/legacy).
-    end_key: Option<PolylinePointKey>,
+    start_key: PolylinePointKey,
+    end_key: PolylinePointKey,
     slope: f64,
     slope_inverse: f64,
 }
 
 impl ObstacleSide {
-    /// Create from raw points (legacy constructor).
-    ///
-    /// Computes slope from raw dx/dy (not scan-relative).
-    pub fn new(
-        side_type: SideType,
-        start: Point,
-        end: Point,
-        obstacle_ordinal: usize,
-    ) -> Self {
-        let dx = end.x() - start.x();
-        let dy = end.y() - start.y();
-        let slope = if dx.abs() < SLOPE_EPSILON {
-            f64::INFINITY
-        } else {
-            dy / dx
-        };
-        let slope_inverse = if dy.abs() < SLOPE_EPSILON {
-            f64::INFINITY
-        } else {
-            dx / dy
-        };
-        Self {
-            side_type,
-            obstacle_ordinal,
-            start,
-            end,
-            start_key: None,
-            end_key: None,
-            slope,
-            slope_inverse,
-        }
-    }
-
     /// Create from a polyline point, traversing in the correct direction.
     ///
     /// Matches TS: `new LowObstacleSide(obstacle, startVertex, scanDir)` and
@@ -85,7 +50,7 @@ impl ObstacleSide {
     /// - High + V-scan: clockwise (next)
     pub fn from_polyline_point(
         side_type: SideType,
-        obstacle_ordinal: usize,
+        obstacle_index: usize,
         start_key: PolylinePointKey,
         polyline: &Polyline,
         scan_direction: ScanDirection,
@@ -111,6 +76,7 @@ impl ObstacleSide {
         //   = (scanDir.Coord(end) - scanDir.Coord(start)) /
         //     (scanDir.PerpCoord(end) - scanDir.PerpCoord(start))
         let (slope, slope_inverse) = if scan_direction.is_perpendicular(start, end) {
+            // Perpendicular side -- slope is 0 (TS sets both to 0)
             (0.0, 0.0)
         } else {
             let d_scan = scan_direction.coord(end) - scan_direction.coord(start);
@@ -121,11 +87,11 @@ impl ObstacleSide {
 
         Self {
             side_type,
-            obstacle_ordinal,
+            obstacle_index,
             start,
             end,
-            start_key: Some(start_key),
-            end_key: Some(end_key),
+            start_key,
+            end_key,
             slope,
             slope_inverse,
         }
@@ -141,11 +107,11 @@ impl ObstacleSide {
     ) -> Self {
         Self {
             side_type,
-            obstacle_ordinal,
+            obstacle_index: obstacle_ordinal,
             start,
             end,
-            start_key: None,
-            end_key: None,
+            start_key: PolylinePointKey::default(),
+            end_key: PolylinePointKey::default(),
             slope: 0.0,
             slope_inverse: 0.0,
         }
@@ -154,14 +120,14 @@ impl ObstacleSide {
     pub fn side_type(&self) -> SideType { self.side_type }
     pub fn start(&self) -> Point { self.start }
     pub fn end(&self) -> Point { self.end }
-    pub fn obstacle_ordinal(&self) -> usize { self.obstacle_ordinal }
-    pub fn start_vertex_key(&self) -> Option<PolylinePointKey> { self.start_key }
-    pub fn end_vertex_key(&self) -> Option<PolylinePointKey> { self.end_key }
+    pub fn obstacle_index(&self) -> usize { self.obstacle_index }
+    pub fn start_vertex_key(&self) -> PolylinePointKey { self.start_key }
+    pub fn end_vertex_key(&self) -> PolylinePointKey { self.end_key }
     pub fn slope(&self) -> f64 { self.slope }
     pub fn slope_inverse(&self) -> f64 { self.slope_inverse }
 
-    /// Backward-compatibility alias for obstacle_ordinal.
-    pub fn obstacle_index(&self) -> usize { self.obstacle_ordinal }
+    /// Backward-compatibility alias for obstacle_index.
+    pub fn obstacle_ordinal(&self) -> usize { self.obstacle_index }
 
     /// The direction vector from start to end.
     /// Matches TS: `side.Direction` used in `ScanLineIntersectSidePBS`.
@@ -197,6 +163,34 @@ impl ObstacleSide {
         Point::new(ix, iy)
     }
 
+    /// Legacy constructor for tests and sentinel creation.
+    /// Computes slope from raw dx/dy (not scan-relative).
+    /// Prefer `from_polyline_point` or `sentinel` for new code.
+    pub fn new(side_type: SideType, start: Point, end: Point, obstacle_ordinal: usize) -> Self {
+        let dx = end.x() - start.x();
+        let dy = end.y() - start.y();
+        let slope = if dx.abs() < SLOPE_EPSILON {
+            f64::INFINITY
+        } else {
+            dy / dx
+        };
+        let slope_inverse = if dy.abs() < SLOPE_EPSILON {
+            f64::INFINITY
+        } else {
+            dx / dy
+        };
+        Self {
+            side_type,
+            obstacle_index: obstacle_ordinal,
+            start,
+            end,
+            start_key: PolylinePointKey::default(),
+            end_key: PolylinePointKey::default(),
+            slope,
+            slope_inverse,
+        }
+    }
+
     /// Legacy scanline intersection (non-scan-direction-aware).
     /// Kept for backward compatibility with existing tests.
     pub fn scanline_intersection(&self, perp_coord: f64, is_horizontal_scan: bool) -> f64 {
@@ -217,6 +211,8 @@ impl ObstacleSide {
 /// Clamp the intersection coordinate to be within the side's range.
 ///
 /// Faithful port of TS `SpliceUtility.MungeIntersect()`.
+/// If `site_coord` is between `start` and `end`, prefer `intersect`;
+/// otherwise clamp to the nearest endpoint.
 fn munge_intersect(_site_coord: f64, intersect: f64, start: f64, end: f64) -> f64 {
     let lo = start.min(end);
     let hi = start.max(end);

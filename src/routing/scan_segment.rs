@@ -11,8 +11,9 @@ use std::cmp::Ordering;
 use std::collections::BTreeMap;
 use crate::geometry::point::Point;
 use crate::geometry::point_comparer::GeomConstants;
-use crate::visibility::graph::VertexId;
+use crate::visibility::graph::{VertexId, VisibilityGraph};
 use super::scan_direction::ScanDirection;
+use super::static_graph_utility::StaticGraphUtility;
 
 /// Weight of a scan segment (affects routing preference).
 /// Matches TS: NormalWeight=1, ReflectionWeight=5, OverlappedWeight=500.
@@ -123,6 +124,84 @@ impl ScanSegment {
         } else {
             self.start.x().max(self.end.x())
         }
+    }
+
+    /// Whether this segment has any visibility vertices.
+    /// Matches TS: `ScanSegment.HasVisibility()`
+    pub fn has_visibility(&self) -> bool {
+        self.lowest_vertex.is_some()
+    }
+
+    /// Called when the segment intersector begins processing this segment.
+    /// Creates a vertex at the start point.
+    ///
+    /// Matches TS: `ScanSegment.OnSegmentIntersectorBegin(vg)`
+    /// In the full TS, this handles group crossings and overlap vertices.
+    /// We skip group crossings (deferred). We always create the start vertex
+    /// to ensure connectivity even for segments without crossings; when the
+    /// full VG generator (Task 8) is in place, this will be narrowed to the
+    /// TS behavior (overlap-only creation).
+    pub fn on_intersector_begin(&mut self, graph: &mut VisibilityGraph) {
+        // TS: if (!this.AppendGroupCrossingsThroughPoint(vg, this.Start)) {
+        //       this.LoadStartOverlapVertexIfNeeded(vg);
+        //     }
+        // Until the full VG generator produces a dense segment grid, we always
+        // create the start vertex to maintain graph connectivity.
+        let v = graph.add_vertex(self.start);
+        self.append_visibility_vertex(graph, v);
+    }
+
+    /// Called when the segment intersector finishes this segment.
+    /// Creates a vertex at the end point and connects it to the chain.
+    ///
+    /// Matches TS: `ScanSegment.OnSegmentIntersectorEnd(vg)`
+    pub fn on_intersector_end(&mut self, graph: &mut VisibilityGraph) {
+        // TS: this.AppendGroupCrossingsThroughPoint(vg, this.End)
+        // (skipped — no groups)
+
+        // TS checks HighestVisibilityVertex == null or IsPureLower before loading end.
+        // We always create the end vertex for connectivity (see on_intersector_begin note).
+        let should_load_end = match self.highest_vertex {
+            None => true,
+            Some(hv) => {
+                let hvp = graph.point(hv);
+                StaticGraphUtility::is_pure_lower(hvp, self.end)
+            }
+        };
+        if should_load_end {
+            let v = graph.add_vertex(self.end);
+            self.append_visibility_vertex(graph, v);
+        }
+    }
+
+    /// Append a visibility vertex to this segment's chain.
+    /// Creates a bidirectional edge from the current highest vertex to the new vertex.
+    ///
+    /// Matches TS: `ScanSegment.AppendVisibilityVertex(vg, newVertex)`
+    pub fn append_visibility_vertex(&mut self, graph: &mut VisibilityGraph, vertex: VertexId) {
+        if let Some(highest) = self.highest_vertex {
+            // TS: if (PointComparer.IsPureLower(newVertex.point, this.HighestVisibilityVertex.point))
+            //       return;  // Already have a higher or equal vertex
+            let new_point = graph.point(vertex);
+            let high_point = graph.point(highest);
+            if StaticGraphUtility::is_pure_lower(new_point, high_point) {
+                return;
+            }
+
+            // Add edge if the points differ
+            let points_equal = GeomConstants::close(high_point.x(), new_point.x())
+                && GeomConstants::close(high_point.y(), new_point.y());
+            if highest != vertex && !points_equal {
+                let dist = (new_point - high_point).length() * self.weight.value() as f64;
+                graph.add_edge(highest, vertex, dist);
+                graph.add_edge(vertex, highest, dist);
+            }
+        }
+
+        if self.lowest_vertex.is_none() {
+            self.lowest_vertex = Some(vertex);
+        }
+        self.highest_vertex = Some(vertex);
     }
 }
 

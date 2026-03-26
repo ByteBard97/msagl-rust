@@ -14,6 +14,9 @@ use crate::geometry::rectangle::Rectangle;
 use crate::projection_solver::uniform_solver::UniformOneDimensionalSolver;
 use crate::routing::scan_direction::Direction;
 
+/// Weight for fixed solver variables (pinned to their current position).
+const FIXED_VARIABLE_WEIGHT: f64 = 1e6;
+
 use super::axis_edge::AxisEdge;
 use super::combinatorial_nudger;
 use super::free_space_finder;
@@ -188,7 +191,7 @@ fn solve_positions(
 
         let var_id = if seg.is_fixed || left_bound >= right_bound {
             // Fixed variable: high weight to stay in place.
-            solver.add_variable(pos, 1e6, 1.0)
+            solver.add_variable(pos, FIXED_VARIABLE_WEIGHT, 1.0)
         } else {
             let vid = solver.add_variable(clamped_ideal, 1.0, 1.0);
             // Apply bounds.

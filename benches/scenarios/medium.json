@@ -1,0 +1,1262 @@
+{
+  "obstacles": [
+    {
+      "x": 0,
+      "y": 0,
+      "width": 100,
+      "height": 50
+    },
+    {
+      "x": 250,
+      "y": 0,
+      "width": 100,
+      "height": 50
+    },
+    {
+      "x": 500,
+      "y": 0,
+      "width": 100,
+      "height": 50
+    },
+    {
+      "x": 750,
+      "y": 0,
+      "width": 100,
+      "height": 50
+    },
+    {
+      "x": 1000,
+      "y": 0,
+      "width": 100,
+      "height": 50
+    },
+    {
+      "x": 1250,
+      "y": 0,
+      "width": 100,
+      "height": 50
+    },
+    {
+      "x": 1500,
+      "y": 0,
+      "width": 100,
+      "height": 50
+    },
+    {
+      "x": 0,
+      "y": 150,
+      "width": 100,
+      "height": 50
+    },
+    {
+      "x": 250,
+      "y": 150,
+      "width": 100,
+      "height": 50
+    },
+    {
+      "x": 500,
+      "y": 150,
+      "width": 100,
+      "height": 50
+    },
+    {
+      "x": 750,
+      "y": 150,
+      "width": 100,
+      "height": 50
+    },
+    {
+      "x": 1000,
+      "y": 150,
+      "width": 100,
+      "height": 50
+    },
+    {
+      "x": 1250,
+      "y": 150,
+      "width": 100,
+      "height": 50
+    },
+    {
+      "x": 1500,
+      "y": 150,
+      "width": 100,
+      "height": 50
+    },
+    {
+      "x": 0,
+      "y": 300,
+      "width": 100,
+      "height": 50
+    },
+    {
+      "x": 250,
+      "y": 300,
+      "width": 100,
+      "height": 50
+    },
+    {
+      "x": 500,
+      "y": 300,
+      "width": 100,
+      "height": 50
+    },
+    {
+      "x": 750,
+      "y": 300,
+      "width": 100,
+      "height": 50
+    },
+    {
+      "x": 1000,
+      "y": 300,
+      "width": 100,
+      "height": 50
+    },
+    {
+      "x": 1250,
+      "y": 300,
+      "width": 100,
+      "height": 50
+    },
+    {
+      "x": 1500,
+      "y": 300,
+      "width": 100,
+      "height": 50
+    },
+    {
+      "x": 0,
+      "y": 450,
+      "width": 100,
+      "height": 50
+    },
+    {
+      "x": 250,
+      "y": 450,
+      "width": 100,
+      "height": 50
+    },
+    {
+      "x": 500,
+      "y": 450,
+      "width": 100,
+      "height": 50
+    },
+    {
+      "x": 750,
+      "y": 450,
+      "width": 100,
+      "height": 50
+    },
+    {
+      "x": 1000,
+      "y": 450,
+      "width": 100,
+      "height": 50
+    },
+    {
+      "x": 1250,
+      "y": 450,
+      "width": 100,
+      "height": 50
+    },
+    {
+      "x": 1500,
+      "y": 450,
+      "width": 100,
+      "height": 50
+    },
+    {
+      "x": 0,
+      "y": 600,
+      "width": 100,
+      "height": 50
+    },
+    {
+      "x": 250,
+      "y": 600,
+      "width": 100,
+      "height": 50
+    },
+    {
+      "x": 500,
+      "y": 600,
+      "width": 100,
+      "height": 50
+    },
+    {
+      "x": 750,
+      "y": 600,
+      "width": 100,
+      "height": 50
+    },
+    {
+      "x": 1000,
+      "y": 600,
+      "width": 100,
+      "height": 50
+    },
+    {
+      "x": 1250,
+      "y": 600,
+      "width": 100,
+      "height": 50
+    },
+    {
+      "x": 1500,
+      "y": 600,
+      "width": 100,
+      "height": 50
+    },
+    {
+      "x": 0,
+      "y": 750,
+      "width": 100,
+      "height": 50
+    },
+    {
+      "x": 250,
+      "y": 750,
+      "width": 100,
+      "height": 50
+    },
+    {
+      "x": 500,
+      "y": 750,
+      "width": 100,
+      "height": 50
+    },
+    {
+      "x": 750,
+      "y": 750,
+      "width": 100,
+      "height": 50
+    },
+    {
+      "x": 1000,
+      "y": 750,
+      "width": 100,
+      "height": 50
+    },
+    {
+      "x": 1250,
+      "y": 750,
+      "width": 100,
+      "height": 50
+    },
+    {
+      "x": 1500,
+      "y": 750,
+      "width": 100,
+      "height": 50
+    },
+    {
+      "x": 0,
+      "y": 900,
+      "width": 100,
+      "height": 50
+    },
+    {
+      "x": 250,
+      "y": 900,
+      "width": 100,
+      "height": 50
+    },
+    {
+      "x": 500,
+      "y": 900,
+      "width": 100,
+      "height": 50
+    },
+    {
+      "x": 750,
+      "y": 900,
+      "width": 100,
+      "height": 50
+    },
+    {
+      "x": 1000,
+      "y": 900,
+      "width": 100,
+      "height": 50
+    },
+    {
+      "x": 1250,
+      "y": 900,
+      "width": 100,
+      "height": 50
+    },
+    {
+      "x": 1500,
+      "y": 900,
+      "width": 100,
+      "height": 50
+    }
+  ],
+  "edges": [
+    {
+      "source": {
+        "x": 100,
+        "y": 25.0
+      },
+      "target": {
+        "x": 250,
+        "y": 25.0
+      },
+      "sourceObstacle": 0,
+      "targetObstacle": 1
+    },
+    {
+      "source": {
+        "x": 50.0,
+        "y": 50
+      },
+      "target": {
+        "x": 50.0,
+        "y": 150
+      },
+      "sourceObstacle": 0,
+      "targetObstacle": 7
+    },
+    {
+      "source": {
+        "x": 350,
+        "y": 25.0
+      },
+      "target": {
+        "x": 500,
+        "y": 25.0
+      },
+      "sourceObstacle": 1,
+      "targetObstacle": 2
+    },
+    {
+      "source": {
+        "x": 300.0,
+        "y": 50
+      },
+      "target": {
+        "x": 300.0,
+        "y": 150
+      },
+      "sourceObstacle": 1,
+      "targetObstacle": 8
+    },
+    {
+      "source": {
+        "x": 600,
+        "y": 25.0
+      },
+      "target": {
+        "x": 750,
+        "y": 25.0
+      },
+      "sourceObstacle": 2,
+      "targetObstacle": 3
+    },
+    {
+      "source": {
+        "x": 550.0,
+        "y": 50
+      },
+      "target": {
+        "x": 550.0,
+        "y": 150
+      },
+      "sourceObstacle": 2,
+      "targetObstacle": 9
+    },
+    {
+      "source": {
+        "x": 850,
+        "y": 25.0
+      },
+      "target": {
+        "x": 1000,
+        "y": 25.0
+      },
+      "sourceObstacle": 3,
+      "targetObstacle": 4
+    },
+    {
+      "source": {
+        "x": 800.0,
+        "y": 50
+      },
+      "target": {
+        "x": 800.0,
+        "y": 150
+      },
+      "sourceObstacle": 3,
+      "targetObstacle": 10
+    },
+    {
+      "source": {
+        "x": 1100,
+        "y": 25.0
+      },
+      "target": {
+        "x": 1250,
+        "y": 25.0
+      },
+      "sourceObstacle": 4,
+      "targetObstacle": 5
+    },
+    {
+      "source": {
+        "x": 1050.0,
+        "y": 50
+      },
+      "target": {
+        "x": 1050.0,
+        "y": 150
+      },
+      "sourceObstacle": 4,
+      "targetObstacle": 11
+    },
+    {
+      "source": {
+        "x": 1350,
+        "y": 25.0
+      },
+      "target": {
+        "x": 1500,
+        "y": 25.0
+      },
+      "sourceObstacle": 5,
+      "targetObstacle": 6
+    },
+    {
+      "source": {
+        "x": 1300.0,
+        "y": 50
+      },
+      "target": {
+        "x": 1300.0,
+        "y": 150
+      },
+      "sourceObstacle": 5,
+      "targetObstacle": 12
+    },
+    {
+      "source": {
+        "x": 1550.0,
+        "y": 50
+      },
+      "target": {
+        "x": 1550.0,
+        "y": 150
+      },
+      "sourceObstacle": 6,
+      "targetObstacle": 13
+    },
+    {
+      "source": {
+        "x": 100,
+        "y": 175.0
+      },
+      "target": {
+        "x": 250,
+        "y": 175.0
+      },
+      "sourceObstacle": 7,
+      "targetObstacle": 8
+    },
+    {
+      "source": {
+        "x": 50.0,
+        "y": 200
+      },
+      "target": {
+        "x": 50.0,
+        "y": 300
+      },
+      "sourceObstacle": 7,
+      "targetObstacle": 14
+    },
+    {
+      "source": {
+        "x": 350,
+        "y": 175.0
+      },
+      "target": {
+        "x": 500,
+        "y": 175.0
+      },
+      "sourceObstacle": 8,
+      "targetObstacle": 9
+    },
+    {
+      "source": {
+        "x": 300.0,
+        "y": 200
+      },
+      "target": {
+        "x": 300.0,
+        "y": 300
+      },
+      "sourceObstacle": 8,
+      "targetObstacle": 15
+    },
+    {
+      "source": {
+        "x": 600,
+        "y": 175.0
+      },
+      "target": {
+        "x": 750,
+        "y": 175.0
+      },
+      "sourceObstacle": 9,
+      "targetObstacle": 10
+    },
+    {
+      "source": {
+        "x": 550.0,
+        "y": 200
+      },
+      "target": {
+        "x": 550.0,
+        "y": 300
+      },
+      "sourceObstacle": 9,
+      "targetObstacle": 16
+    },
+    {
+      "source": {
+        "x": 850,
+        "y": 175.0
+      },
+      "target": {
+        "x": 1000,
+        "y": 175.0
+      },
+      "sourceObstacle": 10,
+      "targetObstacle": 11
+    },
+    {
+      "source": {
+        "x": 800.0,
+        "y": 200
+      },
+      "target": {
+        "x": 800.0,
+        "y": 300
+      },
+      "sourceObstacle": 10,
+      "targetObstacle": 17
+    },
+    {
+      "source": {
+        "x": 1100,
+        "y": 175.0
+      },
+      "target": {
+        "x": 1250,
+        "y": 175.0
+      },
+      "sourceObstacle": 11,
+      "targetObstacle": 12
+    },
+    {
+      "source": {
+        "x": 1050.0,
+        "y": 200
+      },
+      "target": {
+        "x": 1050.0,
+        "y": 300
+      },
+      "sourceObstacle": 11,
+      "targetObstacle": 18
+    },
+    {
+      "source": {
+        "x": 1350,
+        "y": 175.0
+      },
+      "target": {
+        "x": 1500,
+        "y": 175.0
+      },
+      "sourceObstacle": 12,
+      "targetObstacle": 13
+    },
+    {
+      "source": {
+        "x": 1300.0,
+        "y": 200
+      },
+      "target": {
+        "x": 1300.0,
+        "y": 300
+      },
+      "sourceObstacle": 12,
+      "targetObstacle": 19
+    },
+    {
+      "source": {
+        "x": 1550.0,
+        "y": 200
+      },
+      "target": {
+        "x": 1550.0,
+        "y": 300
+      },
+      "sourceObstacle": 13,
+      "targetObstacle": 20
+    },
+    {
+      "source": {
+        "x": 100,
+        "y": 325.0
+      },
+      "target": {
+        "x": 250,
+        "y": 325.0
+      },
+      "sourceObstacle": 14,
+      "targetObstacle": 15
+    },
+    {
+      "source": {
+        "x": 50.0,
+        "y": 350
+      },
+      "target": {
+        "x": 50.0,
+        "y": 450
+      },
+      "sourceObstacle": 14,
+      "targetObstacle": 21
+    },
+    {
+      "source": {
+        "x": 350,
+        "y": 325.0
+      },
+      "target": {
+        "x": 500,
+        "y": 325.0
+      },
+      "sourceObstacle": 15,
+      "targetObstacle": 16
+    },
+    {
+      "source": {
+        "x": 300.0,
+        "y": 350
+      },
+      "target": {
+        "x": 300.0,
+        "y": 450
+      },
+      "sourceObstacle": 15,
+      "targetObstacle": 22
+    },
+    {
+      "source": {
+        "x": 600,
+        "y": 325.0
+      },
+      "target": {
+        "x": 750,
+        "y": 325.0
+      },
+      "sourceObstacle": 16,
+      "targetObstacle": 17
+    },
+    {
+      "source": {
+        "x": 550.0,
+        "y": 350
+      },
+      "target": {
+        "x": 550.0,
+        "y": 450
+      },
+      "sourceObstacle": 16,
+      "targetObstacle": 23
+    },
+    {
+      "source": {
+        "x": 850,
+        "y": 325.0
+      },
+      "target": {
+        "x": 1000,
+        "y": 325.0
+      },
+      "sourceObstacle": 17,
+      "targetObstacle": 18
+    },
+    {
+      "source": {
+        "x": 800.0,
+        "y": 350
+      },
+      "target": {
+        "x": 800.0,
+        "y": 450
+      },
+      "sourceObstacle": 17,
+      "targetObstacle": 24
+    },
+    {
+      "source": {
+        "x": 1100,
+        "y": 325.0
+      },
+      "target": {
+        "x": 1250,
+        "y": 325.0
+      },
+      "sourceObstacle": 18,
+      "targetObstacle": 19
+    },
+    {
+      "source": {
+        "x": 1050.0,
+        "y": 350
+      },
+      "target": {
+        "x": 1050.0,
+        "y": 450
+      },
+      "sourceObstacle": 18,
+      "targetObstacle": 25
+    },
+    {
+      "source": {
+        "x": 1350,
+        "y": 325.0
+      },
+      "target": {
+        "x": 1500,
+        "y": 325.0
+      },
+      "sourceObstacle": 19,
+      "targetObstacle": 20
+    },
+    {
+      "source": {
+        "x": 1300.0,
+        "y": 350
+      },
+      "target": {
+        "x": 1300.0,
+        "y": 450
+      },
+      "sourceObstacle": 19,
+      "targetObstacle": 26
+    },
+    {
+      "source": {
+        "x": 1550.0,
+        "y": 350
+      },
+      "target": {
+        "x": 1550.0,
+        "y": 450
+      },
+      "sourceObstacle": 20,
+      "targetObstacle": 27
+    },
+    {
+      "source": {
+        "x": 100,
+        "y": 475.0
+      },
+      "target": {
+        "x": 250,
+        "y": 475.0
+      },
+      "sourceObstacle": 21,
+      "targetObstacle": 22
+    },
+    {
+      "source": {
+        "x": 50.0,
+        "y": 500
+      },
+      "target": {
+        "x": 50.0,
+        "y": 600
+      },
+      "sourceObstacle": 21,
+      "targetObstacle": 28
+    },
+    {
+      "source": {
+        "x": 350,
+        "y": 475.0
+      },
+      "target": {
+        "x": 500,
+        "y": 475.0
+      },
+      "sourceObstacle": 22,
+      "targetObstacle": 23
+    },
+    {
+      "source": {
+        "x": 300.0,
+        "y": 500
+      },
+      "target": {
+        "x": 300.0,
+        "y": 600
+      },
+      "sourceObstacle": 22,
+      "targetObstacle": 29
+    },
+    {
+      "source": {
+        "x": 600,
+        "y": 475.0
+      },
+      "target": {
+        "x": 750,
+        "y": 475.0
+      },
+      "sourceObstacle": 23,
+      "targetObstacle": 24
+    },
+    {
+      "source": {
+        "x": 550.0,
+        "y": 500
+      },
+      "target": {
+        "x": 550.0,
+        "y": 600
+      },
+      "sourceObstacle": 23,
+      "targetObstacle": 30
+    },
+    {
+      "source": {
+        "x": 850,
+        "y": 475.0
+      },
+      "target": {
+        "x": 1000,
+        "y": 475.0
+      },
+      "sourceObstacle": 24,
+      "targetObstacle": 25
+    },
+    {
+      "source": {
+        "x": 800.0,
+        "y": 500
+      },
+      "target": {
+        "x": 800.0,
+        "y": 600
+      },
+      "sourceObstacle": 24,
+      "targetObstacle": 31
+    },
+    {
+      "source": {
+        "x": 1100,
+        "y": 475.0
+      },
+      "target": {
+        "x": 1250,
+        "y": 475.0
+      },
+      "sourceObstacle": 25,
+      "targetObstacle": 26
+    },
+    {
+      "source": {
+        "x": 1050.0,
+        "y": 500
+      },
+      "target": {
+        "x": 1050.0,
+        "y": 600
+      },
+      "sourceObstacle": 25,
+      "targetObstacle": 32
+    },
+    {
+      "source": {
+        "x": 1350,
+        "y": 475.0
+      },
+      "target": {
+        "x": 1500,
+        "y": 475.0
+      },
+      "sourceObstacle": 26,
+      "targetObstacle": 27
+    },
+    {
+      "source": {
+        "x": 1300.0,
+        "y": 500
+      },
+      "target": {
+        "x": 1300.0,
+        "y": 600
+      },
+      "sourceObstacle": 26,
+      "targetObstacle": 33
+    },
+    {
+      "source": {
+        "x": 1550.0,
+        "y": 500
+      },
+      "target": {
+        "x": 1550.0,
+        "y": 600
+      },
+      "sourceObstacle": 27,
+      "targetObstacle": 34
+    },
+    {
+      "source": {
+        "x": 100,
+        "y": 625.0
+      },
+      "target": {
+        "x": 250,
+        "y": 625.0
+      },
+      "sourceObstacle": 28,
+      "targetObstacle": 29
+    },
+    {
+      "source": {
+        "x": 50.0,
+        "y": 650
+      },
+      "target": {
+        "x": 50.0,
+        "y": 750
+      },
+      "sourceObstacle": 28,
+      "targetObstacle": 35
+    },
+    {
+      "source": {
+        "x": 350,
+        "y": 625.0
+      },
+      "target": {
+        "x": 500,
+        "y": 625.0
+      },
+      "sourceObstacle": 29,
+      "targetObstacle": 30
+    },
+    {
+      "source": {
+        "x": 300.0,
+        "y": 650
+      },
+      "target": {
+        "x": 300.0,
+        "y": 750
+      },
+      "sourceObstacle": 29,
+      "targetObstacle": 36
+    },
+    {
+      "source": {
+        "x": 600,
+        "y": 625.0
+      },
+      "target": {
+        "x": 750,
+        "y": 625.0
+      },
+      "sourceObstacle": 30,
+      "targetObstacle": 31
+    },
+    {
+      "source": {
+        "x": 550.0,
+        "y": 650
+      },
+      "target": {
+        "x": 550.0,
+        "y": 750
+      },
+      "sourceObstacle": 30,
+      "targetObstacle": 37
+    },
+    {
+      "source": {
+        "x": 850,
+        "y": 625.0
+      },
+      "target": {
+        "x": 1000,
+        "y": 625.0
+      },
+      "sourceObstacle": 31,
+      "targetObstacle": 32
+    },
+    {
+      "source": {
+        "x": 800.0,
+        "y": 650
+      },
+      "target": {
+        "x": 800.0,
+        "y": 750
+      },
+      "sourceObstacle": 31,
+      "targetObstacle": 38
+    },
+    {
+      "source": {
+        "x": 1100,
+        "y": 625.0
+      },
+      "target": {
+        "x": 1250,
+        "y": 625.0
+      },
+      "sourceObstacle": 32,
+      "targetObstacle": 33
+    },
+    {
+      "source": {
+        "x": 1050.0,
+        "y": 650
+      },
+      "target": {
+        "x": 1050.0,
+        "y": 750
+      },
+      "sourceObstacle": 32,
+      "targetObstacle": 39
+    },
+    {
+      "source": {
+        "x": 1350,
+        "y": 625.0
+      },
+      "target": {
+        "x": 1500,
+        "y": 625.0
+      },
+      "sourceObstacle": 33,
+      "targetObstacle": 34
+    },
+    {
+      "source": {
+        "x": 1300.0,
+        "y": 650
+      },
+      "target": {
+        "x": 1300.0,
+        "y": 750
+      },
+      "sourceObstacle": 33,
+      "targetObstacle": 40
+    },
+    {
+      "source": {
+        "x": 1550.0,
+        "y": 650
+      },
+      "target": {
+        "x": 1550.0,
+        "y": 750
+      },
+      "sourceObstacle": 34,
+      "targetObstacle": 41
+    },
+    {
+      "source": {
+        "x": 100,
+        "y": 775.0
+      },
+      "target": {
+        "x": 250,
+        "y": 775.0
+      },
+      "sourceObstacle": 35,
+      "targetObstacle": 36
+    },
+    {
+      "source": {
+        "x": 50.0,
+        "y": 800
+      },
+      "target": {
+        "x": 50.0,
+        "y": 900
+      },
+      "sourceObstacle": 35,
+      "targetObstacle": 42
+    },
+    {
+      "source": {
+        "x": 350,
+        "y": 775.0
+      },
+      "target": {
+        "x": 500,
+        "y": 775.0
+      },
+      "sourceObstacle": 36,
+      "targetObstacle": 37
+    },
+    {
+      "source": {
+        "x": 300.0,
+        "y": 800
+      },
+      "target": {
+        "x": 300.0,
+        "y": 900
+      },
+      "sourceObstacle": 36,
+      "targetObstacle": 43
+    },
+    {
+      "source": {
+        "x": 600,
+        "y": 775.0
+      },
+      "target": {
+        "x": 750,
+        "y": 775.0
+      },
+      "sourceObstacle": 37,
+      "targetObstacle": 38
+    },
+    {
+      "source": {
+        "x": 550.0,
+        "y": 800
+      },
+      "target": {
+        "x": 550.0,
+        "y": 900
+      },
+      "sourceObstacle": 37,
+      "targetObstacle": 44
+    },
+    {
+      "source": {
+        "x": 850,
+        "y": 775.0
+      },
+      "target": {
+        "x": 1000,
+        "y": 775.0
+      },
+      "sourceObstacle": 38,
+      "targetObstacle": 39
+    },
+    {
+      "source": {
+        "x": 800.0,
+        "y": 800
+      },
+      "target": {
+        "x": 800.0,
+        "y": 900
+      },
+      "sourceObstacle": 38,
+      "targetObstacle": 45
+    },
+    {
+      "source": {
+        "x": 1100,
+        "y": 775.0
+      },
+      "target": {
+        "x": 1250,
+        "y": 775.0
+      },
+      "sourceObstacle": 39,
+      "targetObstacle": 40
+    },
+    {
+      "source": {
+        "x": 1050.0,
+        "y": 800
+      },
+      "target": {
+        "x": 1050.0,
+        "y": 900
+      },
+      "sourceObstacle": 39,
+      "targetObstacle": 46
+    },
+    {
+      "source": {
+        "x": 1350,
+        "y": 775.0
+      },
+      "target": {
+        "x": 1500,
+        "y": 775.0
+      },
+      "sourceObstacle": 40,
+      "targetObstacle": 41
+    },
+    {
+      "source": {
+        "x": 1300.0,
+        "y": 800
+      },
+      "target": {
+        "x": 1300.0,
+        "y": 900
+      },
+      "sourceObstacle": 40,
+      "targetObstacle": 47
+    },
+    {
+      "source": {
+        "x": 1550.0,
+        "y": 800
+      },
+      "target": {
+        "x": 1550.0,
+        "y": 900
+      },
+      "sourceObstacle": 41,
+      "targetObstacle": 48
+    },
+    {
+      "source": {
+        "x": 100,
+        "y": 925.0
+      },
+      "target": {
+        "x": 250,
+        "y": 925.0
+      },
+      "sourceObstacle": 42,
+      "targetObstacle": 43
+    },
+    {
+      "source": {
+        "x": 350,
+        "y": 925.0
+      },
+      "target": {
+        "x": 500,
+        "y": 925.0
+      },
+      "sourceObstacle": 43,
+      "targetObstacle": 44
+    }
+  ],
+  "padding": 4.0,
+  "edgeSeparation": 8.0
+}

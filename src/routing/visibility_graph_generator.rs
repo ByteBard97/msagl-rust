@@ -1,3 +1,4 @@
+use crate::arenas::PolylinePointKey;
 use crate::geometry::point::Point;
 use crate::geometry::point_comparer::GeomConstants;
 use crate::visibility::graph::VisibilityGraph;
@@ -32,15 +33,13 @@ pub fn generate_visibility_graph(shapes: &[Shape], padding: f64) -> VisibilityGr
     let graph_box = obstacle_tree.graph_box();
 
     // Pass 1: Horizontal scan (vertical sweep, creates horizontal segments)
-    let h_segments = run_sweep(&obstacle_tree, ScanDirection::horizontal(), &graph_box);
+    let mut h_segments = run_sweep(&obstacle_tree, ScanDirection::horizontal(), &graph_box);
 
     // Pass 2: Vertical scan (horizontal sweep, creates vertical segments)
-    let v_segments = run_sweep(&obstacle_tree, ScanDirection::vertical(), &graph_box);
+    let mut v_segments = run_sweep(&obstacle_tree, ScanDirection::vertical(), &graph_box);
 
     // Intersect to build the visibility graph
-    let mut graph = VisibilityGraph::new();
-    build_graph_from_segments(&mut graph, &h_segments, &v_segments);
-    graph
+    build_graph_from_segments(&mut h_segments, &mut v_segments)
 }
 
 /// Run one sweep pass (horizontal or vertical) and return the resulting scan segments.
@@ -134,23 +133,22 @@ fn insert_sentinels(
 
 /// Enqueue OpenVertex events for all obstacles.
 ///
-/// For horizontal scan: open at bottom Y of padded bbox.
-/// For vertical scan: open at left X of padded bbox.
+/// Faithful port of TS `EnqueueBottomVertexEvents()`.
+/// Uses `GetOpenVertex` to find the lowest polyline vertex, then
+/// calls `CreateInitialSides` from that vertex.
 fn enqueue_open_events(
     queue: &mut EventQueue,
     obstacles: &mut [Obstacle],
     scan_direction: ScanDirection,
 ) {
-    let is_horizontal = scan_direction.is_horizontal();
     for obs in obstacles.iter_mut() {
-        obs.create_initial_sides(is_horizontal);
-        let bb = obs.padded_bounding_box();
-        // For both horizontal scan (sweep in Y) and vertical scan (sweep in X),
-        // the open event is at left_bottom — the corner with the lowest perp coordinate.
-        let open_site = bb.left_bottom();
+        let open_key = obs.get_open_vertex(scan_direction);
+        let open_site = obs.padded_polyline().point_at(open_key);
+        obs.create_initial_sides(open_key, scan_direction);
         queue.enqueue(SweepEvent::OpenVertex {
             site: open_site,
             obstacle_index: obs.index,
+            vertex_key: open_key,
         });
     }
 }
@@ -168,6 +166,7 @@ fn process_events(
             SweepEvent::OpenVertex {
                 site,
                 obstacle_index,
+                ..
             } => {
                 process_open_vertex(
                     site,
@@ -182,6 +181,7 @@ fn process_events(
             SweepEvent::CloseVertex {
                 site,
                 obstacle_index,
+                ..
             } => {
                 process_close_vertex(
                     site,
@@ -237,9 +237,12 @@ fn process_open_vertex(
     } else {
         bb.right_bottom() // highest X (right side)
     };
+    // TODO: Once polyline-based obstacles are implemented, use the actual
+    // close vertex key from polyline traversal instead of default.
     queue.enqueue(SweepEvent::CloseVertex {
         site: close_site,
         obstacle_index,
+        vertex_key: PolylinePointKey::default(),
     });
 }
 
