@@ -3,6 +3,8 @@ use msagl_rust::GeomConstants;
 #[test]
 fn epsilon_values_match_reference() {
     assert_eq!(GeomConstants::DISTANCE_EPSILON, 1e-6);
+    // DifferenceEpsilon = DistanceEpsilon / 2, matches C# PointComparer.DifferenceEpsilon
+    assert_eq!(GeomConstants::DIFFERENCE_EPSILON, 5e-7);
     assert_eq!(GeomConstants::SQUARE_OF_DISTANCE_EPSILON, 1e-12);
     assert_eq!(GeomConstants::INTERSECTION_EPSILON, 0.0001);
     assert_eq!(GeomConstants::TOLERANCE, 1e-8);
@@ -23,7 +25,13 @@ fn not_close_values_beyond_epsilon() {
 #[test]
 fn compare_less_equal_greater() {
     use std::cmp::Ordering;
-    assert_eq!(GeomConstants::compare(1.0, 1.0 + 5e-7), Ordering::Equal);
+    // Within DifferenceEpsilon (5e-7): treated as equal
+    assert_eq!(GeomConstants::compare(1.0, 1.0 + 4e-7), Ordering::Equal);
+    // Beyond DifferenceEpsilon but within DistanceEpsilon: now correctly distinguished
+    // (Previously these were incorrectly treated as Equal with the 1e-6 tolerance)
+    assert_eq!(GeomConstants::compare(1.0, 1.0 + 8e-7), Ordering::Less);
+    assert_eq!(GeomConstants::compare(1.0 + 8e-7, 1.0), Ordering::Greater);
+    // Large differences
     assert_eq!(GeomConstants::compare(1.0, 2.0), Ordering::Less);
     assert_eq!(GeomConstants::compare(2.0, 1.0), Ordering::Greater);
 }

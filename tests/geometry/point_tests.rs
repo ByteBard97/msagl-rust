@@ -2,8 +2,18 @@ use approx::assert_abs_diff_eq;
 use msagl_rust::Point;
 
 #[test]
-fn construction_rounds_to_six_decimals() {
+fn construction_preserves_exact_values() {
+    // C# Point(x, y) does NOT round — it stores exact values.
+    // Rounding only happens via ApproximateComparer.Round().
     let p = Point::new(1.23456789, -0.0000001);
+    assert_eq!(p.x(), 1.23456789);
+    assert_eq!(p.y(), -0.0000001);
+}
+
+#[test]
+fn explicit_round_rounds_to_six_decimals() {
+    // Point::round corresponds to C# ApproximateComparer.Round(Point).
+    let p = Point::round(Point::new(1.23456789, -0.0000001));
     assert_eq!(p.x(), 1.234568);
     assert_eq!(p.y(), 0.0);
 }

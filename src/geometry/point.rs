@@ -20,8 +20,8 @@ impl Point {
     #[inline]
     pub fn new(x: f64, y: f64) -> Self {
         Self {
-            x: OrderedFloat(GeomConstants::round(x)),
-            y: OrderedFloat(GeomConstants::round(y)),
+            x: OrderedFloat(x),
+            y: OrderedFloat(y),
         }
     }
 
@@ -101,10 +101,10 @@ impl Point {
     }
 
     /// Round a point's coordinates to the standard geometric precision.
-    /// Since `Point::new` already rounds, this just re-constructs the point.
+    /// Matches C# `ApproximateComparer.Round(Point)`.
     #[inline]
     pub fn round(p: Point) -> Point {
-        Point::new(p.x(), p.y())
+        Point::new(GeomConstants::round(p.x()), GeomConstants::round(p.y()))
     }
 
     pub fn line_line_intersection(a: Point, b: Point, c: Point, d: Point) -> Option<Point> {
