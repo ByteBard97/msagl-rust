@@ -60,29 +60,37 @@ impl Solver {
 
     /// Get all variables connected to `start_var` via active constraints,
     /// excluding the subtree through `exclude_var`.
+    ///
+    /// Uses a generation counter (`visited_gen` / `visited_generation`) instead
+    /// of allocating a `vec![false; n]` on every call. With 24K variables and
+    /// 5K calls per solve, this avoids ~120MB of transient allocation.
     pub(super) fn get_connected_variables(
-        &self,
+        &mut self,
         start_var: VarIndex,
         exclude_var: Option<VarIndex>,
     ) -> Vec<VarIndex> {
+        self.visited_generation += 1;
+        let gen = self.visited_generation;
+
         let mut result: Vec<VarIndex> = Vec::new();
         let mut stack: Vec<VarIndex> = Vec::new();
-        let mut visited = vec![false; self.variables.len()];
 
-        visited[start_var.0] = true;
+        self.visited_gen[start_var.0] = gen;
         if let Some(ev) = exclude_var {
-            visited[ev.0] = true;
+            self.visited_gen[ev.0] = gen;
         }
 
         result.push(start_var);
         stack.push(start_var);
 
         while let Some(vi) = stack.pop() {
+            // visited_gen is a separate Vec from variables/constraints,
+            // so no borrow conflict when iterating constraint lists.
             for &ci in &self.variables[vi.0].left_constraints {
                 if self.constraints[ci.0].is_active {
                     let right = self.constraints[ci.0].right;
-                    if !visited[right.0] {
-                        visited[right.0] = true;
+                    if self.visited_gen[right.0] != gen {
+                        self.visited_gen[right.0] = gen;
                         result.push(right);
                         stack.push(right);
                     }
@@ -91,8 +99,8 @@ impl Solver {
             for &ci in &self.variables[vi.0].right_constraints {
                 if self.constraints[ci.0].is_active {
                     let left = self.constraints[ci.0].left;
-                    if !visited[left.0] {
-                        visited[left.0] = true;
+                    if self.visited_gen[left.0] != gen {
+                        self.visited_gen[left.0] = gen;
                         result.push(left);
                         stack.push(left);
                     }
