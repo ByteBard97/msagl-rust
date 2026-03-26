@@ -28,10 +28,10 @@ impl Solver {
         let mut qpsc = Qpsc::new(&self.solver_params, self.variables.len());
 
         // Add all variables (iterate blocks to visit each variable once).
-        let block_indices: Vec<BlockIndex> = self.blocks_order.clone();
-        for bi in block_indices {
-            let vars: Vec<VarIndex> = self.blocks[bi.0].variables.clone();
-            for vi in vars {
+        for block_i in 0..self.blocks_order.len() {
+            let bi = self.blocks_order[block_i];
+            for var_i in 0..self.blocks[bi.0].variables.len() {
+                let vi = self.blocks[bi.0].variables[var_i];
                 qpsc.add_variable(vi.0, &self.variables);
             }
         }
@@ -85,11 +85,13 @@ impl Solver {
     /// neighbor forces.
     fn reinitialize_blocks(&mut self) {
         // Collect all variable indices from all current blocks.
-        let all_vars: Vec<VarIndex> = self
-            .blocks_order
-            .iter()
-            .flat_map(|bi| self.blocks[bi.0].variables.clone())
-            .collect();
+        let mut all_vars: Vec<VarIndex> = Vec::new();
+        for block_i in 0..self.blocks_order.len() {
+            let bi = self.blocks_order[block_i];
+            for var_i in 0..self.blocks[bi.0].variables.len() {
+                all_vars.push(self.blocks[bi.0].variables[var_i]);
+            }
+        }
 
         // Clear block tracking.
         self.blocks_order.clear();

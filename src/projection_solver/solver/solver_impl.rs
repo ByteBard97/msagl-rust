@@ -1,12 +1,11 @@
 use super::super::block::{Block, BlockIndex};
 use super::super::constraint::ConIndex;
-use super::super::variable::VarIndex;
 use super::Solver;
 
 impl Solver {
     pub(super) fn merge_equality_constraints(&mut self) {
-        let eq_cons: Vec<ConIndex> = self.equality_constraints.clone();
-        for &ci in &eq_cons {
+        for i in 0..self.equality_constraints.len() {
+            let ci = self.equality_constraints[i];
             let left_vi = self.constraints[ci.0].left;
             let right_vi = self.constraints[ci.0].right;
             let left_block = self.variables[left_vi.0].block;
@@ -141,11 +140,11 @@ impl Solver {
         let mut max_ci: Option<ConIndex> = None;
 
         // Scan constraints in lastModifiedBlock.
-        let block_vars: Vec<VarIndex> = self.blocks[lmb.0].variables.clone();
-        for &vi in &block_vars {
+        for var_i in 0..self.blocks[lmb.0].variables.len() {
+            let vi = self.blocks[lmb.0].variables[var_i];
             // Left constraints of this variable.
-            let left_cons: Vec<ConIndex> = self.variables[vi.0].left_constraints.clone();
-            for ci in left_cons {
+            for con_i in 0..self.variables[vi.0].left_constraints.len() {
+                let ci = self.variables[vi.0].left_constraints[con_i];
                 let c = &self.constraints[ci.0];
                 if !c.is_active && !c.is_unsatisfiable {
                     let violation = self.constraint_violation(ci);
@@ -169,8 +168,8 @@ impl Solver {
             }
 
             // Right constraints where left var is NOT in this block.
-            let right_cons: Vec<ConIndex> = self.variables[vi.0].right_constraints.clone();
-            for ci in right_cons {
+            for con_i in 0..self.variables[vi.0].right_constraints.len() {
+                let ci = self.variables[vi.0].right_constraints[con_i];
                 let c = &self.constraints[ci.0];
                 if !c.is_active && !c.is_unsatisfiable && self.variables[c.left.0].block != lmb {
                     let violation = self.constraint_violation(ci);
@@ -228,11 +227,12 @@ impl Solver {
         let mut max_ci: Option<ConIndex> = None;
         self.violation_cache.clear();
 
-        let all: Vec<ConIndex> = self.constraint_vector.all_constraints().to_vec();
         let active_count = self.constraint_vector.active_count();
-        let inactive_count = all.len() - active_count;
+        let total_count = self.constraint_vector.all_constraints().len();
+        let inactive_count = total_count - active_count;
 
-        for &ci in all.iter().take(inactive_count) {
+        for idx in 0..inactive_count {
+            let ci = self.constraint_vector.all_constraints()[idx];
             let c = &self.constraints[ci.0];
             if c.is_active {
                 break;
@@ -298,9 +298,8 @@ impl Solver {
             distance = -distance;
         }
 
-        let vars_to_move: Vec<VarIndex> = self.blocks[block_from.0].variables.clone();
-
-        for &vi in &vars_to_move {
+        for i in 0..self.blocks[block_from.0].variables.len() {
+            let vi = self.blocks[block_from.0].variables[i];
             self.variables[vi.0].offset_in_block += distance;
             let v = &self.variables[vi.0];
             let offset = v.offset_in_block;
@@ -321,9 +320,10 @@ impl Solver {
 
     pub(super) fn split_blocks(&mut self) -> bool {
         let mut new_blocks: Vec<BlockIndex> = Vec::new();
-        let block_indices: Vec<BlockIndex> = self.blocks_order.clone();
+        let num_blocks = self.blocks_order.len();
 
-        for bi in block_indices {
+        for block_i in 0..num_blocks {
+            let bi = self.blocks_order[block_i];
             if let Some(new_bi) = self.split_block(bi) {
                 new_blocks.push(new_bi);
             }
@@ -354,10 +354,10 @@ impl Solver {
         let mut min_lagrangian = min_threshold;
         let mut min_ci: Option<ConIndex> = None;
 
-        let vars: Vec<VarIndex> = self.blocks[bi.0].variables.clone();
-        for &vi in &vars {
-            let left_cons: Vec<ConIndex> = self.variables[vi.0].left_constraints.clone();
-            for ci in left_cons {
+        for var_i in 0..self.blocks[bi.0].variables.len() {
+            let vi = self.blocks[bi.0].variables[var_i];
+            for con_i in 0..self.variables[vi.0].left_constraints.len() {
+                let ci = self.variables[vi.0].left_constraints[con_i];
                 let c = &self.constraints[ci.0];
                 if c.is_active && !c.is_equality && c.lagrangian < min_lagrangian {
                     min_ci = Some(ci);
@@ -467,8 +467,8 @@ impl Solver {
         self.blocks[bi.0].scale = self.variables[first_var.0].scale;
         self.blocks[bi.0].reset_sums();
 
-        let vars: Vec<VarIndex> = self.blocks[bi.0].variables.clone();
-        for &vi in &vars {
+        for i in 0..self.blocks[bi.0].variables.len() {
+            let vi = self.blocks[bi.0].variables[i];
             let v = &self.variables[vi.0];
             self.blocks[bi.0].add_to_sums(v.offset_in_block, v.weight, v.scale, v.desired_pos);
         }
@@ -480,8 +480,8 @@ impl Solver {
     fn update_reference_pos_from_sums(&mut self, bi: BlockIndex) {
         self.blocks[bi.0].update_reference_pos();
         let scaled_ref = self.blocks[bi.0].scale * self.blocks[bi.0].reference_pos;
-        let vars: Vec<VarIndex> = self.blocks[bi.0].variables.clone();
-        for &vi in &vars {
+        for i in 0..self.blocks[bi.0].variables.len() {
+            let vi = self.blocks[bi.0].variables[i];
             let v = &self.variables[vi.0];
             let new_pos = (scaled_ref + v.offset_in_block) / v.scale;
             self.variables[vi.0].actual_pos = new_pos;

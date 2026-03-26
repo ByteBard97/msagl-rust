@@ -4,7 +4,7 @@ use super::Solver;
 
 /// Node for stack-based DfDv tree traversal.
 /// Faithfully matches C#'s DfDvNode structure.
-struct DfDvNode {
+pub(super) struct DfDvNode {
     /// The variable being evaluated at this tree node.
     variable_to_eval: VarIndex,
     /// The variable we came from (prevents backtracking).
@@ -108,9 +108,10 @@ impl Solver {
     /// Reset lagrangians for all constraints whose left variable is in this block.
     fn reset_block_lagrangians(&mut self, var_in_block: VarIndex) {
         let block = self.variables[var_in_block.0].block;
-        let vars: Vec<VarIndex> = self.blocks[block.0].variables.clone();
-        for &vi in &vars {
-            for &ci in &self.variables[vi.0].left_constraints.clone() {
+        for var_i in 0..self.blocks[block.0].variables.len() {
+            let vi = self.blocks[block.0].variables[var_i];
+            for con_i in 0..self.variables[vi.0].left_constraints.len() {
+                let ci = self.variables[vi.0].left_constraints[con_i];
                 self.constraints[ci.0].lagrangian = 0.0;
             }
         }
@@ -133,9 +134,12 @@ impl Solver {
         let mut constraint_path: Vec<ConstraintDirectionPair> = Vec::new();
         let mut path_found = false;
 
-        // Node pool: all DfDvNodes stored here. Stack holds indices into pool.
-        let mut nodes: Vec<DfDvNode> = Vec::new();
-        let mut stack: Vec<usize> = Vec::new(); // indices into nodes[]
+        // Reuse pooled Vecs from Solver to avoid repeated allocation.
+        // Swap them out so we own them locally (no borrow on self).
+        let mut nodes = std::mem::take(&mut self.dfdv_node_pool);
+        let mut stack = std::mem::take(&mut self.dfdv_stack_pool);
+        nodes.clear();
+        stack.clear();
 
         // Create the first (root) node with a dummy constraint.
         nodes.push(DfDvNode {
@@ -160,8 +164,8 @@ impl Solver {
                 let done_vi = nodes[node_idx].variable_done_eval;
 
                 // Left constraints: variable is on left, traverse to right
-                let left_cons: Vec<ConIndex> = self.variables[vi.0].left_constraints.clone();
-                for ci in left_cons {
+                for con_i in 0..self.variables[vi.0].left_constraints.len() {
+                    let ci = self.variables[vi.0].left_constraints[con_i];
                     if self.constraints[ci.0].is_active {
                         let right = self.constraints[ci.0].right;
                         if done_vi.is_none() || right != done_vi.unwrap() {
@@ -193,8 +197,8 @@ impl Solver {
                 }
 
                 // Right constraints: variable is on right, traverse to left
-                let right_cons: Vec<ConIndex> = self.variables[vi.0].right_constraints.clone();
-                for ci in right_cons {
+                for con_i in 0..self.variables[vi.0].right_constraints.len() {
+                    let ci = self.variables[vi.0].right_constraints[con_i];
                     if self.constraints[ci.0].is_active {
                         let left = self.constraints[ci.0].left;
                         if done_vi.is_none() || left != done_vi.unwrap() {
@@ -244,6 +248,10 @@ impl Solver {
                 break;
             }
         }
+
+        // Return pooled Vecs to Solver for reuse in future calls.
+        self.dfdv_node_pool = nodes;
+        self.dfdv_stack_pool = stack;
 
         constraint_path
     }

@@ -10,6 +10,8 @@ mod dfdv;
 mod qpsc_solve;
 mod solver_impl;
 
+use dfdv::DfDvNode;
+
 /// Loaded constraint info before solve() converts to arrays.
 struct LoadedConstraint {
     left: VarIndex,
@@ -39,6 +41,9 @@ pub struct Solver {
     solver_params: Parameters,
     solver_solution: Solution,
     violation_cache_min_block_cutoff: usize,
+    // Reusable pools to avoid repeated allocation (C#'s DfDvRecycleStack pattern)
+    dfdv_node_pool: Vec<DfDvNode>,
+    dfdv_stack_pool: Vec<usize>,
 }
 
 impl Default for Solver {
@@ -65,6 +70,8 @@ impl Solver {
             solver_params: Parameters::default(),
             solver_solution: Solution::new(),
             violation_cache_min_block_cutoff: usize::MAX,
+            dfdv_node_pool: Vec::new(),
+            dfdv_stack_pool: Vec::new(),
         }
     }
 
