@@ -145,12 +145,15 @@ impl ScanSegment {
     }
 
     /// Append a visibility vertex to this segment's chain.
-    /// Creates a bidirectional edge from the current highest vertex to the new vertex.
+    /// Creates a unidirectional ascending edge from the current highest vertex to the new vertex.
     ///
-    /// Matches TS: `ScanSegment.AppendVisibilityVertex(vg, newVertex)`
+    /// Matches C#: `ScanSegment.AppendVisibilityVertex` which calls `AddVisibilityEdge(source, target)`
+    /// with the assertion `IsPureLower(source.Point, target.Point)` — edges always go low-to-high.
+    /// The path search traverses both out-edges and in-edges, so unidirectional edges provide
+    /// full connectivity.
     pub fn append_visibility_vertex(&mut self, graph: &mut VisibilityGraph, vertex: VertexId) {
         if let Some(highest) = self.highest_vertex {
-            // TS: if (PointComparer.IsPureLower(newVertex.point, this.HighestVisibilityVertex.point))
+            // C#: if (PointComparer.IsPureLower(newVertex.Point, HighestVisibilityVertex.Point))
             //       return;  // Already have a higher or equal vertex
             let new_point = graph.point(vertex);
             let high_point = graph.point(highest);
@@ -158,13 +161,12 @@ impl ScanSegment {
                 return;
             }
 
-            // Add edge if the points differ
+            // Add a single ascending edge (low → high), matching C# AddVisibilityEdge.
             let points_equal = GeomConstants::close(high_point.x(), new_point.x())
                 && GeomConstants::close(high_point.y(), new_point.y());
             if highest != vertex && !points_equal {
                 let dist = (new_point - high_point).length() * self.weight.value() as f64;
                 graph.add_edge(highest, vertex, dist);
-                graph.add_edge(vertex, highest, dist);
             }
         }
 
