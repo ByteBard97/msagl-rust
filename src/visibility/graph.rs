@@ -7,6 +7,12 @@ use super::edge::VisEdge;
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct VertexId(pub usize);
 
+/// Per-vertex data in the visibility graph.
+///
+/// Corresponds to `VisibilityVertex` + `VisibilityVertexRectilinear` in the
+/// TS/C# source. In those implementations, `VisibilityVertexRectilinear`
+/// extends `VisibilityVertex` adding `VertexEntries[4]`. In Rust, we flatten
+/// both into a single struct.
 pub struct VertexData {
     pub point: Point,
     pub out_edges: BTreeSet<VisEdge>,
@@ -14,6 +20,15 @@ pub struct VertexData {
     pub distance: f64,
     pub prev_vertex: Option<VertexId>,
     pub is_terminal: bool,
+    /// Whether this vertex is a shortest-path terminal.
+    /// Matches TS `VisibilityVertex._isShortestPathTerminal`.
+    pub is_shortest_path_terminal: bool,
+    /// Direction-indexed entries for the rectilinear path search.
+    /// `vertex_entries[dir.index()]` holds the VertexEntryIndex for direction `dir`.
+    /// When all 4 slots are `None`, this is equivalent to the TS null check
+    /// `if (vertex.VertexEntries == null)`.
+    ///
+    /// Matches TS `VisibilityVertexRectilinear.VertexEntries: VertexEntry[]`.
     pub vertex_entries: [Option<VertexEntryIndex>; 4],
 }
 
@@ -39,6 +54,7 @@ impl VisibilityGraph {
             distance: f64::INFINITY,
             prev_vertex: None,
             is_terminal: false,
+            is_shortest_path_terminal: false,
             vertex_entries: [None; 4],
         });
         self.point_to_vertex.insert(point, id);
@@ -132,11 +148,39 @@ impl VisibilityGraph {
         self.vertices[v.0].vertex_entries[dir.index()] = entry;
     }
 
-    /// Clear all vertex entries (for reuse between path searches).
+    /// Check if a vertex has any VertexEntries set.
+    ///
+    /// Matches the TS pattern `if (vertex.VertexEntries != null)`.
+    pub fn has_vertex_entries(&self, v: VertexId) -> bool {
+        self.vertices[v.0].vertex_entries.iter().any(|e| e.is_some())
+    }
+
+    /// Get all 4 vertex entries as a slice.
+    pub fn vertex_entries(&self, v: VertexId) -> &[Option<VertexEntryIndex>; 4] {
+        &self.vertices[v.0].vertex_entries
+    }
+
+    /// Remove all vertex entries for a single vertex.
+    /// Matches TS `RemoveVertexEntries()` which sets `VertexEntries = null`.
+    pub fn remove_vertex_entries(&mut self, v: VertexId) {
+        self.vertices[v.0].vertex_entries = [None; 4];
+    }
+
+    /// Clear all vertex entries across all vertices (for reuse between path searches).
     pub fn clear_vertex_entries(&mut self) {
         for vd in &mut self.vertices {
             vd.vertex_entries = [None; 4];
         }
+    }
+
+    /// Iterate over all vertex IDs.
+    pub fn vertex_ids(&self) -> impl Iterator<Item = VertexId> + '_ {
+        (0..self.vertices.len()).map(VertexId)
+    }
+
+    /// Get in-edge sources for a vertex.
+    pub fn in_edges(&self, v: VertexId) -> &[VertexId] {
+        &self.vertices[v.0].in_edges
     }
 }
 
