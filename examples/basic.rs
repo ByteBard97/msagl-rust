@@ -28,7 +28,7 @@ fn main() {
     for (i, edge) in result.edges.iter().enumerate() {
         println!("\nEdge {}:", i);
         for pt in &edge.points {
-            println!("  ({:.1}, {:.1})", pt.x, pt.y);
+            println!("  ({:.1}, {:.1})", pt.x(), pt.y());
         }
     }
 }
