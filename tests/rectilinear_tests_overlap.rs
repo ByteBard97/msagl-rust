@@ -95,37 +95,34 @@ fn inter_overlap_all_borders_worker(mid_count: usize, mid_horizontal: bool) {
 }
 
 #[test]
-#[ignore = "requires full SkipToNeighbor overlap VG with overlapped segments spanning obstacle interiors"]
+#[ignore = "requires full SkipToNeighbor VG — path search fails through horizontal overlap interiors"]
 fn inter_overlap_all_borders_h1() {
     inter_overlap_all_borders_worker(1, true);
 }
 
 #[test]
-#[ignore = "requires full SkipToNeighbor overlap VG with overlapped segments spanning obstacle interiors"]
+#[ignore = "requires full SkipToNeighbor VG — path search fails through horizontal overlap interiors"]
 fn inter_overlap_all_borders_h2() {
     inter_overlap_all_borders_worker(2, true);
 }
 
 #[test]
-#[ignore = "requires full SkipToNeighbor overlap VG with overlapped segments spanning obstacle interiors"]
+#[ignore = "requires full SkipToNeighbor VG — path search fails through horizontal overlap interiors"]
 fn inter_overlap_all_borders_h3() {
     inter_overlap_all_borders_worker(3, true);
 }
 
 #[test]
-#[ignore = "requires full SkipToNeighbor overlap VG with overlapped segments spanning obstacle interiors"]
 fn inter_overlap_all_borders_v1() {
     inter_overlap_all_borders_worker(1, false);
 }
 
 #[test]
-#[ignore = "requires full SkipToNeighbor overlap VG with overlapped segments spanning obstacle interiors"]
 fn inter_overlap_all_borders_v2() {
     inter_overlap_all_borders_worker(2, false);
 }
 
 #[test]
-#[ignore = "requires full SkipToNeighbor overlap VG with overlapped segments spanning obstacle interiors"]
 fn inter_overlap_all_borders_v3() {
     inter_overlap_all_borders_worker(3, false);
 }
@@ -214,7 +211,6 @@ fn landlocked_overlap_side_non_adjoining() {
 /// Obstacle with a border sharing part of an overlapped obstacle's border.
 /// Uses diamonds (non-rectangular) — requires convex hull support.
 #[test]
-#[ignore = "produces diagonal segments in bounding-box-approximated non-rect obstacle"]
 fn landlocked_overlap_side_adjoining() {
     let mut b = ScenarioBuilder::new();
     b.add_rectangle_corners(0.0, 20.0, 60.0, 80.0);
@@ -283,7 +279,6 @@ fn coinciding_worker(grow_height: f64, nested: bool) {
 /// Port: Coinciding_SameHeight3
 /// Three identical overlapping rectangles at the same location and height.
 #[test]
-#[ignore = "identical coinciding obstacles share center point; needs VG dedup or port offset"]
 fn coinciding_same_height3() {
     coinciding_worker(0.0, false);
 }
@@ -291,7 +286,6 @@ fn coinciding_same_height3() {
 /// Port: Coinciding_SameHeight3_Nested
 /// Same as above, with a nesting encompassing obstacle.
 #[test]
-#[ignore = "identical coinciding obstacles share center point; needs VG dedup or port offset"]
 fn coinciding_same_height3_nested() {
     coinciding_worker(0.0, true);
 }

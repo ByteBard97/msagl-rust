@@ -1,4 +1,5 @@
 use super::obstacle_side::{ObstacleSide, SideType};
+use super::overlap_convex_hull::OverlapConvexHull;
 use super::scan_direction::ScanDirection;
 use super::shape::Shape;
 use crate::arenas::PolylinePointKey;
@@ -35,6 +36,12 @@ pub struct Obstacle {
     active_low_side: Option<ObstacleSide>,
     /// Active high side (set during sweep).
     active_high_side: Option<ObstacleSide>,
+    /// Clump: indices of overlapping rectangular obstacles in the same group.
+    /// Matches TS `Obstacle.clump`.
+    clump: Vec<usize>,
+    /// Convex hull enclosing this obstacle and its overlapping neighbors.
+    /// Matches TS `Obstacle.ConvexHull`.
+    convex_hull: Option<OverlapConvexHull>,
 }
 
 impl Obstacle {
@@ -83,6 +90,8 @@ impl Obstacle {
             is_sentinel: false,
             active_low_side: None,
             active_high_side: None,
+            clump: Vec::new(),
+            convex_hull: None,
         }
     }
 
@@ -113,6 +122,8 @@ impl Obstacle {
             is_rectangle: false,
             active_low_side: None,
             active_high_side: None,
+            clump: Vec::new(),
+            convex_hull: None,
         }
     }
 
@@ -155,6 +166,79 @@ impl Obstacle {
 
     pub fn active_high_side(&self) -> Option<&ObstacleSide> {
         self.active_high_side.as_ref()
+    }
+
+    pub fn set_active_low_side(&mut self, side: Option<ObstacleSide>) {
+        self.active_low_side = side;
+    }
+
+    pub fn set_active_high_side(&mut self, side: Option<ObstacleSide>) {
+        self.active_high_side = side;
+    }
+
+    /// The bounding box used for visibility graph generation.
+    /// If in a convex hull, returns the hull's bounding box.
+    /// Matches TS `Obstacle.VisibilityBoundingBox`.
+    pub fn visibility_bounding_box(&self) -> Rectangle {
+        if let Some(ref hull) = self.convex_hull {
+            hull.polyline.bounding_box()
+        } else {
+            *self.padded_bounding_box()
+        }
+    }
+
+    /// The polyline used for visibility graph generation.
+    /// If in a convex hull, returns the hull's polyline.
+    /// Matches TS `Obstacle.VisibilityPolyline`.
+    pub fn visibility_polyline(&self) -> &Polyline {
+        if let Some(ref hull) = self.convex_hull {
+            &hull.polyline
+        } else {
+            &self.padded_polyline
+        }
+    }
+
+    /// Whether this obstacle is overlapped (in a clump).
+    /// Matches TS `Obstacle.isOverlapped`.
+    pub fn is_overlapped(&self) -> bool {
+        !self.clump.is_empty()
+    }
+
+    /// Set the clump (indices of overlapping obstacles).
+    pub fn set_clump(&mut self, clump: Vec<usize>) {
+        self.clump = clump;
+    }
+
+    /// Get the clump members.
+    pub fn clump(&self) -> &[usize] {
+        &self.clump
+    }
+
+    /// Set the convex hull.
+    pub fn set_convex_hull(&mut self, hull: OverlapConvexHull) {
+        self.convex_hull = Some(hull);
+    }
+
+    /// Get the convex hull, if any.
+    pub fn convex_hull(&self) -> Option<&OverlapConvexHull> {
+        self.convex_hull.as_ref()
+    }
+
+    /// Whether this obstacle is inside a convex hull.
+    pub fn is_in_convex_hull(&self) -> bool {
+        self.convex_hull.is_some()
+    }
+
+    /// Whether this obstacle is a primary obstacle (participates in the
+    /// VG hierarchy). Non-primary obstacles are those subsumed into a
+    /// convex hull where they are not the primary index.
+    /// Matches TS `Obstacle.IsPrimaryObstacle`.
+    pub fn is_primary_obstacle(&self) -> bool {
+        if let Some(ref hull) = self.convex_hull {
+            hull.primary_obstacle_index() == self.index
+        } else {
+            true
+        }
     }
 
     /// Faithful port of TS `VisibilityGraphGenerator.GetOpenVertex()`.

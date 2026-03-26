@@ -46,6 +46,12 @@ impl PathMerger {
         while i < path.len() {
             let key = PointKey::from(path[i]);
             if let Some(&prev_idx) = seen.get(&key) {
+                // Don't collapse below 2 points — a degenerate path
+                // (source == target for coincident obstacles) is still valid.
+                if path.len() - (i - prev_idx) < 2 {
+                    i += 1;
+                    continue;
+                }
                 // Self-cycle detected: remove points (prev_idx+1)..=i
                 path.drain((prev_idx + 1)..=i);
                 // Reset — recheck from beginning since path changed

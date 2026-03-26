@@ -26,11 +26,17 @@ pub fn refine_paths(paths: &mut [Vec<Point>]) {
 }
 
 /// Remove consecutive duplicate points from a path.
+/// Never collapses below 2 points — a degenerate path (source == target
+/// for coincident obstacles) is still valid.
 pub fn deduplicate(path: &mut Vec<Point>) {
     if path.len() < 2 {
         return;
     }
     path.dedup_by(|a, b| a.close_to(*b));
+    // Restore the minimum 2-point invariant for degenerate self-loop paths.
+    if path.len() < 2 {
+        path.push(*path.last().unwrap());
+    }
 }
 
 /// For all segments parallel to a given direction, collect all distinct

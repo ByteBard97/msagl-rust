@@ -1,4 +1,5 @@
 use super::obstacle::Obstacle;
+use super::obstacle_tree_overlap::resolve_overlaps;
 use super::shape::Shape;
 use crate::geometry::point::Point;
 use crate::geometry::rectangle::Rectangle;
@@ -33,11 +34,15 @@ pub struct ObstacleTree {
 impl ObstacleTree {
     /// Create from shapes with given padding.
     pub fn new(shapes: &[Shape], padding: f64) -> Self {
-        let obstacles: Vec<Obstacle> = shapes
+        let mut obstacles: Vec<Obstacle> = shapes
             .iter()
             .enumerate()
             .map(|(i, s)| Obstacle::from_shape(s, padding, i))
             .collect();
+
+        // Detect and resolve overlaps (clumps and convex hulls).
+        // Matches TS ObstacleTree.CreateRoot() overlap resolution.
+        resolve_overlaps(&mut obstacles);
 
         let envelopes: Vec<ObstacleEnvelope> = obstacles
             .iter()

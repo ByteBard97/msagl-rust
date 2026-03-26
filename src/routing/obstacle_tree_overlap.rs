@@ -34,7 +34,7 @@ struct IntersectResult {
 /// 3. Group overlapping non-rectangles into convex hulls (transitively)
 ///
 /// Modifies obstacles in place by setting clump/convex hull fields.
-pub(crate) fn resolve_overlaps(obstacles: &mut Vec<Obstacle>) {
+pub(crate) fn resolve_overlaps(obstacles: &mut [Obstacle]) {
     if obstacles.is_empty() {
         return;
     }
@@ -77,7 +77,7 @@ fn overlaps_exist(obstacles: &[Obstacle]) -> bool {
 /// Accrete clumps from overlapping rectangular obstacles.
 ///
 /// Faithful port of TS `ObstacleTree.AccreteClumps()`.
-fn accrete_clumps(obstacles: &mut Vec<Obstacle>) {
+fn accrete_clumps(obstacles: &mut [Obstacle]) {
     let overlap_pairs = find_overlapping_rect_pairs(obstacles);
     if overlap_pairs.is_empty() {
         return;
@@ -133,7 +133,7 @@ fn find_overlapping_rect_pairs(obstacles: &[Obstacle]) -> Vec<(usize, usize)> {
 /// Transitive: if hull A overlaps obstacle C, they merge.
 ///
 /// Faithful port of TS `ObstacleTree.AccreteConvexHulls()`.
-fn accrete_convex_hulls(obstacles: &mut Vec<Obstacle>) {
+fn accrete_convex_hulls(obstacles: &mut [Obstacle]) {
     loop {
         let pairs = find_overlapping_nonrect_pairs(obstacles);
         if pairs.is_empty() {
@@ -195,7 +195,7 @@ fn find_overlapping_nonrect_pairs(obstacles: &[Obstacle]) -> Vec<(usize, usize)>
 ///
 /// Faithful port of TS `ObstacleTree.CreateConvexHulls()`.
 fn create_convex_hulls(
-    obstacles: &mut Vec<Obstacle>,
+    obstacles: &mut [Obstacle],
     pairs: &[(usize, usize)],
 ) -> bool {
     if pairs.is_empty() {
