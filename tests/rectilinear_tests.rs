@@ -314,7 +314,6 @@ fn center_port_each_obstacle() {
 
 /// Five obstacles scattered at various positions; route a chain.
 #[test]
-#[ignore] // VG fallback to straight line for scattered non-aligned obstacles
 fn scattered_five_obstacles_chain() {
     let mut b = ScenarioBuilder::new();
     let o0 = b.add_rectangle_bl(0.0, 200.0, 40.0, 40.0);

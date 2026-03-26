@@ -462,13 +462,31 @@ fn is_switchback(a: Point, b: Point, c: Point) -> bool {
     false
 }
 
-/// Restore original paths if nudging introduced obstacle crossings.
+/// Restore original paths if nudging introduced obstacle crossings or
+/// reduced a path to fewer than 2 points (degenerate).
 ///
-/// For each path, check if any interior segment midpoint (excluding
-/// source/target obstacle) now lies strictly inside an obstacle that
-/// the original path did not cross. If so, restore the original path.
+/// For each path, check if any interior waypoint or segment midpoint
+/// (excluding source/target obstacle) now lies strictly inside an obstacle
+/// that the original path did not cross. Also restore paths that were
+/// collapsed by switchback/staircase removal.
 fn restore_if_crossing(paths: &mut [Vec<Point>], original: &[Vec<Point>], obstacles: &[Rectangle]) {
     for (i, path) in paths.iter_mut().enumerate() {
+        // Restore degenerate paths (nudger collapsed them).
+        if path.len() < 2 && original[i].len() >= 2 {
+            *path = original[i].clone();
+            continue;
+        }
+        // Restore paths with near-zero-length segments (consecutive near-duplicate
+        // points). Use slightly above the rectilinear verifier tolerance (0.5)
+        // to ensure we catch all cases the verifier would flag.
+        let zero_tol = 0.55;
+        let has_zero_seg = path.windows(2).any(|w| {
+            ((w[1].x() - w[0].x()).powi(2) + (w[1].y() - w[0].y()).powi(2)).sqrt() < zero_tol
+        });
+        if has_zero_seg && original[i].len() >= 2 {
+            *path = original[i].clone();
+            continue;
+        }
         if path_crosses_intermediate_obstacle(path, obstacles)
             && !path_crosses_intermediate_obstacle(&original[i], obstacles)
         {
@@ -477,8 +495,8 @@ fn restore_if_crossing(paths: &mut [Vec<Point>], original: &[Vec<Point>], obstac
     }
 }
 
-/// Check if any segment midpoint lies strictly inside an obstacle that
-/// does not contain the path endpoints.
+/// Check if any segment midpoint or interior waypoint lies strictly inside
+/// an obstacle that does not contain the path endpoints.
 fn path_crosses_intermediate_obstacle(path: &[Point], obstacles: &[Rectangle]) -> bool {
     if path.len() < 2 {
         return false;
@@ -487,8 +505,20 @@ fn path_crosses_intermediate_obstacle(path: &[Point], obstacles: &[Rectangle]) -
     let target = path.last().unwrap();
     let eps = 0.1;
 
+    // Collect test points: segment midpoints and interior waypoints.
+    let mut test_points: Vec<Point> = Vec::new();
     for w in path.windows(2) {
-        let mid = Point::new((w[0].x() + w[1].x()) / 2.0, (w[0].y() + w[1].y()) / 2.0);
+        test_points.push(Point::new(
+            (w[0].x() + w[1].x()) / 2.0,
+            (w[0].y() + w[1].y()) / 2.0,
+        ));
+    }
+    // Interior waypoints (excluding first and last).
+    for pt in &path[1..path.len() - 1] {
+        test_points.push(*pt);
+    }
+
+    for pt in &test_points {
         for obs in obstacles {
             // Skip obstacles containing source or target.
             let contains_source = source.x() > obs.left() + eps
@@ -502,10 +532,10 @@ fn path_crosses_intermediate_obstacle(path: &[Point], obstacles: &[Rectangle]) -
             if contains_source || contains_target {
                 continue;
             }
-            let strictly_inside = mid.x() > obs.left() + eps
-                && mid.x() < obs.right() - eps
-                && mid.y() > obs.bottom() + eps
-                && mid.y() < obs.top() - eps;
+            let strictly_inside = pt.x() > obs.left() + eps
+                && pt.x() < obs.right() - eps
+                && pt.y() > obs.bottom() + eps
+                && pt.y() < obs.top() - eps;
             if strictly_inside {
                 return true;
             }
