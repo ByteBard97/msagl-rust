@@ -104,7 +104,7 @@ impl PathSearch {
         let target_id = graph.find_vertex(target)?;
 
         if source_id == target_id {
-            return Some(vec![source]);
+            return Some(vec![source, target]);
         }
 
         let source_target_distance = manhattan_distance(source, target);

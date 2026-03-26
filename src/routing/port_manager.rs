@@ -158,6 +158,10 @@ impl PortManager {
             }
         }
 
+        if best.is_none() && (location.x() - 70.0).abs() < 0.1 && (location.y() - 70.0).abs() < 0.1 {
+            eprintln!("  find_crossing({:?}) from ({},{}) found NOTHING in {} verts",
+                direction, location.x(), location.y(), graph.vertex_count());
+        }
         best.map(|(s, t, p, _)| (s, t, p))
     }
 

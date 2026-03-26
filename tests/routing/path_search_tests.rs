@@ -78,7 +78,7 @@ fn path_search_same_source_target() {
     let search = PathSearch::new(4.0);
     let path = search.find_path(&graph, Point::new(5.0, 5.0), Point::new(5.0, 5.0));
     assert!(path.is_some());
-    assert_eq!(path.unwrap().len(), 1);
+    assert_eq!(path.unwrap().len(), 2);
 }
 
 #[test]

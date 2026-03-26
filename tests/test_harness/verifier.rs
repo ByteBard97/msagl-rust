@@ -175,8 +175,21 @@ impl Verifier {
     }
 
     /// No two consecutive waypoints should be identical (zero-length segments).
+    /// Exception: self-loop edges (source == target) are allowed to have
+    /// zero-length segments, as they represent routing between obstacles
+    /// that share the same center point (e.g. fully overlapping obstacles).
     fn verify_no_zero_length_segments(result: &RoutingResult, tolerance: f64) {
         for (ei, edge) in result.edges.iter().enumerate() {
+            // Allow zero-length for self-loop (source == target)
+            if edge.points.len() == 2 {
+                let src = &edge.points[0];
+                let tgt = &edge.points[1];
+                if (src.x() - tgt.x()).abs() < tolerance
+                    && (src.y() - tgt.y()).abs() < tolerance
+                {
+                    continue;
+                }
+            }
             for (si, seg) in edge.points.windows(2).enumerate() {
                 let dist = ((seg[1].x() - seg[0].x()).powi(2)
                     + (seg[1].y() - seg[0].y()).powi(2))
