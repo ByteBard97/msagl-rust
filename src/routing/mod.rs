@@ -23,4 +23,6 @@ pub mod splice_utility;
 pub mod static_graph_utility;
 pub mod transient_graph_utility;
 pub mod vertex_entry;
+pub mod vg_event_processing;
 pub mod visibility_graph_generator;
+pub mod msmt_path;

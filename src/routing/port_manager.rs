@@ -389,3 +389,310 @@ fn compute_intersection(
         }
     }
 }
+
+// =========================================================================
+// Full ObstaclePort lifecycle — C# PortManager.cs (956 lines)
+//
+// The existing PortManager has basic splice/unsplice. The methods below
+// implement the full C# ObstaclePort management, FreePoint handling,
+// port entrances, obstacle-port graph splicing, and waypoint support.
+// =========================================================================
+
+use std::collections::HashMap;
+use crate::geometry::rectangle::Rectangle;
+
+/// Index type for obstacle ports, to distinguish from other usize uses.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct ObstaclePortId(pub usize);
+
+/// Index type for free points.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct FreePointId(pub usize);
+
+/// Full port manager with ObstaclePort and FreePoint lifecycle management.
+///
+/// C# file: PortManager.cs, lines 22-68
+/// Manages the mapping from application-level Ports to router-internal
+/// ObstaclePort and FreePoint objects.
+pub struct FullPortManager {
+    /// Map from port location to ObstaclePort index.
+    /// C# PortManager.cs line 24: obstaclePortMap
+    /// MUST use HashMap for O(1) lookup by port identity.
+    pub obstacle_port_map: HashMap<usize, ObstaclePortId>,
+
+    /// Map from point location to FreePoint index.
+    /// C# PortManager.cs line 27: freePointMap
+    /// MUST use HashMap<Point, FreePointId> with OrderedFloat for O(1) lookup.
+    pub free_point_map: HashMap<ordered_float::OrderedFloat<u64>, FreePointId>,
+
+    /// Tracks which free point locations were used in the last route_edges call.
+    /// C# PortManager.cs line 30: freePointLocationsUsedByRouteEdges
+    pub free_point_locations_used: Vec<Point>,
+
+    /// ObstaclePorts currently spliced into the visibility graph.
+    /// C# PortManager.cs line 50: obstaclePortsInGraph
+    pub obstacle_ports_in_graph: Vec<ObstaclePortId>,
+
+    /// FreePoints currently spliced into the visibility graph.
+    /// C# PortManager.cs line 51: freePointsInGraph
+    pub free_points_in_graph: Vec<FreePointId>,
+
+    /// Bounding rectangle limiting port visibility splice extension.
+    /// C# PortManager.cs line 54: portSpliceLimitRectangle
+    pub port_splice_limit_rect: Rectangle,
+
+    /// Whether to route to the center of obstacles (vs. border).
+    /// C# PortManager.cs line 39: RouteToCenterOfObstacles
+    pub route_to_center: bool,
+
+    /// Whether to limit port visibility splice to the endpoint bounding box.
+    /// C# PortManager.cs line 42: LimitPortVisibilitySpliceToEndpointBoundingBox
+    pub limit_port_visibility_splice: bool,
+}
+
+impl FullPortManager {
+    /// Create a new full port manager.
+    ///
+    /// C# file: PortManager.cs, lines 66-69
+    pub fn new() -> Self {
+        todo!()
+    }
+
+    /// Clear all state (obstacle ports, free points).
+    ///
+    /// C# file: PortManager.cs, lines 71-74
+    /// Big-O: O(N) where N = number of ports
+    pub fn clear(&mut self) {
+        todo!()
+    }
+
+    /// Create ObstaclePorts for all ports of an obstacle.
+    ///
+    /// C# file: PortManager.cs, lines 76-83
+    /// Big-O: O(P) where P = number of ports on the obstacle
+    /// MUST use HashMap insertion for port-to-obstacleport mapping
+    pub fn create_obstacle_ports(&mut self, _obstacle_index: usize, _port_locations: &[Point]) {
+        todo!()
+    }
+
+    /// Create a single ObstaclePort for a port on an obstacle.
+    ///
+    /// C# file: PortManager.cs, lines 85-108
+    /// Big-O: O(1) amortized for HashMap insertion
+    /// MUST validate that port location is inside obstacle boundary curve
+    fn create_obstacle_port(
+        &mut self,
+        _obstacle_index: usize,
+        _port_location: Point,
+    ) -> Option<ObstaclePortId> {
+        todo!()
+    }
+
+    /// Find visibility vertices for a port.
+    ///
+    /// C# file: PortManager.cs, lines 110-131
+    /// Big-O: O(E) where E = number of port entrances
+    /// MUST use HashMap lookup for port identity
+    pub fn find_vertices(
+        &self,
+        _port_location: Point,
+        _graph: &VisibilityGraph,
+    ) -> Vec<VertexId> {
+        todo!()
+    }
+
+    /// Remove obstacle ports for an obstacle.
+    ///
+    /// C# file: PortManager.cs, lines 133-143
+    /// Big-O: O(P) where P = ports on the obstacle
+    pub fn remove_obstacle_ports(&mut self, _obstacle_index: usize) {
+        todo!()
+    }
+
+    /// Add control points (source, target, waypoints) to the visibility graph.
+    ///
+    /// C# file: PortManager.cs, lines 146-164
+    /// Big-O: O(K * log V) where K = control points, V = VG vertices
+    /// MUST compute port_splice_limit_rect before adding ports
+    pub fn add_control_points_to_graph(
+        &mut self,
+        _source_port: Point,
+        _target_port: Point,
+        _graph: &mut VisibilityGraph,
+    ) {
+        todo!()
+    }
+
+    /// Remove all control points from the visibility graph.
+    ///
+    /// C# file: PortManager.cs, lines 258-264
+    /// Big-O: O(K) where K = control points in graph
+    pub fn remove_control_points_from_graph(&mut self, _graph: &mut VisibilityGraph) {
+        todo!()
+    }
+
+    /// Begin a route_edges session.
+    ///
+    /// C# file: PortManager.cs, lines 301-304
+    pub fn begin_route_edges(&mut self, _graph: &mut VisibilityGraph) {
+        todo!()
+    }
+
+    /// End a route_edges session, cleaning up stale free points.
+    ///
+    /// C# file: PortManager.cs, lines 306-308
+    pub fn end_route_edges(&mut self) {
+        todo!()
+    }
+
+    /// Find an existing ObstaclePort for a port, detecting port changes.
+    ///
+    /// C# file: PortManager.cs, lines 310-333
+    /// Big-O: O(1) amortized for HashMap lookup
+    /// MUST use HashMap lookup for port identity
+    pub fn find_obstacle_port(&self, _port_location: Point) -> Option<ObstaclePortId> {
+        todo!()
+    }
+
+    /// Add a port (obstacle or free) to the visibility graph.
+    ///
+    /// C# file: PortManager.cs, lines 336-344
+    fn add_port_to_graph(
+        &mut self,
+        _port_location: Point,
+        _oport: Option<ObstaclePortId>,
+        _graph: &mut VisibilityGraph,
+    ) {
+        todo!()
+    }
+
+    /// Add an ObstaclePort to the visibility graph with port entrances.
+    ///
+    /// C# file: PortManager.cs, lines 346-368
+    /// Big-O: O(E * log V) where E = entrances, V = VG vertices
+    /// MUST create port entrances if not already present
+    fn add_obstacle_port_to_graph(
+        &mut self,
+        _oport_id: ObstaclePortId,
+        _graph: &mut VisibilityGraph,
+    ) {
+        todo!()
+    }
+
+    /// Create port entrances from border intersection points.
+    ///
+    /// C# file: PortManager.cs, lines 447-503
+    /// Big-O: O(1) per entrance (up to 4 directions)
+    /// MUST compute horizontal and vertical border intersections
+    fn create_obstacle_port_entrances_from_points(
+        &mut self,
+        _oport_id: ObstaclePortId,
+        _graph_box: &Rectangle,
+    ) {
+        todo!()
+    }
+
+    /// Add a FreePoint (waypoint or non-obstacle port) to the visibility graph.
+    ///
+    /// C# file: PortManager.cs, lines 844-897
+    /// Big-O: O(log V) per direction (up to 4 directions)
+    /// MUST handle overlapped points (inside obstacles) differently from free-space points
+    fn add_free_point_to_graph(
+        &mut self,
+        _location: Point,
+        _graph: &mut VisibilityGraph,
+    ) -> FreePointId {
+        todo!()
+    }
+
+    /// Create an out-of-bounds free point with edges to graph boundary.
+    ///
+    /// C# file: PortManager.cs, lines 899-940
+    /// Big-O: O(log V) for vertex/edge operations
+    fn create_out_of_bounds_free_point(
+        &mut self,
+        _free_point_id: FreePointId,
+        _graph: &mut VisibilityGraph,
+    ) {
+        todo!()
+    }
+
+    /// Connect a free point to a lateral visibility edge in the given direction.
+    ///
+    /// C# file: PortManager.cs, lines 942-954
+    /// Big-O: O(log V) for nearest perpendicular edge search
+    fn connect_free_point_to_lateral_edge(
+        &mut self,
+        _free_point_id: FreePointId,
+        _lateral_dir: CompassDirection,
+        _graph: &mut VisibilityGraph,
+    ) {
+        todo!()
+    }
+
+    /// Find or create the nearest perpendicular VG edge for port splicing.
+    ///
+    /// C# file: PortManager.cs, lines 615-735
+    /// Big-O: O(log V) for ScanSegmentTree lookup + O(chain) adjacency walk
+    /// MUST use ScanSegmentTree find_lowest/highest_intersector for O(log N) lookup
+    fn find_or_create_nearest_perp_edge(
+        &mut self,
+        _first: Point,
+        _second: Point,
+        _dir: CompassDirection,
+        _weight: f64,
+        _graph: &mut VisibilityGraph,
+    ) -> Option<(VertexId, VertexId)> {
+        todo!()
+    }
+
+    /// Compute the port splice limit rectangle from edge geometry endpoints.
+    ///
+    /// C# file: PortManager.cs, lines 788-798
+    /// Big-O: O(1)
+    fn get_port_splice_limit_rectangle(
+        &mut self,
+        _source_port: Point,
+        _target_port: Point,
+    ) {
+        todo!()
+    }
+
+    /// Clear visibility info from all obstacle ports.
+    ///
+    /// C# file: PortManager.cs, lines 293-299
+    pub fn clear_visibility(&mut self) {
+        todo!()
+    }
+
+    /// Find waypoint vertices in the visibility graph.
+    ///
+    /// C# file: PortManager.cs, lines 824-828
+    /// Big-O: O(W * log V) where W = waypoints
+    pub fn find_waypoint_vertices(
+        &self,
+        _waypoints: &[Point],
+        _graph: &VisibilityGraph,
+    ) -> Vec<Option<VertexId>> {
+        todo!()
+    }
+
+    /// Remove stale free points not used in the last routing pass.
+    ///
+    /// C# file: PortManager.cs, lines 280-291
+    fn remove_stale_free_points(&mut self) {
+        todo!()
+    }
+
+    /// Get port visibility intersection between source and target (shortcut path).
+    ///
+    /// C# file: PortManager.cs, lines 380-411
+    /// Big-O: O(E_s * E_t) where E = port entrances
+    pub fn get_port_visibility_intersection(
+        &self,
+        _source_port: Point,
+        _target_port: Point,
+    ) -> Option<Vec<Point>> {
+        todo!()
+    }
+}

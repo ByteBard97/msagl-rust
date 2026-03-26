@@ -128,3 +128,202 @@ impl ObstacleTree {
 /// Sentinel offset margin applied to the graph bounding box.
 /// Matches TS ScanSegment.SentinelOffset = 1.0.
 const SENTINEL_OFFSET: f64 = 1.0;
+
+// =========================================================================
+// Full ObstacleTree hierarchy — C# ObstacleTree.cs (823 lines)
+//
+// The existing ObstacleTree has basic R-tree spatial indexing. The methods
+// below add the full C# hierarchy: CalculateHierarchy, overlap resolution,
+// RestrictSegmentWithObstacles, point-inside-obstacle testing, and
+// max visibility segment creation.
+// =========================================================================
+
+use super::compass_direction::CompassDirection;
+use super::scan_direction::ScanDirection;
+
+/// A line segment (start, end) used for ray-obstacle intersection.
+#[derive(Clone, Debug)]
+pub struct LineSegment {
+    pub start: Point,
+    pub end: Point,
+}
+
+impl LineSegment {
+    pub fn new(start: Point, end: Point) -> Self {
+        Self { start, end }
+    }
+
+    pub fn bounding_box(&self) -> Rectangle {
+        Rectangle::from_points(self.start, self.end)
+    }
+}
+
+impl ObstacleTree {
+    /// Calculate the R-tree hierarchy from a subset of obstacles.
+    ///
+    /// C# file: ObstacleTree.cs, lines 167-170
+    /// Big-O: O(N log N) for R-tree bulk loading
+    /// MUST use rstar::RTree::bulk_load for hierarchy construction
+    fn calculate_hierarchy_from_subset(_obstacles: &[Obstacle]) -> RTree<ObstacleEnvelope> {
+        todo!()
+    }
+
+    /// Check whether any obstacles overlap (triggering clump/convex-hull resolution).
+    ///
+    /// C# file: ObstacleTree.cs, lines 106-112
+    /// Big-O: O(N log N) for R-tree cross-query
+    /// MUST use rstar R-tree locate_in_envelope_intersecting for overlap detection
+    pub fn overlaps_exist(&self) -> bool {
+        todo!()
+    }
+
+    /// Create a max visibility segment from a point in a direction.
+    ///
+    /// C# file: ObstacleTree.cs, lines 509-520
+    /// Big-O: O(log N) for R-tree intersection query + O(K) for intersected obstacles
+    /// MUST use rstar R-tree for obstacle intersection (not brute force scan)
+    ///
+    /// Returns the segment restricted by obstacles, and the endpoint.
+    pub fn create_max_visibility_segment(
+        &self,
+        _start_point: Point,
+        _dir: CompassDirection,
+    ) -> LineSegment {
+        todo!()
+    }
+
+    /// Restrict a segment (from start_point to end_point) by clipping at obstacle boundaries.
+    ///
+    /// C# file: ObstacleTree.cs, lines 634-647 (RestrictSegmentPrivate)
+    /// Big-O: O(log N + K) where K = intersected obstacles, using R-tree query
+    /// MUST use rstar R-tree locate_in_envelope_intersecting for obstacle intersection
+    /// MUST NOT use brute-force O(N) scan over all obstacles
+    pub fn restrict_segment_with_obstacles(
+        &self,
+        _start_point: Point,
+        _end_point: Point,
+    ) -> LineSegment {
+        todo!()
+    }
+
+    /// Check if a segment crosses any (non-group) obstacle.
+    ///
+    /// C# file: ObstacleTree.cs, lines 619-624
+    /// Big-O: O(log N + K) using R-tree
+    /// MUST use rstar R-tree for spatial query
+    pub fn segment_crosses_an_obstacle(&self, _start: Point, _end: Point) -> bool {
+        todo!()
+    }
+
+    /// Check if a segment crosses any non-group obstacle.
+    ///
+    /// C# file: ObstacleTree.cs, lines 626-631
+    /// Big-O: O(log N + K) using R-tree
+    /// MUST use rstar R-tree for spatial query
+    pub fn segment_crosses_a_non_group_obstacle(&self, _start: Point, _end: Point) -> bool {
+        todo!()
+    }
+
+    /// Test whether a point is inside any obstacle (ignoring up to 2 known obstacles).
+    ///
+    /// C# file: ObstacleTree.cs, lines 548-558
+    /// Big-O: O(log N) for R-tree point query
+    /// MUST use rstar R-tree locate_all_at_point for hit testing
+    pub fn point_is_inside_an_obstacle(
+        &self,
+        _point: Point,
+        _scan_direction: ScanDirection,
+    ) -> bool {
+        todo!()
+    }
+
+    /// Test whether an intersection is inside another obstacle (excluding two known ones).
+    ///
+    /// C# file: ObstacleTree.cs, lines 540-546
+    /// Big-O: O(log N) for R-tree point query
+    /// MUST use rstar R-tree for hit testing
+    pub fn intersection_is_inside_another_obstacle(
+        &self,
+        _side_obstacle: usize,
+        _event_obstacle: usize,
+        _intersect: Point,
+        _scan_direction: ScanDirection,
+    ) -> bool {
+        todo!()
+    }
+
+    /// Get an iterator over all primary obstacles (not inside convex hulls).
+    ///
+    /// C# file: ObstacleTree.cs, lines 535-537
+    /// Big-O: O(N) iteration
+    pub fn get_all_primary_obstacles(&self) -> Vec<usize> {
+        todo!()
+    }
+
+    /// Get all group obstacles.
+    ///
+    /// C# file: ObstacleTree.cs, lines 494-496
+    /// Big-O: O(N) iteration with filter
+    pub fn get_all_groups(&self) -> Vec<usize> {
+        todo!()
+    }
+
+    /// Recursively restrict a ray by obstacles in the R-tree.
+    ///
+    /// C# file: ObstacleTree.cs, lines 666-693 (RecurseRestrictRayWithObstacles)
+    /// Big-O: O(log N + K) using R-tree recursion
+    /// MUST use rstar R-tree recursion (not linear scan)
+    fn recurse_restrict_ray(
+        &self,
+        _current_ray: &mut LineSegment,
+        _test_segment: &LineSegment,
+        _ray_length_sq: &mut f64,
+        _stop_at_groups: bool,
+        _want_group_crossings: bool,
+    ) {
+        todo!()
+    }
+
+    /// Find the closest non-group intersection that restricts the ray.
+    ///
+    /// C# file: ObstacleTree.cs, lines 695-742
+    /// Big-O: O(K) where K = intersections with one obstacle
+    fn look_for_closer_non_group_intersection(
+        &self,
+        _current_ray: &mut LineSegment,
+        _ray_length_sq: &mut f64,
+        _obstacle_index: usize,
+    ) {
+        todo!()
+    }
+
+    /// Check if a point is strictly in the interior of any obstacle (hit test callback).
+    ///
+    /// C# file: ObstacleTree.cs, lines 565-617 (InsideObstacleHitTest)
+    /// Big-O: O(1) per obstacle, O(log N) total via R-tree pruning
+    fn inside_obstacle_hit_test(
+        &self,
+        _location: Point,
+        _obstacle_index: usize,
+        _ignore1: Option<usize>,
+        _ignore2: Option<usize>,
+        _scan_direction: ScanDirection,
+    ) -> bool {
+        todo!()
+    }
+
+    /// Cross two R-tree hierarchies to find overlapping obstacle pairs.
+    ///
+    /// C# file: ObstacleTree.cs, lines 110-111 (CrossRectangleNodes)
+    /// Big-O: O(N log N) for R-tree cross-query
+    /// MUST use rstar R-tree for spatial pair enumeration
+    pub fn cross_rectangle_nodes<F>(
+        &self,
+        _other: &ObstacleTree,
+        _callback: F,
+    ) where
+        F: FnMut(usize, usize),
+    {
+        todo!()
+    }
+}
