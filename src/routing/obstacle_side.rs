@@ -3,9 +3,6 @@ use crate::geometry::point::Point;
 use crate::geometry::polyline::Polyline;
 use super::scan_direction::ScanDirection;
 
-/// Tolerance for treating a slope denominator as zero.
-const SLOPE_EPSILON: f64 = 1e-10;
-
 /// Whether this is a low (bottom/left) or high (top/right) side of an obstacle.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum SideType {
@@ -169,21 +166,21 @@ impl ObstacleSide {
     pub fn new(side_type: SideType, start: Point, end: Point, obstacle_ordinal: usize) -> Self {
         let dx = end.x() - start.x();
         let dy = end.y() - start.y();
-        let slope = if dx.abs() < SLOPE_EPSILON {
+        let slope = if dx.abs() < 1e-10 {
             f64::INFINITY
         } else {
             dy / dx
         };
-        let slope_inverse = if dy.abs() < SLOPE_EPSILON {
+        let slope_inverse = if dy.abs() < 1e-10 {
             f64::INFINITY
         } else {
             dx / dy
         };
         Self {
             side_type,
-            obstacle_index: obstacle_ordinal,
             start,
             end,
+            obstacle_index: obstacle_ordinal,
             start_key: PolylinePointKey::default(),
             end_key: PolylinePointKey::default(),
             slope,
@@ -195,12 +192,12 @@ impl ObstacleSide {
     /// Kept for backward compatibility with existing tests.
     pub fn scanline_intersection(&self, perp_coord: f64, is_horizontal_scan: bool) -> f64 {
         if is_horizontal_scan {
-            if self.slope.is_infinite() || self.slope.abs() < SLOPE_EPSILON {
+            if self.slope.is_infinite() || self.slope.abs() < 1e-10 {
                 self.start.x()
             } else {
                 self.start.x() + (perp_coord - self.start.y()) * self.slope_inverse
             }
-        } else if self.slope_inverse.is_infinite() || self.slope_inverse.abs() < SLOPE_EPSILON {
+        } else if self.slope_inverse.is_infinite() || self.slope_inverse.abs() < 1e-10 {
             self.start.y()
         } else {
             self.start.y() + (perp_coord - self.start.x()) * self.slope

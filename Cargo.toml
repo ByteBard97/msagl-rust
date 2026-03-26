@@ -8,12 +8,6 @@ edition = "2021"
 description = "Rectilinear edge router for orthogonal graph layouts, ported from Microsoft's MSAGL"
 license = "MIT"
 repository = "https://github.com/ByteBard97/msagl-rust"
-authors = ["Geoffrey Wall"]
-keywords = ["graph-layout", "edge-routing", "rectilinear", "msagl", "orthogonal"]
-categories = ["algorithms", "graphics"]
-readme = "README.md"
-documentation = "https://docs.rs/msagl-rust"
-homepage = "https://github.com/ByteBard97/msagl-rust"
 
 [dependencies]
 ordered-float = "5"
@@ -23,13 +17,6 @@ rstar = "0.12"
 
 [dev-dependencies]
 approx = "0.5"
-criterion = { version = "0.5", features = ["html_reports"] }
-serde = { version = "1", features = ["derive"] }
-serde_json = "1"
-
-[[bench]]
-name = "routing"
-harness = false
 
 [profile.release]
 lto = true

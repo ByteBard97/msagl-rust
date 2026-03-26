@@ -166,7 +166,7 @@ impl Solver {
                 for ci in left_cons {
                     if self.constraints[ci.0].is_active {
                         let right = self.constraints[ci.0].right;
-                        if done_vi.map_or(true, |v| right != v) {
+                        if done_vi.is_none() || right != done_vi.unwrap() {
                             self.constraints[ci.0].lagrangian = 0.0;
                             let child_idx = nodes.len();
                             nodes.push(DfDvNode {
@@ -197,7 +197,7 @@ impl Solver {
                 for ci in right_cons {
                     if self.constraints[ci.0].is_active {
                         let left = self.constraints[ci.0].left;
-                        if done_vi.map_or(true, |v| left != v) {
+                        if done_vi.is_none() || left != done_vi.unwrap() {
                             self.constraints[ci.0].lagrangian = 0.0;
                             let child_idx = nodes.len();
                             nodes.push(DfDvNode {

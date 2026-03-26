@@ -136,15 +136,14 @@ impl Solver {
         let num_cons = self.loaded_constraints.len();
 
         // Set default iteration limits
-        const ITERATION_LIMIT_MULTIPLIER: i32 = 100;
         if self.solver_params.outer_project_iterations_limit < 0 {
             self.solver_params.outer_project_iterations_limit =
-                ITERATION_LIMIT_MULTIPLIER * ((num_vars as f64).log2().floor() as i32 + 1);
+                100 * ((num_vars as f64).log2().floor() as i32 + 1);
         }
         if self.solver_params.inner_project_iterations_limit < 0 {
             self.solver_params.inner_project_iterations_limit =
                 num_cons as i32 * 2
-                    + ITERATION_LIMIT_MULTIPLIER * (std::cmp::max(0, (num_cons as f64).log2().floor() as i32) + 1);
+                    + 100 * (std::cmp::max(0, (num_cons as f64).log2().floor() as i32) + 1);
         }
 
         self.solver_solution = Solution::new();
@@ -233,17 +232,7 @@ impl Solver {
                 .push(ConIndex(ci));
         }
 
-        // Build constraint vector order matching C#: iterate variables in
-        // insertion order, adding each variable's left constraints. This ensures
-        // SearchAllConstraints finds the same most-violated constraint as C#.
-        let mut cv_order: Vec<ConIndex> = Vec::with_capacity(num_cons);
-        for vi in 0..self.variables.len() {
-            for &ci in &self.variables[vi].left_constraints {
-                cv_order.push(ci);
-            }
-        }
-        debug_assert_eq!(cv_order.len(), num_cons, "all constraints must be accounted for");
-        self.constraint_vector = ConstraintVector::with_order(num_cons, cv_order);
+        self.constraint_vector = ConstraintVector::new(num_cons);
     }
 
     /// Main standalone project loop: project then split, repeat.
@@ -299,7 +288,7 @@ impl Solver {
 
     fn remove_block_from_vector(&mut self, bi: BlockIndex) {
         let pos = self.block_vector_indices[bi.0];
-        let last = *self.blocks_order.last().expect("blocks_order must be non-empty");
+        let last = *self.blocks_order.last().unwrap();
         self.blocks_order[pos] = last;
         self.block_vector_indices[last.0] = pos;
         self.blocks_order.pop();

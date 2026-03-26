@@ -8,7 +8,6 @@ pub struct EdgeGeometry {
 }
 
 impl EdgeGeometry {
-    /// Create an edge from `source` to `target` ports.
     pub fn new(source: FloatingPort, target: FloatingPort) -> Self {
         Self { source, target }
     }

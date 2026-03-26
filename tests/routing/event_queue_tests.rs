@@ -51,7 +51,6 @@ fn reflection_events_before_vertex_events_at_same_coord() {
         site: Point::new(3.0, 10.0),
         initial_obstacle: 0,
         reflecting_obstacle: 1,
-        low_side_obstacle: None,
         prev_event_index: None,
     });
     let first = queue.dequeue().unwrap();
@@ -92,14 +91,12 @@ fn site_accessor_works_for_all_variants() {
             site: Point::new(9.0, 10.0),
             initial_obstacle: 0,
             reflecting_obstacle: 1,
-            low_side_obstacle: None,
             prev_event_index: None,
         },
         SweepEvent::HighReflection {
             site: Point::new(11.0, 12.0),
             initial_obstacle: 0,
             reflecting_obstacle: 1,
-            high_side_obstacle: None,
             prev_event_index: None,
         },
     ];

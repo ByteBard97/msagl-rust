@@ -3,9 +3,6 @@ use crate::geometry::rectangle::Rectangle;
 use crate::visibility::graph::{VertexId, VisibilityGraph};
 use super::compass_direction::CompassDirection;
 
-/// Tolerance for axis-aligned collinearity checks.
-const COLLINEARITY_EPSILON: f64 = 1e-10;
-
 /// Utility functions for static visibility-graph analysis.
 ///
 /// Ported from `StaticGraphUtility.ts`.
@@ -62,7 +59,7 @@ impl StaticGraphUtility {
     /// Check if two points share a horizontal or vertical coordinate
     /// (i.e. they are collinear with either axis).
     pub fn is_collinear(a: Point, b: Point) -> bool {
-        (a.x() - b.x()).abs() < COLLINEARITY_EPSILON || (a.y() - b.y()).abs() < COLLINEARITY_EPSILON
+        (a.x() - b.x()).abs() < 1e-10 || (a.y() - b.y()).abs() < 1e-10
     }
 
     /// Find the out-edge from `vertex` in the given direction.

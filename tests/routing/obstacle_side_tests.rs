@@ -3,8 +3,6 @@ use msagl_rust::routing::scan_direction::ScanDirection;
 use msagl_rust::geometry::polyline::Polyline;
 use msagl_rust::Point;
 
-// --- Legacy constructor tests ---
-
 #[test]
 fn low_side_has_correct_slope() {
     let side = ObstacleSide::new(
@@ -84,7 +82,7 @@ fn scanline_intersection_diagonal_side() {
     assert!((side.scanline_intersection(5.0, false) - 5.0).abs() < 1e-10);
 }
 
-// --- Polyline-based ObstacleSide tests ---
+// --- Task 2: Polyline-based ObstacleSide tests ---
 
 #[test]
 fn obstacle_side_low_traverses_clockwise_for_hscan() {
@@ -213,39 +211,4 @@ fn obstacle_side_direction_vector() {
     let dir = side.direction();
     assert!((dir.x() - 0.0).abs() < 1e-10);
     assert!((dir.y() - 100.0).abs() < 1e-10);
-}
-
-#[test]
-fn scanline_intersect_with_scan_direction() {
-    // Vertical side from (10, 0) to (10, 100)
-    let mut poly = Polyline::new();
-    let p0 = poly.add_point(Point::new(10.0, 0.0));
-    let _p1 = poly.add_point(Point::new(10.0, 100.0));
-    let _p2 = poly.add_point(Point::new(110.0, 100.0));
-    let _p3 = poly.add_point(Point::new(110.0, 0.0));
-    poly.set_closed(true);
-
-    let side = ObstacleSide::from_polyline_point(
-        SideType::Low, 0, p0, &poly, ScanDirection::horizontal(),
-    );
-
-    // Intersect at y=50 (horizontal scan)
-    let intersect = side.scanline_intersect(
-        Point::new(0.0, 50.0),
-        ScanDirection::horizontal(),
-    );
-    assert!((intersect.x() - 10.0).abs() < 1e-6);
-    assert!((intersect.y() - 50.0).abs() < 1e-6);
-}
-
-#[test]
-fn obstacle_index_alias() {
-    let side = ObstacleSide::new(
-        SideType::Low,
-        Point::new(0.0, 0.0),
-        Point::new(10.0, 0.0),
-        42,
-    );
-    assert_eq!(side.obstacle_index(), 42);
-    assert_eq!(side.obstacle_ordinal(), 42);
 }

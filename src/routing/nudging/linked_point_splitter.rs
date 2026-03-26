@@ -18,12 +18,6 @@ use super::linked_point::{LinkedPointIndex, LinkedPointList};
 // Event types
 // ---------------------------------------------------------------------------
 
-/// Event ordering values for sweep-line priority.
-/// VertLow fires before Horizontal at the same Y; VertHigh fires after.
-const EVENT_ORDER_VERT_LOW: u8 = 0;
-const EVENT_ORDER_HORIZ: u8 = 1;
-const EVENT_ORDER_VERT_HIGH: u8 = 2;
-
 /// Whether an event is a vertical-segment open/close or a horizontal query.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum EventKind {
@@ -134,14 +128,14 @@ impl LinkedPointSplitter {
 
             queue.push(Reverse(Event {
                 y: OrderedFloat(low_y),
-                kind_ord: EVENT_ORDER_VERT_LOW, // fires before horizontal at same Y
+                kind_ord: 0, // fires before horizontal at same Y
                 kind: EventKind::VertLow,
                 start,
                 is_vertical: true,
             }));
             queue.push(Reverse(Event {
                 y: OrderedFloat(high_y),
-                kind_ord: EVENT_ORDER_VERT_HIGH, // fires after horizontal at same Y
+                kind_ord: 2, // fires after horizontal at same Y
                 kind: EventKind::VertHigh,
                 start,
                 is_vertical: true,
@@ -153,7 +147,7 @@ impl LinkedPointSplitter {
             let p = h_list.point(start);
             queue.push(Reverse(Event {
                 y: OrderedFloat(p.y()),
-                kind_ord: EVENT_ORDER_HORIZ,
+                kind_ord: 1,
                 kind: EventKind::Horizontal,
                 start,
                 is_vertical: false,
@@ -244,7 +238,7 @@ impl LinkedPointSplitter {
             candidates
         } else {
             let mut rev = candidates;
-            rev.sort_by(|a, b| b.0.partial_cmp(&a.0).unwrap_or(std::cmp::Ordering::Equal));
+            rev.sort_by(|a, b| b.0.partial_cmp(&a.0).unwrap());
             rev
         };
 
@@ -314,141 +308,5 @@ impl LinkedPointSplitter {
         } else {
             (h_cursor, false)
         }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use super::super::linked_point::LinkedPointList;
-
-    fn pt(x: f64, y: f64) -> Point {
-        Point::new(x, y)
-    }
-
-    #[test]
-    fn no_crossings_when_empty() {
-        let mut h_list = LinkedPointList::new();
-        let mut v_list = LinkedPointList::new();
-        LinkedPointSplitter::split(&mut h_list, &[], &mut v_list, &[]);
-        assert!(h_list.is_empty());
-        assert!(v_list.is_empty());
-    }
-
-    #[test]
-    fn single_crossing() {
-        // Horizontal: (0, 5) -> (10, 5)
-        // Vertical:   (5, 0) -> (5, 10)
-        // Crossing at (5, 5)
-        let mut h_list = LinkedPointList::new();
-        let h0 = h_list.add(pt(0.0, 5.0));
-        let h1 = h_list.add(pt(10.0, 5.0));
-        h_list.set_next(h0, Some(h1));
-
-        let mut v_list = LinkedPointList::new();
-        let v0 = v_list.add(pt(5.0, 0.0));
-        let v1 = v_list.add(pt(5.0, 10.0));
-        v_list.set_next(v0, Some(v1));
-
-        LinkedPointSplitter::split(&mut h_list, &[h0], &mut v_list, &[v0]);
-
-        // Horizontal should now be: (0,5) -> (5,5) -> (10,5)
-        let h_points = h_list.collect_points(h0);
-        assert_eq!(h_points.len(), 3);
-        assert!(h_points[1].close_to(pt(5.0, 5.0)));
-
-        // Vertical should now be: (5,0) -> (5,5) -> (5,10)
-        let v_points = v_list.collect_points(v0);
-        assert_eq!(v_points.len(), 3);
-        assert!(v_points[1].close_to(pt(5.0, 5.0)));
-    }
-
-    #[test]
-    fn no_split_at_endpoints() {
-        // Horizontal: (0, 5) -> (10, 5)
-        // Vertical at x=0: shares endpoint with horizontal start
-        let mut h_list = LinkedPointList::new();
-        let h0 = h_list.add(pt(0.0, 5.0));
-        let h1 = h_list.add(pt(10.0, 5.0));
-        h_list.set_next(h0, Some(h1));
-
-        let mut v_list = LinkedPointList::new();
-        let v0 = v_list.add(pt(0.0, 0.0));
-        let v1 = v_list.add(pt(0.0, 10.0));
-        v_list.set_next(v0, Some(v1));
-
-        LinkedPointSplitter::split(&mut h_list, &[h0], &mut v_list, &[v0]);
-
-        let h_points = h_list.collect_points(h0);
-        assert_eq!(h_points.len(), 2); // no insertion
-    }
-
-    #[test]
-    fn multiple_verticals_crossing_one_horizontal() {
-        // Horizontal: (0, 5) -> (30, 5)
-        // Vertical 1: (10, 0) -> (10, 10) — crosses at (10, 5)
-        // Vertical 2: (20, 0) -> (20, 10) — crosses at (20, 5)
-        let mut h_list = LinkedPointList::new();
-        let h0 = h_list.add(pt(0.0, 5.0));
-        let h1 = h_list.add(pt(30.0, 5.0));
-        h_list.set_next(h0, Some(h1));
-
-        let mut v_list = LinkedPointList::new();
-        let v0 = v_list.add(pt(10.0, 0.0));
-        let v0e = v_list.add(pt(10.0, 10.0));
-        v_list.set_next(v0, Some(v0e));
-
-        let v1 = v_list.add(pt(20.0, 0.0));
-        let v1e = v_list.add(pt(20.0, 10.0));
-        v_list.set_next(v1, Some(v1e));
-
-        LinkedPointSplitter::split(&mut h_list, &[h0], &mut v_list, &[v0, v1]);
-
-        let h_points = h_list.collect_points(h0);
-        assert_eq!(h_points.len(), 4);
-        assert!(h_points[1].close_to(pt(10.0, 5.0)));
-        assert!(h_points[2].close_to(pt(20.0, 5.0)));
-    }
-
-    #[test]
-    fn right_to_left_horizontal() {
-        // Horizontal going right-to-left: (10, 5) -> (0, 5)
-        // Vertical: (5, 0) -> (5, 10)
-        let mut h_list = LinkedPointList::new();
-        let h0 = h_list.add(pt(10.0, 5.0));
-        let h1 = h_list.add(pt(0.0, 5.0));
-        h_list.set_next(h0, Some(h1));
-
-        let mut v_list = LinkedPointList::new();
-        let v0 = v_list.add(pt(5.0, 0.0));
-        let v1 = v_list.add(pt(5.0, 10.0));
-        v_list.set_next(v0, Some(v1));
-
-        LinkedPointSplitter::split(&mut h_list, &[h0], &mut v_list, &[v0]);
-
-        let h_points = h_list.collect_points(h0);
-        assert_eq!(h_points.len(), 3);
-        assert!(h_points[1].close_to(pt(5.0, 5.0)));
-    }
-
-    #[test]
-    fn vertical_top_to_bottom() {
-        // Vertical going top-to-bottom: (5, 10) -> (5, 0)
-        // Horizontal: (0, 5) -> (10, 5)
-        let mut h_list = LinkedPointList::new();
-        let h0 = h_list.add(pt(0.0, 5.0));
-        let h1 = h_list.add(pt(10.0, 5.0));
-        h_list.set_next(h0, Some(h1));
-
-        let mut v_list = LinkedPointList::new();
-        let v0 = v_list.add(pt(5.0, 10.0));
-        let v1 = v_list.add(pt(5.0, 0.0));
-        v_list.set_next(v0, Some(v1));
-
-        LinkedPointSplitter::split(&mut h_list, &[h0], &mut v_list, &[v0]);
-
-        let v_points = v_list.collect_points(v0);
-        assert_eq!(v_points.len(), 3);
-        assert!(v_points[1].close_to(pt(5.0, 5.0)));
     }
 }

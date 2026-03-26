@@ -4,7 +4,6 @@ use crate::geometry::point_comparer::GeomConstants;
 use crate::geometry::polyline::Polyline;
 use crate::geometry::rectangle::Rectangle;
 use super::obstacle_side::{ObstacleSide, SideType};
-use super::overlap_convex_hull::OverlapConvexHull;
 use super::scan_direction::ScanDirection;
 use super::shape::Shape;
 
@@ -36,15 +35,6 @@ pub struct Obstacle {
     active_low_side: Option<ObstacleSide>,
     /// Active high side (set during sweep).
     active_high_side: Option<ObstacleSide>,
-    /// Convex hull this obstacle belongs to, if overlapping with others.
-    /// Matches TS `Obstacle.ConvexHull`.
-    convex_hull: Option<OverlapConvexHull>,
-    /// Clump of overlapping rectangular obstacles (indices).
-    /// Matches TS `Obstacle.clump`.
-    clump: Vec<usize>,
-    /// Whether this obstacle overlaps a group corner.
-    /// Matches TS `Obstacle.OverlapsGroupCorner`.
-    pub overlaps_group_corner: bool,
 }
 
 impl Obstacle {
@@ -93,9 +83,6 @@ impl Obstacle {
             is_sentinel: false,
             active_low_side: None,
             active_high_side: None,
-            convex_hull: None,
-            clump: Vec::new(),
-            overlaps_group_corner: false,
         }
     }
 
@@ -122,13 +109,10 @@ impl Obstacle {
             padded_bbox: bbox,
             padded_polyline: poly,
             padding: 0.0,
-            is_rectangle: false,
             is_sentinel: true,
+            is_rectangle: false,
             active_low_side: None,
             active_high_side: None,
-            convex_hull: None,
-            clump: Vec::new(),
-            overlaps_group_corner: false,
         }
     }
 
@@ -163,82 +147,6 @@ impl Obstacle {
     /// Matches TS `Obstacle.IsRectangle`.
     pub fn is_rectangle(&self) -> bool {
         self.is_rectangle
-    }
-
-    /// Whether this obstacle is inside a convex hull.
-    /// Matches TS `Obstacle.IsInConvexHull`.
-    pub fn is_in_convex_hull(&self) -> bool {
-        self.convex_hull.is_some()
-    }
-
-    /// Whether this obstacle is the primary representative in its convex hull.
-    /// Only the primary obstacle participates in the visibility graph hierarchy.
-    ///
-    /// Matches TS `Obstacle.IsPrimaryObstacle`.
-    pub fn is_primary_obstacle(&self) -> bool {
-        match &self.convex_hull {
-            None => true,
-            Some(hull) => hull.primary_obstacle_index() == self.index,
-        }
-    }
-
-    /// The polyline used for visibility graph generation.
-    /// If in a convex hull, returns the hull polyline; otherwise the padded polyline.
-    ///
-    /// Matches TS `Obstacle.VisibilityPolyline`.
-    pub fn visibility_polyline(&self) -> &Polyline {
-        match &self.convex_hull {
-            Some(hull) => &hull.polyline,
-            None => &self.padded_polyline,
-        }
-    }
-
-    /// The bounding box of the visibility polyline.
-    /// Matches TS `Obstacle.VisibilityBoundingBox`.
-    pub fn visibility_bounding_box(&self) -> Rectangle {
-        self.visibility_polyline().bounding_box()
-    }
-
-    /// Whether this obstacle is overlapped (in a clump).
-    /// Matches TS `Obstacle.isOverlapped`.
-    pub fn is_overlapped(&self) -> bool {
-        !self.clump.is_empty()
-    }
-
-    /// Whether this obstacle is in the same clump as another.
-    /// Matches TS `Obstacle.IsInSameClump`.
-    pub fn is_in_same_clump(&self, other: &Obstacle) -> bool {
-        self.is_overlapped() && self.clump == other.clump
-    }
-
-    /// Get the clump indices this obstacle belongs to.
-    pub fn clump(&self) -> &[usize] {
-        &self.clump
-    }
-
-    /// Set the clump for this obstacle.
-    pub fn set_clump(&mut self, clump: Vec<usize>) {
-        self.clump = clump;
-    }
-
-    /// Get the convex hull this obstacle belongs to.
-    pub fn convex_hull(&self) -> Option<&OverlapConvexHull> {
-        self.convex_hull.as_ref()
-    }
-
-    /// Set the convex hull for this obstacle.
-    ///
-    /// Matches TS `Obstacle.SetConvexHull(hull)`.
-    /// Clears any existing clump and marks as non-rectangular.
-    pub fn set_convex_hull(&mut self, hull: OverlapConvexHull) {
-        self.clump.clear();
-        self.is_rectangle = false;
-        self.convex_hull = Some(hull);
-    }
-
-    /// Clear the convex hull.
-    pub fn clear_convex_hull(&mut self) {
-        self.convex_hull = None;
     }
 
     pub fn active_low_side(&self) -> Option<&ObstacleSide> {

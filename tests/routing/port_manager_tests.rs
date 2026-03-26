@@ -53,7 +53,7 @@ fn splice_and_route_between_obstacles() {
     let mut tgt_splice = PortManager::splice_port(&mut graph, target);
 
     let search = PathSearch::new(4.0);
-    let path = search.find_path(&mut graph, source, target);
+    let path = search.find_path(&graph, source, target);
     assert!(path.is_some(), "should find path between spliced ports");
 
     let pts = path.unwrap();
@@ -84,7 +84,7 @@ fn full_pipeline_shapes_to_path() {
     let mut tgt_splice = PortManager::splice_port(&mut graph, target);
 
     let search = PathSearch::new(4.0);
-    let path = search.find_path(&mut graph, source, target);
+    let path = search.find_path(&graph, source, target);
     assert!(path.is_some(), "full pipeline should find a path");
 
     let pts = path.unwrap();
