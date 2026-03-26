@@ -9,3 +9,7 @@ crates/msagl-python/target/
 *.so
 *.pyd
 .claude/
+
+# C# benchmark build artifacts
+benches/bench_csharp/bin/
+benches/bench_csharp/obj/
