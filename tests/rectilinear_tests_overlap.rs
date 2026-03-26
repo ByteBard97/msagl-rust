@@ -166,7 +166,6 @@ fn adjoining_rectangles_both() {
 /// Port: AdjoiningObstacles_DipToOverlapped
 /// Adjoining obstacles with overlaps and collinear CloseVertexEvents.
 #[test]
-#[ignore = "adjoining overlap routing fails path verification"]
 fn adjoining_obstacles_dip_to_overlapped() {
     let mut b = ScenarioBuilder::new();
     // Big rectangle in the middle
@@ -199,7 +198,6 @@ fn adjoining_obstacles_dip_to_overlapped_collinear_close_open() {
 /// Semi-landlocked obstacle with a border collinear with an overlapped border.
 /// Uses diamonds and pentagons (non-rectangular) — requires convex hull support.
 #[test]
-#[ignore = "requires non-rectangular polygon / convex hull support"]
 fn landlocked_overlap_side_non_adjoining() {
     // C# uses diamond (4 points) and pentagon (5 points) shapes.
     // Our Shape type only supports rectangles currently.
@@ -216,7 +214,7 @@ fn landlocked_overlap_side_non_adjoining() {
 /// Obstacle with a border sharing part of an overlapped obstacle's border.
 /// Uses diamonds (non-rectangular) — requires convex hull support.
 #[test]
-#[ignore = "requires non-rectangular polygon / convex hull support"]
+#[ignore = "produces diagonal segments in bounding-box-approximated non-rect obstacle"]
 fn landlocked_overlap_side_adjoining() {
     let mut b = ScenarioBuilder::new();
     b.add_rectangle_corners(0.0, 20.0, 60.0, 80.0);
@@ -249,21 +247,18 @@ fn overlapped_obstacles_in_middle_of_bottom_adjoining_unpadded_inside() {
 
 /// Port: OverlappedObstacles_InMiddleOfBottom_AdjoiningPadded_Inside
 #[test]
-#[ignore = "padded overlap routing fails path verification"]
 fn overlapped_obstacles_in_middle_of_bottom_adjoining_padded_inside() {
     overlapped_obstacles_in_middle_of_bottom_worker(true, false);
 }
 
 /// Port: OverlappedObstacles_InMiddleOfBottom_AdjoiningUnpadded_Outside
 #[test]
-#[ignore = "outside overlap routing produces paths through obstacles"]
 fn overlapped_obstacles_in_middle_of_bottom_adjoining_unpadded_outside() {
     overlapped_obstacles_in_middle_of_bottom_worker(false, true);
 }
 
 /// Port: OverlappedObstacles_InMiddleOfBottom_AdjoiningPadded_Outside
 #[test]
-#[ignore = "outside overlap routing produces paths through obstacles"]
 fn overlapped_obstacles_in_middle_of_bottom_adjoining_padded_outside() {
     overlapped_obstacles_in_middle_of_bottom_worker(true, true);
 }
@@ -370,7 +365,6 @@ fn flat_bottom_fully_overlapped_worker(dup: bool) {
 /// Port: FlatBottom_FullyOverlapped_WithAdjoiningOverlapNeighbors
 /// Flatbottom fully overlapped by 3 adjoining obstacles sharing padded borders.
 #[test]
-#[ignore = "fully overlapped flat-bottom routing fails path verification"]
 fn flat_bottom_fully_overlapped_with_adjoining_overlap_neighbors() {
     flat_bottom_fully_overlapped_worker(false);
 }
@@ -378,7 +372,6 @@ fn flat_bottom_fully_overlapped_with_adjoining_overlap_neighbors() {
 /// Port: FlatBottom_FullyOverlapped_WithDupAdjoiningOverlapNeighbors
 /// Same as above but with duplicate overlapping obstacles at left and right corners.
 #[test]
-#[ignore = "fully overlapped flat-bottom routing fails path verification"]
 fn flat_bottom_fully_overlapped_with_dup_adjoining_overlap_neighbors() {
     flat_bottom_fully_overlapped_worker(true);
 }
@@ -449,7 +442,6 @@ fn overlap_gaps_on_all_boundaries_worker(
 /// Port: Overlap_Gaps_On_All_Boundaries_TargetUpperLeft
 /// Create gaps in border visibility and verify routing still works.
 #[test]
-#[ignore = "overlap gap routing produces diagonal segments"]
 fn overlap_gaps_on_all_boundaries_target_upper_left() {
     overlap_gaps_on_all_boundaries_worker(25.0, 115.0, 35.0, 125.0);
 }

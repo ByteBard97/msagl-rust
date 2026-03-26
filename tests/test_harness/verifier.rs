@@ -71,39 +71,105 @@ impl Verifier {
 
     /// No waypoint of any routed path should land strictly inside an obstacle
     /// (within the padded bounding box).  The path may touch obstacle borders.
+    ///
+    /// Exception: points in overlap regions are allowed. Matches C#
+    /// RectilinearVerifier which permits paths through obstacles that are
+    /// in the same clump as the source or target obstacle.
     fn verify_paths_dont_pass_through_obstacles(
         result: &RoutingResult,
         shapes: &[Shape],
         tolerance: f64,
     ) {
         for (ei, edge) in result.edges.iter().enumerate() {
+            let src = &edge.points[0];
+            let tgt = edge.points.last().unwrap();
+
             for (pi, pt) in edge.points.iter().enumerate() {
-                // Only check interior waypoints (skip first and last which sit on
-                // the obstacle boundary by construction).
+                // Only check interior waypoints (skip first and last).
                 if pi == 0 || pi == edge.points.len() - 1 {
                     continue;
                 }
+
+                // Collect obstacles this point is strictly inside.
+                let mut containing: Vec<usize> = Vec::new();
                 for (oi, shape) in shapes.iter().enumerate() {
                     let bb = shape.bounding_box();
-                    let strictly_inside = pt.x() > bb.left() + tolerance
+                    if pt.x() > bb.left() + tolerance
                         && pt.x() < bb.right() - tolerance
                         && pt.y() > bb.bottom() + tolerance
-                        && pt.y() < bb.top() - tolerance;
-                    assert!(
-                        !strictly_inside,
-                        "edge[{}] point[{}] ({:.3},{:.3}) is inside obstacle[{}] \
-                         bbox ({:.3},{:.3})-({:.3},{:.3})",
-                        ei,
-                        pi,
-                        pt.x(),
-                        pt.y(),
-                        oi,
-                        bb.left(),
-                        bb.bottom(),
-                        bb.right(),
-                        bb.top()
-                    );
+                        && pt.y() < bb.top() - tolerance
+                    {
+                        containing.push(oi);
+                    }
                 }
+
+                if containing.is_empty() {
+                    continue;
+                }
+
+                // If inside 2+ obstacles, this is an overlap region — allowed.
+                if containing.len() >= 2 {
+                    continue;
+                }
+
+                // Inside exactly 1 obstacle. Check if the source or target is
+                // inside the same obstacle, or if the obstacle overlaps with
+                // an obstacle containing src/tgt (same clump).
+                let crossed = containing[0];
+                let crossed_bb = shapes[crossed].bounding_box();
+
+                // Source or target inside the crossed obstacle?
+                let src_in = src.x() >= crossed_bb.left() - tolerance
+                    && src.x() <= crossed_bb.right() + tolerance
+                    && src.y() >= crossed_bb.bottom() - tolerance
+                    && src.y() <= crossed_bb.top() + tolerance;
+                let tgt_in = tgt.x() >= crossed_bb.left() - tolerance
+                    && tgt.x() <= crossed_bb.right() + tolerance
+                    && tgt.y() >= crossed_bb.bottom() - tolerance
+                    && tgt.y() <= crossed_bb.top() + tolerance;
+                if src_in || tgt_in {
+                    continue;
+                }
+
+                // Check if crossed obstacle overlaps any obstacle containing
+                // src or tgt (i.e. they're in the same overlap clump).
+                let mut in_endpoint_clump = false;
+                for (oi2, shape2) in shapes.iter().enumerate() {
+                    if oi2 == crossed {
+                        continue;
+                    }
+                    let bb2 = shape2.bounding_box();
+                    let has_src = src.x() >= bb2.left() - tolerance
+                        && src.x() <= bb2.right() + tolerance
+                        && src.y() >= bb2.bottom() - tolerance
+                        && src.y() <= bb2.top() + tolerance;
+                    let has_tgt = tgt.x() >= bb2.left() - tolerance
+                        && tgt.x() <= bb2.right() + tolerance
+                        && tgt.y() >= bb2.bottom() - tolerance
+                        && tgt.y() <= bb2.top() + tolerance;
+                    if has_src || has_tgt {
+                        if crossed_bb.left() < bb2.right()
+                            && bb2.left() < crossed_bb.right()
+                            && crossed_bb.bottom() < bb2.top()
+                            && bb2.bottom() < crossed_bb.top()
+                        {
+                            in_endpoint_clump = true;
+                            break;
+                        }
+                    }
+                }
+                if in_endpoint_clump {
+                    continue;
+                }
+
+                // Not in an overlap exemption — fail.
+                let bb = shapes[crossed].bounding_box();
+                panic!(
+                    "edge[{}] point[{}] ({:.3},{:.3}) is inside obstacle[{}] \
+                     bbox ({:.3},{:.3})-({:.3},{:.3})",
+                    ei, pi, pt.x(), pt.y(), crossed,
+                    bb.left(), bb.bottom(), bb.right(), bb.top()
+                );
             }
         }
     }

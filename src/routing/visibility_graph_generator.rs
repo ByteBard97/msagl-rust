@@ -289,18 +289,19 @@ fn process_close_vertex(
     );
 }
 
-/// Create scan segments at an event by enumerating ALL gaps between consecutive
-/// sides on the scanline.
+/// Create scan segments at an event.
 ///
-/// The MSAGL TS VisibilityGraphGenerator creates segments spanning the full
-/// graph bounding box at each event coordinate, with gaps only where obstacles
-/// block. This is critical: without full-width segments, ports at coordinates
-/// that don't coincide with an obstacle boundary won't have VG vertices to
-/// connect to.
+/// Faithful port of C# FullVisibilityGraphGenerator.CreateScanSegments
+/// (lines 210-283). Creates normal segments in open-space gaps between
+/// obstacles, and overlapped segments through overlap regions where
+/// multiple obstacle interiors intersect.
 ///
-/// A "gap" is the space between a High side (right/top boundary of an obstacle,
-/// facing inward) and the next Low side (left/bottom boundary, facing inward).
-/// Between these two sides there is open space where a scan segment should exist.
+/// Uses a depth counter to track how many obstacle interiors we're inside:
+/// - depth == 0: open space → Normal segment
+/// - depth > 0: inside obstacle interior(s) → Overlapped segment
+///
+/// A Low side increments depth (entering an obstacle). A High side
+/// decrements depth (leaving). Sentinels are excluded from depth tracking.
 fn create_scan_segments_at_event(
     site: Point,
     _low_coord: f64,
@@ -312,20 +313,60 @@ fn create_scan_segments_at_event(
     let perp = scan_direction.perp_coord(site);
     let all_sides = scan_line.all_sides_ordered();
 
-    // Walk consecutive pairs. A gap exists between a High side and the next Low side.
-    // Sentinel sides are: left/bottom sentinel has SideType::High, right/top has SideType::Low.
-    // So the pattern is: High(sentinel) ... Low(obs) High(obs) ... Low(obs) High(obs) ... Low(sentinel)
-    // Gaps are between each High and the following Low.
+    if all_sides.len() < 2 {
+        return;
+    }
+
+    // Track depth: how many obstacle interiors we're inside.
+    // At depth 0, we're in open space. At depth >= 1, we're inside at least
+    // one obstacle. At depth >= 2, we're in an overlap region.
+    let mut depth: i32 = 0;
+
     for pair in all_sides.windows(2) {
         let left = pair[0];
         let right = pair[1];
 
-        if left.side_type() == SideType::High && right.side_type() == SideType::Low {
-            let start_coord = side_scan_coord_from_side(left, scan_direction);
-            let end_coord = side_scan_coord_from_side(right, scan_direction);
-            add_segment_if_valid(start_coord, end_coord, perp, scan_direction, seg_tree);
+        // Update depth based on the left side type.
+        // Sentinels don't affect depth.
+        if !is_sentinel_side(left) {
+            match left.side_type() {
+                SideType::Low => depth += 1,  // Entering obstacle interior
+                SideType::High => depth -= 1, // Leaving obstacle interior
+            }
         }
+
+        let start_coord = side_scan_coord_from_side(left, scan_direction);
+        let end_coord = side_scan_coord_from_side(right, scan_direction);
+
+        if GeomConstants::close(start_coord, end_coord) || end_coord <= start_coord {
+            continue;
+        }
+
+        let start = scan_direction.make_point(start_coord, perp);
+        let end = scan_direction.make_point(end_coord, perp);
+        let is_vertical = scan_direction.is_vertical();
+
+        if depth <= 0 {
+            // Open space: normal segment
+            seg_tree.insert_unique(ScanSegment::new(
+                start, end, SegmentWeight::Normal, is_vertical,
+            ));
+        } else if depth >= 2 {
+            // Overlap region (inside 2+ obstacles): overlapped segment.
+            // This provides connectivity through overlap regions with a
+            // high weight penalty (500x normal), matching C# behavior.
+            seg_tree.insert_unique(ScanSegment::new(
+                start, end, SegmentWeight::Overlapped, is_vertical,
+            ));
+        }
+        // depth == 1: inside exactly one obstacle. No segment created.
+        // This is the obstacle interior — paths should go around.
     }
+}
+
+/// Check if an obstacle side belongs to a sentinel (boundary marker).
+fn is_sentinel_side(side: &ObstacleSide) -> bool {
+    side.obstacle_ordinal() < Obstacle::FIRST_NON_SENTINEL_ORDINAL
 }
 
 /// Add a scan segment if start != end.
