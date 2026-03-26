@@ -82,7 +82,7 @@ impl Curve {
             curve.add_line(pair[0], pair[1]);
         }
         if poly.is_closed() && points.len() >= 2 {
-            curve.add_line(*points.last().unwrap(), points[0]);
+            curve.add_line(*points.last().expect("points must have at least 2 elements"), points[0]);
         }
         curve
     }

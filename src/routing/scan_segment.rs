@@ -24,12 +24,15 @@ pub enum SegmentWeight {
     Overlapped,
 }
 
+const REFLECTION_WEIGHT: u32 = 5;
+const OVERLAPPED_WEIGHT: u32 = 500;
+
 impl SegmentWeight {
     pub fn value(self) -> u32 {
         match self {
             Self::Normal => 1,
-            Self::Reflection => 5,
-            Self::Overlapped => 500,
+            Self::Reflection => REFLECTION_WEIGHT,
+            Self::Overlapped => OVERLAPPED_WEIGHT,
         }
     }
 }

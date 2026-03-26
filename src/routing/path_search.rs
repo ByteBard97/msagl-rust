@@ -500,11 +500,11 @@ impl PathSearch {
         let mut filtered = Vec::with_capacity(pts.len());
         filtered.push(pts[0]);
         for i in 1..pts.len() - 1 {
-            let d1 = CompassDirection::from_points(*filtered.last().unwrap(), pts[i]);
+            let d1 = CompassDirection::from_points(*filtered.last().expect("filtered must be non-empty after initial push"), pts[i]);
             let d2 = CompassDirection::from_points(pts[i], pts[i + 1]);
             if d1 != d2 { filtered.push(pts[i]); }
         }
-        filtered.push(*pts.last().unwrap());
+        filtered.push(*pts.last().expect("points must be non-empty"));
         filtered
     }
 }

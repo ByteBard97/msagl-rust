@@ -18,6 +18,12 @@ use super::linked_point::{LinkedPointIndex, LinkedPointList};
 // Event types
 // ---------------------------------------------------------------------------
 
+/// Event ordering values for sweep-line priority.
+/// VertLow fires before Horizontal at the same Y; VertHigh fires after.
+const EVENT_ORDER_VERT_LOW: u8 = 0;
+const EVENT_ORDER_HORIZ: u8 = 1;
+const EVENT_ORDER_VERT_HIGH: u8 = 2;
+
 /// Whether an event is a vertical-segment open/close or a horizontal query.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum EventKind {
@@ -128,14 +134,14 @@ impl LinkedPointSplitter {
 
             queue.push(Reverse(Event {
                 y: OrderedFloat(low_y),
-                kind_ord: 0, // fires before horizontal at same Y
+                kind_ord: EVENT_ORDER_VERT_LOW, // fires before horizontal at same Y
                 kind: EventKind::VertLow,
                 start,
                 is_vertical: true,
             }));
             queue.push(Reverse(Event {
                 y: OrderedFloat(high_y),
-                kind_ord: 2, // fires after horizontal at same Y
+                kind_ord: EVENT_ORDER_VERT_HIGH, // fires after horizontal at same Y
                 kind: EventKind::VertHigh,
                 start,
                 is_vertical: true,
@@ -147,7 +153,7 @@ impl LinkedPointSplitter {
             let p = h_list.point(start);
             queue.push(Reverse(Event {
                 y: OrderedFloat(p.y()),
-                kind_ord: 1,
+                kind_ord: EVENT_ORDER_HORIZ,
                 kind: EventKind::Horizontal,
                 start,
                 is_vertical: false,
