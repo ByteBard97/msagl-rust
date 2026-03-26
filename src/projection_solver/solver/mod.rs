@@ -232,7 +232,17 @@ impl Solver {
                 .push(ConIndex(ci));
         }
 
-        self.constraint_vector = ConstraintVector::new(num_cons);
+        // Build constraint vector order matching C#: iterate variables in
+        // insertion order, adding each variable's left constraints. This ensures
+        // SearchAllConstraints finds the same most-violated constraint as C#.
+        let mut cv_order: Vec<ConIndex> = Vec::with_capacity(num_cons);
+        for vi in 0..self.variables.len() {
+            for &ci in &self.variables[vi].left_constraints {
+                cv_order.push(ci);
+            }
+        }
+        debug_assert_eq!(cv_order.len(), num_cons, "all constraints must be accounted for");
+        self.constraint_vector = ConstraintVector::with_order(num_cons, cv_order);
     }
 
     /// Main standalone project loop: project then split, repeat.

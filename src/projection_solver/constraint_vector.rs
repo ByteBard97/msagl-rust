@@ -75,12 +75,12 @@ impl ConstraintVector {
     }
 
     /// Reset all constraints to inactive (for QPSC block reinitialization).
+    /// Matches C#'s Reinitialize: resets the active/inactive boundary
+    /// without reordering. The constraint order in the vector reflects
+    /// any swaps from prior activate/deactivate calls.
     pub fn reinitialize(&mut self) {
         self.first_active = self.order.len();
-        // Restore identity mapping
-        for i in 0..self.order.len() {
-            self.order[i] = ConIndex(i);
-            self.positions[i] = i;
-        }
+        // Note: C# does NOT reorder the array, it just resets the boundary.
+        // The order reflects prior activate/deactivate swaps, matching C#.
     }
 }
