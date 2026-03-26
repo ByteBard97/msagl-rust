@@ -1,8 +1,10 @@
 use super::edge::VisEdge;
 use crate::geometry::point::Point;
+use crate::geometry::point_comparer::GeomConstants;
 use crate::routing::compass_direction::CompassDirection;
 use crate::routing::vertex_entry::VertexEntryIndex;
-use std::collections::{BTreeSet, HashMap};
+use ordered_float::OrderedFloat;
+use std::collections::{BTreeMap, BTreeSet, HashMap};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct VertexId(pub usize);
@@ -20,6 +22,11 @@ pub struct VertexData {
 pub struct VisibilityGraph {
     vertices: Vec<VertexData>,
     point_to_vertex: HashMap<Point, VertexId>,
+    /// Coordinate index: X -> set of Y coordinates at that X.
+    /// Enables O(log n) spatial queries for finding nearest perpendicular VG lines.
+    x_to_ys: BTreeMap<OrderedFloat<f64>, BTreeSet<OrderedFloat<f64>>>,
+    /// Coordinate index: Y -> set of X coordinates at that Y.
+    y_to_xs: BTreeMap<OrderedFloat<f64>, BTreeSet<OrderedFloat<f64>>>,
 }
 
 impl VisibilityGraph {
@@ -27,6 +34,8 @@ impl VisibilityGraph {
         Self {
             vertices: Vec::new(),
             point_to_vertex: HashMap::new(),
+            x_to_ys: BTreeMap::new(),
+            y_to_xs: BTreeMap::new(),
         }
     }
 
@@ -45,6 +54,11 @@ impl VisibilityGraph {
             vertex_entries: [None; 4],
         });
         self.point_to_vertex.insert(point, id);
+        // Update coordinate indices
+        let xk = OrderedFloat(GeomConstants::round(point.x()));
+        let yk = OrderedFloat(GeomConstants::round(point.y()));
+        self.x_to_ys.entry(xk).or_default().insert(yk);
+        self.y_to_xs.entry(yk).or_default().insert(xk);
         id
     }
 
@@ -217,6 +231,312 @@ impl VisibilityGraph {
         for vd in &mut self.vertices {
             vd.vertex_entries = [None; 4];
         }
+    }
+
+    /// Find the nearest live vertex in the given compass direction from `location`.
+    ///
+    /// Uses coordinate indices for O(log V) lookup instead of O(V) vertex scanning.
+    /// For East/West: finds the nearest X coordinate in that direction at the same Y,
+    /// then looks up the vertex via the point-to-vertex HashMap.
+    /// For North/South: finds the nearest Y coordinate in that direction at the same X,
+    /// then looks up the vertex via the point-to-vertex HashMap.
+    ///
+    /// If the port is not on an exact VG line, finds the nearest perpendicular VG
+    /// line in the search direction and returns the vertex closest to the port on
+    /// that line.
+    pub fn find_nearest_vertex_in_direction(
+        &self,
+        location: Point,
+        direction: CompassDirection,
+    ) -> Option<VertexId> {
+        let lx = OrderedFloat(GeomConstants::round(location.x()));
+        let ly = OrderedFloat(GeomConstants::round(location.y()));
+
+        match direction {
+            CompassDirection::East => {
+                // First try: vertex on same Y, nearest X > location.X
+                if let Some(xs) = self.y_to_xs.get(&ly) {
+                    let x_above = xs.range((std::ops::Bound::Excluded(lx), std::ops::Bound::Unbounded)).next();
+                    if let Some(&nx) = x_above {
+                        let pt = Point::new(nx.into_inner(), ly.into_inner());
+                        if let Some(vid) = self.find_vertex(pt) {
+                            return Some(vid);
+                        }
+                    }
+                }
+                // Fallback: find the nearest vertical VG line with X > location.X,
+                // then the vertex on that line closest to location.Y.
+                self.find_nearest_on_perpendicular_line(location, direction)
+            }
+            CompassDirection::West => {
+                if let Some(xs) = self.y_to_xs.get(&ly) {
+                    let x_below = xs.range(..lx).next_back();
+                    if let Some(&nx) = x_below {
+                        let pt = Point::new(nx.into_inner(), ly.into_inner());
+                        if let Some(vid) = self.find_vertex(pt) {
+                            return Some(vid);
+                        }
+                    }
+                }
+                self.find_nearest_on_perpendicular_line(location, direction)
+            }
+            CompassDirection::North => {
+                if let Some(ys) = self.x_to_ys.get(&lx) {
+                    let y_above = ys.range((std::ops::Bound::Excluded(ly), std::ops::Bound::Unbounded)).next();
+                    if let Some(&ny) = y_above {
+                        let pt = Point::new(lx.into_inner(), ny.into_inner());
+                        if let Some(vid) = self.find_vertex(pt) {
+                            return Some(vid);
+                        }
+                    }
+                }
+                self.find_nearest_on_perpendicular_line(location, direction)
+            }
+            CompassDirection::South => {
+                if let Some(ys) = self.x_to_ys.get(&lx) {
+                    let y_below = ys.range(..ly).next_back();
+                    if let Some(&ny) = y_below {
+                        let pt = Point::new(lx.into_inner(), ny.into_inner());
+                        if let Some(vid) = self.find_vertex(pt) {
+                            return Some(vid);
+                        }
+                    }
+                }
+                self.find_nearest_on_perpendicular_line(location, direction)
+            }
+        }
+    }
+
+    /// Find the nearest vertex on a perpendicular VG line in the search direction.
+    ///
+    /// For East/West: finds the nearest vertical line (X coordinate) in the search
+    /// direction, then returns the vertex on that line closest to location.Y.
+    /// For North/South: finds the nearest horizontal line (Y coordinate) in the search
+    /// direction, then returns the vertex on that line closest to location.X.
+    ///
+    /// O(log V) via BTreeMap range queries.
+    fn find_nearest_on_perpendicular_line(
+        &self,
+        location: Point,
+        direction: CompassDirection,
+    ) -> Option<VertexId> {
+        let lx = OrderedFloat(GeomConstants::round(location.x()));
+        let ly = OrderedFloat(GeomConstants::round(location.y()));
+
+        match direction {
+            CompassDirection::East => {
+                // Find nearest vertical line with X > location.X
+                for (&x_coord, _ys) in self.x_to_ys.range((std::ops::Bound::Excluded(lx), std::ops::Bound::Unbounded)) {
+                    if let Some(vid) = self.closest_vertex_on_line_x(x_coord, ly) {
+                        return Some(vid);
+                    }
+                }
+                None
+            }
+            CompassDirection::West => {
+                // Find nearest vertical line with X < location.X
+                for (&x_coord, _ys) in self.x_to_ys.range(..lx).rev() {
+                    if let Some(vid) = self.closest_vertex_on_line_x(x_coord, ly) {
+                        return Some(vid);
+                    }
+                }
+                None
+            }
+            CompassDirection::North => {
+                // Find nearest horizontal line with Y > location.Y
+                for (&y_coord, _xs) in self.y_to_xs.range((std::ops::Bound::Excluded(ly), std::ops::Bound::Unbounded)) {
+                    if let Some(vid) = self.closest_vertex_on_line_y(y_coord, lx) {
+                        return Some(vid);
+                    }
+                }
+                None
+            }
+            CompassDirection::South => {
+                // Find nearest horizontal line with Y < location.Y
+                for (&y_coord, _xs) in self.y_to_xs.range(..ly).rev() {
+                    if let Some(vid) = self.closest_vertex_on_line_y(y_coord, lx) {
+                        return Some(vid);
+                    }
+                }
+                None
+            }
+        }
+    }
+
+    /// Find the closest vertex on a vertical line at X=x_coord to the target Y.
+    fn closest_vertex_on_line_x(
+        &self,
+        x_coord: OrderedFloat<f64>,
+        target_y: OrderedFloat<f64>,
+    ) -> Option<VertexId> {
+        let ys = self.x_to_ys.get(&x_coord)?;
+        // Check the Y values just below and above target_y
+        let below = ys.range(..=target_y).next_back();
+        let above = ys.range((std::ops::Bound::Excluded(target_y), std::ops::Bound::Unbounded)).next();
+        let candidates = [below, above];
+        let mut best: Option<(VertexId, f64)> = None;
+        for candidate in candidates.into_iter().flatten() {
+            let pt = Point::new(x_coord.into_inner(), candidate.into_inner());
+            if let Some(vid) = self.find_vertex(pt) {
+                let dist = (candidate.into_inner() - target_y.into_inner()).abs();
+                if best.is_none_or(|(_, d)| dist < d) {
+                    best = Some((vid, dist));
+                }
+            }
+        }
+        best.map(|(vid, _)| vid)
+    }
+
+    /// Find the closest vertex on a horizontal line at Y=y_coord to the target X.
+    fn closest_vertex_on_line_y(
+        &self,
+        y_coord: OrderedFloat<f64>,
+        target_x: OrderedFloat<f64>,
+    ) -> Option<VertexId> {
+        let xs = self.y_to_xs.get(&y_coord)?;
+        let below = xs.range(..=target_x).next_back();
+        let above = xs.range((std::ops::Bound::Excluded(target_x), std::ops::Bound::Unbounded)).next();
+        let candidates = [below, above];
+        let mut best: Option<(VertexId, f64)> = None;
+        for candidate in candidates.into_iter().flatten() {
+            let pt = Point::new(candidate.into_inner(), y_coord.into_inner());
+            if let Some(vid) = self.find_vertex(pt) {
+                let dist = (candidate.into_inner() - target_x.into_inner()).abs();
+                if best.is_none_or(|(_, d)| dist < d) {
+                    best = Some((vid, dist));
+                }
+            }
+        }
+        best.map(|(vid, _)| vid)
+    }
+
+    /// Find seed vertices on perpendicular VG lines for crossing-edge search.
+    ///
+    /// For each perpendicular VG line in the search direction, returns the
+    /// vertex on that line closest to the port's perpendicular coordinate.
+    /// Results are sorted by distance from the port along the search axis.
+    ///
+    /// For horizontal search (East/West): returns vertices on vertical VG lines.
+    /// For vertical search (North/South): returns vertices on horizontal VG lines.
+    ///
+    /// Uses coordinate indices for O(k * log V) total where k is the number of
+    /// perpendicular lines returned (typically 1-3, early termination possible).
+    /// Replaces the former O(V) scan over all vertices.
+    ///
+    /// Returns Vec<(seed_vertex, primary_distance_to_port)>, sorted by distance.
+    pub fn find_perpendicular_line_seeds(
+        &self,
+        location: Point,
+        direction: CompassDirection,
+    ) -> Vec<(VertexId, f64)> {
+        let lx = OrderedFloat(GeomConstants::round(location.x()));
+        let ly = OrderedFloat(GeomConstants::round(location.y()));
+        let mut seeds: Vec<(VertexId, f64)> = Vec::new();
+
+        match direction {
+            CompassDirection::East => {
+                // Find vertical VG lines with X > location.X.
+                // For each, get the vertex closest to location.Y.
+                for (&x_coord, _ys) in self.x_to_ys.range(
+                    (std::ops::Bound::Excluded(lx), std::ops::Bound::Unbounded),
+                ) {
+                    if let Some(vid) = self.closest_live_vertex_on_line_x(x_coord, ly) {
+                        let dist = x_coord.into_inner() - location.x();
+                        seeds.push((vid, dist));
+                    }
+                }
+            }
+            CompassDirection::West => {
+                // Find vertical VG lines with X < location.X.
+                for (&x_coord, _ys) in self.x_to_ys.range(..lx).rev() {
+                    if let Some(vid) = self.closest_live_vertex_on_line_x(x_coord, ly) {
+                        let dist = location.x() - x_coord.into_inner();
+                        seeds.push((vid, dist));
+                    }
+                }
+            }
+            CompassDirection::North => {
+                // Find horizontal VG lines with Y > location.Y.
+                for (&y_coord, _xs) in self.y_to_xs.range(
+                    (std::ops::Bound::Excluded(ly), std::ops::Bound::Unbounded),
+                ) {
+                    if let Some(vid) = self.closest_live_vertex_on_line_y(y_coord, lx) {
+                        let dist = y_coord.into_inner() - location.y();
+                        seeds.push((vid, dist));
+                    }
+                }
+            }
+            CompassDirection::South => {
+                // Find horizontal VG lines with Y < location.Y.
+                for (&y_coord, _xs) in self.y_to_xs.range(..ly).rev() {
+                    if let Some(vid) = self.closest_live_vertex_on_line_y(y_coord, lx) {
+                        let dist = location.y() - y_coord.into_inner();
+                        seeds.push((vid, dist));
+                    }
+                }
+            }
+        }
+
+        // Seeds are already sorted by distance since BTreeMap iteration
+        // is in key order and we iterate from nearest to farthest.
+        seeds
+    }
+
+    /// Find the closest live (degree > 0) vertex on a vertical line at X=x_coord
+    /// to the target Y. Used for finding chain-walk seeds.
+    fn closest_live_vertex_on_line_x(
+        &self,
+        x_coord: OrderedFloat<f64>,
+        target_y: OrderedFloat<f64>,
+    ) -> Option<VertexId> {
+        let ys = self.x_to_ys.get(&x_coord)?;
+        let below = ys.range(..=target_y).next_back();
+        let above = ys.range(
+            (std::ops::Bound::Excluded(target_y), std::ops::Bound::Unbounded),
+        ).next();
+        let candidates = [below, above];
+        let mut best: Option<(VertexId, f64)> = None;
+        for candidate in candidates.into_iter().flatten() {
+            let pt = Point::new(x_coord.into_inner(), candidate.into_inner());
+            if let Some(vid) = self.find_vertex(pt) {
+                // Only return vertices with edges (skip zombies).
+                if self.degree(vid) > 0 {
+                    let dist = (candidate.into_inner() - target_y.into_inner()).abs();
+                    if best.is_none_or(|(_, d)| dist < d) {
+                        best = Some((vid, dist));
+                    }
+                }
+            }
+        }
+        best.map(|(vid, _)| vid)
+    }
+
+    /// Find the closest live (degree > 0) vertex on a horizontal line at Y=y_coord
+    /// to the target X. Used for finding chain-walk seeds.
+    fn closest_live_vertex_on_line_y(
+        &self,
+        y_coord: OrderedFloat<f64>,
+        target_x: OrderedFloat<f64>,
+    ) -> Option<VertexId> {
+        let xs = self.y_to_xs.get(&y_coord)?;
+        let below = xs.range(..=target_x).next_back();
+        let above = xs.range(
+            (std::ops::Bound::Excluded(target_x), std::ops::Bound::Unbounded),
+        ).next();
+        let candidates = [below, above];
+        let mut best: Option<(VertexId, f64)> = None;
+        for candidate in candidates.into_iter().flatten() {
+            let pt = Point::new(candidate.into_inner(), y_coord.into_inner());
+            if let Some(vid) = self.find_vertex(pt) {
+                if self.degree(vid) > 0 {
+                    let dist = (candidate.into_inner() - target_x.into_inner()).abs();
+                    if best.is_none_or(|(_, d)| dist < d) {
+                        best = Some((vid, dist));
+                    }
+                }
+            }
+        }
+        best.map(|(vid, _)| vid)
     }
 }
 
