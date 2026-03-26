@@ -180,7 +180,7 @@ fn adjoining_obstacles_dip_to_overlapped() {
 /// Port: AdjoiningObstacles_DipToOverlapped_Collinear_CloseOpen
 /// Adjoining obstacles with OpenVertexEvent collinear with CloseVertexEvent.
 #[test]
-#[ignore = "collinear close/open events produce diagonal segments in path"]
+#[ignore = "needs VisibilityGraph.RemoveVertex in unsplice to prevent orphaned vertex reuse across edges"]
 fn adjoining_obstacles_dip_to_overlapped_collinear_close_open() {
     let mut b = ScenarioBuilder::new();
     b.add_rectangle_corners(60.0, 86.0, 64.0, 91.0);
