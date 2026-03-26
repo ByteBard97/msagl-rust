@@ -54,6 +54,12 @@ impl LinkedPointList {
         new_idx
     }
 
+    /// Link an existing node after another (without allocating a new node).
+    /// Sets `after.next = target` (overwriting any previous link from `after`).
+    pub fn insert_after_raw(&mut self, after: LinkedPointIndex, target: LinkedPointIndex) {
+        self.nodes[after.0].next = Some(target);
+    }
+
     pub fn node(&self, idx: LinkedPointIndex) -> &LinkedPointNode {
         &self.nodes[idx.0]
     }
