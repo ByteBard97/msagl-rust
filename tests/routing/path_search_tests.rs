@@ -85,30 +85,31 @@ fn path_search_same_source_target() {
 
 #[test]
 fn path_search_prefers_fewer_bends() {
-    // Create a graph with two paths: short with 2 bends vs slightly longer with 0 bends.
-    // With high bend penalty, the straight path should win.
+    // Create a graph with two paths of equal Manhattan length but different bend counts.
+    // With bend penalty, the path with fewer bends should win.
+    //
+    // Weight=1.0 means normal edge (C# multiplier convention: length += dist * weight).
     let mut graph = VisibilityGraph::new();
     let a = graph.add_vertex(Point::new(0.0, 0.0));
     let b = graph.add_vertex(Point::new(5.0, 0.0));
     let c = graph.add_vertex(Point::new(5.0, 5.0));
     let d = graph.add_vertex(Point::new(10.0, 5.0));
-    // Straight-ish path: a -> b -> c -> d (2 bends, length ~20)
-    graph.add_edge(a, b, 5.0);
-    graph.add_edge(b, a, 5.0);
-    graph.add_edge(b, c, 5.0);
-    graph.add_edge(c, b, 5.0);
-    graph.add_edge(c, d, 5.0);
-    graph.add_edge(d, c, 5.0);
+    // Path a -> b -> c -> d: 2 bends, length = 5+5+5 = 15
+    graph.add_edge(a, b, 1.0);
+    graph.add_edge(b, a, 1.0);
+    graph.add_edge(b, c, 1.0);
+    graph.add_edge(c, b, 1.0);
+    graph.add_edge(c, d, 1.0);
+    graph.add_edge(d, c, 1.0);
 
-    // Also add a long straight path: a -> e -> d
+    // Path a -> e -> d: 1 bend, length = 10+5 = 15
     let e = graph.add_vertex(Point::new(10.0, 0.0));
-    graph.add_edge(a, e, 10.0);
-    graph.add_edge(e, a, 10.0);
-    graph.add_edge(e, d, 5.0);
-    graph.add_edge(d, e, 5.0);
+    graph.add_edge(a, e, 1.0);
+    graph.add_edge(e, a, 1.0);
+    graph.add_edge(e, d, 1.0);
+    graph.add_edge(d, e, 1.0);
 
-    // High bend penalty: should prefer a -> e -> d (1 bend, length 15)
-    // over a -> b -> c -> d (2 bends, length 15)
+    // With bend penalty, should prefer a -> e -> d (1 bend) over a -> b -> c -> d (2 bends)
     let search = PathSearch::new(4.0);
     let path = search.find_path(&graph, Point::new(0.0, 0.0), Point::new(10.0, 5.0));
     assert!(path.is_some());

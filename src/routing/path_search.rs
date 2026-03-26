@@ -1,42 +1,60 @@
+//! Single-source single-target rectilinear path search.
+//!
+//! Faithful port of C# `SsstRectilinearPath.cs` (523 lines) and
+//! TS `SsstRectilinearPath.ts` (~584 lines).
+//!
+//! Following "Orthogonal Connector Routing" by Michael Wybrow et al.
+//!
+//! The `PathSearch` wrapper, `SearchArena`, and utility functions are in
+//! `path_search_wrapper.rs` and re-exported here.
+
 use std::cmp::Ordering;
 use std::collections::BinaryHeap;
 
-use super::compass_direction::CompassDirection;
+use super::compass_direction::Direction;
 use crate::geometry::point::Point;
+use crate::routing::vertex_entry::VertexEntryIndex;
 use crate::visibility::graph::{VertexId, VisibilityGraph};
 
-/// Number of compass directions (used for the best-cost table).
-const NUM_DIRECTIONS: usize = 4;
+// Re-export wrapper types and utility functions from path_search_wrapper
+pub use super::path_search_wrapper::{
+    estimated_bends_to_target, manhattan_distance, PathSearch, SearchArena,
+};
 
 /// Default bend penalty as a percentage of source-target Manhattan distance.
-/// Matches TS `SsstRectilinearPath.DefaultBendPenaltyAsAPercentageOfDistance = 4`.
+/// Matches C# `SsstRectilinearPath.DefaultBendPenaltyAsAPercentageOfDistance = 4`.
 pub const DEFAULT_BEND_PENALTY_AS_PERCENTAGE_OF_DISTANCE: f64 = 4.0;
 
-/// Local arena entry for the A* search.
+/// Weight multiplier for overlapped visibility edges.
+/// Matches C# `ScanSegment.OverlappedWeight = 100000`.
+pub const OVERLAPPED_WEIGHT: f64 = 100000.0;
+
+/// Arena entry for the path search.
 ///
-/// Intentionally separate from `vertex_entry::VertexEntry`, which is used
-/// by the visibility graph for per-vertex open/closed tracking. This struct
-/// is an ephemeral allocation inside the heap arena.
+/// Corresponds to C# `VertexEntry`. Stored in a Vec arena with index-based
+/// references (approved Rust adaptation for GC pointers).
 #[derive(Clone, Debug)]
-struct SearchEntry {
-    vertex: VertexId,
-    direction: CompassDirection,
-    cost: f64,
-    length: f64,
-    bends: u32,
-    prev_entry: Option<usize>,
+pub struct SearchEntry {
+    pub vertex: VertexId,
+    /// Direction of entry to this vertex (None for source).
+    pub direction: Direction,
+    pub previous_entry: Option<usize>,
+    pub length: f64,
+    pub number_of_bends: i32,
+    pub cost: f64,
+    pub is_closed: bool,
 }
 
-/// A priority queue item wrapping an arena index and its f-score.
+/// Priority queue item.
 #[derive(Clone, Debug)]
 struct QueueItem {
-    f_score: f64,
+    cost: f64,
     arena_index: usize,
 }
 
 impl PartialEq for QueueItem {
     fn eq(&self, other: &Self) -> bool {
-        self.f_score == other.f_score
+        self.cost == other.cost
     }
 }
 impl Eq for QueueItem {}
@@ -47,295 +65,428 @@ impl PartialOrd for QueueItem {
     }
 }
 
-// Min-heap: reverse ordering so smallest f_score comes first.
+/// Min-heap: reverse ordering so smallest cost comes first.
 impl Ord for QueueItem {
     fn cmp(&self, other: &Self) -> Ordering {
         other
-            .f_score
-            .partial_cmp(&self.f_score)
+            .cost
+            .partial_cmp(&self.cost)
             .unwrap_or(Ordering::Equal)
     }
 }
 
-/// Direction-aware A* shortest path on a rectilinear visibility graph.
-///
-/// Corresponds to `SsstRectilinearPath` in the TypeScript source.
-///
-/// The cost function is:
-/// ```text
-/// bend_cost  = manhattan(source, target) * bend_penalty_as_percentage / 100
-/// total_cost = path_length + bend_cost * number_of_bends
-/// ```
-///
-/// This matches the TS default where each bend costs 4% of the
-/// source-to-target Manhattan distance.
-pub struct PathSearch {
-    /// Bend penalty as a percentage of source-target Manhattan distance.
-    /// Default: [`DEFAULT_BEND_PENALTY_AS_PERCENTAGE_OF_DISTANCE`] (4.0).
-    pub bend_penalty_as_percentage: f64,
+/// Neighbor slot. C# `NextNeighbor` class.
+/// Slots: 0=left, 1=preferred bend (right), 2=straight-ahead.
+struct NextNeighbor {
+    vertex: Option<VertexId>,
+    weight: f64,
 }
 
-impl PathSearch {
-    /// Create a `PathSearch` with the given bend penalty percentage.
-    pub fn new(bend_penalty_as_percentage: f64) -> Self {
+impl NextNeighbor {
+    fn new() -> Self {
+        Self { vertex: None, weight: f64::NAN }
+    }
+
+    fn set(&mut self, v: VertexId, w: f64) {
+        self.vertex = Some(v);
+        self.weight = w;
+    }
+}
+
+/// Single-source single-target rectilinear path.
+/// Faithful port of C# `SsstRectilinearPath`.
+pub struct SsstRectilinearPath {
+    pub length_importance: f64,
+    pub bends_importance: f64,
+    target: Option<VertexId>,
+    source: Option<VertexId>,
+    entry_directions_to_target: Direction,
+    upper_bound_on_cost: f64,
+    source_cost_adjustment: f64,
+    target_cost_adjustment: f64,
+    queue: BinaryHeap<QueueItem>,
+    pub(crate) arena: Vec<SearchEntry>,
+    visited_vertices: Vec<VertexId>,
+    /// Per-vertex per-direction arena index. Replaces C# VertexEntries[4] on vertex.
+    vertex_entries: Vec<[Option<usize>; 4]>,
+}
+
+impl Default for SsstRectilinearPath {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl SsstRectilinearPath {
+    pub fn new() -> Self {
         Self {
-            bend_penalty_as_percentage,
+            length_importance: 1.0,
+            bends_importance: 1.0,
+            target: None,
+            source: None,
+            entry_directions_to_target: Direction::NONE,
+            upper_bound_on_cost: f64::INFINITY,
+            source_cost_adjustment: 0.0,
+            target_cost_adjustment: 0.0,
+            queue: BinaryHeap::new(),
+            arena: Vec::new(),
+            visited_vertices: Vec::new(),
+            vertex_entries: Vec::new(),
         }
     }
 
-    /// Create a `PathSearch` with the TS default bend penalty (4%).
-    pub fn default_penalty() -> Self {
-        Self::new(DEFAULT_BEND_PENALTY_AS_PERCENTAGE_OF_DISTANCE)
+    /// Access the search arena.
+    pub fn arena(&self) -> &SearchArena {
+        SearchArena::from_vec(&self.arena)
     }
 
-    /// Compute the total path cost given length, bend count, and source-target distance.
-    ///
-    /// Exposed for testing.
-    pub fn compute_cost(&self, length: f64, bends: u32, source_target_distance: f64) -> f64 {
-        let bend_cost = source_target_distance * self.bend_penalty_as_percentage / 100.0;
-        length + bend_cost * bends as f64
+    fn combined_cost(&self, length: f64, number_of_bends: i32) -> f64 {
+        self.length_importance * length + self.bends_importance * number_of_bends as f64
     }
 
-    /// Find the shortest (bend-penalized) path between two points in the graph.
-    ///
-    /// Returns `None` if no path exists between `source` and `target`.
-    pub fn find_path(
-        &self,
-        graph: &VisibilityGraph,
-        source: Point,
-        target: Point,
-    ) -> Option<Vec<Point>> {
-        let source_id = graph.find_vertex(source)?;
-        let target_id = graph.find_vertex(target)?;
+    fn total_cost_from_source(&self, length: f64, bends: i32) -> f64 {
+        self.combined_cost(length, bends) + self.source_cost_adjustment
+    }
 
-        if source_id == target_id {
-            return Some(vec![source, target]);
+    /// Matches C# `MultistageAdjustedCostBound`.
+    pub fn multistage_adjusted_cost_bound(&self, best_cost: f64) -> f64 {
+        if best_cost.is_finite() { best_cost + self.bends_importance } else { best_cost }
+    }
+
+    fn heuristic_to_target(
+        &self, point: Point, entry_dir: Direction, graph: &VisibilityGraph,
+    ) -> f64 {
+        let tp = graph.point(self.target.unwrap());
+        let dx = tp.x() - point.x();
+        let dy = tp.y() - point.y();
+
+        if dx.abs() < 1e-6 && dy.abs() < 1e-6 {
+            return self.target_cost_adjustment;
         }
 
-        let source_target_distance = manhattan_distance(source, target);
-        let vertex_count = graph.vertex_count();
+        let dir_to_target = Direction::from_vector(dx, dy);
+        let edir = if entry_dir.is_none() { Direction::ALL } else { entry_dir };
+        let bends = self.get_number_of_bends(edir, dir_to_target);
+        self.combined_cost(manhattan_distance(point, tp), bends) + self.target_cost_adjustment
+    }
 
-        // best_cost[vertex_index][direction_index] — lowest cost seen per (vertex, direction).
-        let mut best_cost = vec![[f64::INFINITY; NUM_DIRECTIONS]; vertex_count];
+    // -- Bend estimation (compound direction aware, matches C#) --
 
-        let mut arena: Vec<SearchEntry> = Vec::new();
-        let mut heap: BinaryHeap<QueueItem> = BinaryHeap::new();
+    fn get_number_of_bends(&self, entry_dir: Direction, dir_to_target: Direction) -> i32 {
+        if dir_to_target.is_pure() {
+            self.bends_for_pure(entry_dir, dir_to_target)
+        } else {
+            Self::bends_for_compound(dir_to_target, entry_dir, self.entry_directions_to_target)
+        }
+    }
 
-        // Seed the heap from source's neighbors.
-        let initial_neighbors = self.collect_neighbors(graph, source_id);
-        for (neighbor_id, edge_weight) in &initial_neighbors {
-            let dir = match CompassDirection::from_points(source, graph.point(*neighbor_id)) {
-                Some(d) => d,
-                None => continue,
-            };
-
-            let length = *edge_weight;
-            let cost = self.compute_cost(length, 0, source_target_distance);
-            let h = self.heuristic(
-                graph.point(*neighbor_id),
-                target,
-                dir,
-                source_target_distance,
-            );
-
-            if cost < best_cost[neighbor_id.0][dir.index()] {
-                best_cost[neighbor_id.0][dir.index()] = cost;
-                let idx = arena.len();
-                arena.push(SearchEntry {
-                    vertex: *neighbor_id,
-                    direction: dir,
-                    cost,
-                    length,
-                    bends: 0,
-                    prev_entry: None,
-                });
-                heap.push(QueueItem {
-                    f_score: cost + h,
-                    arena_index: idx,
-                });
+    fn bends_for_pure(&self, entry_dir: Direction, dir_to_target: Direction) -> i32 {
+        if (dir_to_target & entry_dir) == dir_to_target {
+            if self.entry_directions_to_target.contains(dir_to_target) {
+                return 0;
             }
+            if self.entry_directions_to_target.contains(dir_to_target.left())
+                || self.entry_directions_to_target.contains(dir_to_target.right())
+            {
+                return 2;
+            }
+            return 4;
         }
+        self.bends_for_pure(entry_dir.add_one_turn(), dir_to_target) + 1
+    }
 
-        while let Some(item) = heap.pop() {
-            let entry = arena[item.arena_index].clone();
+    fn bends_for_compound(
+        dir_to_target: Direction, entry_dir: Direction, entry_dirs: Direction,
+    ) -> i32 {
+        let a = dir_to_target & entry_dir;
+        if a.is_none() {
+            return Self::bends_for_compound(
+                dir_to_target, entry_dir.add_one_turn(), entry_dirs,
+            ) + 1;
+        }
+        let b = dir_to_target & entry_dirs;
+        if b.is_none() {
+            return Self::bends_for_compound(
+                dir_to_target, entry_dir, entry_dirs.add_one_turn(),
+            ) + 1;
+        }
+        if (a | b) == dir_to_target { 1 } else { 2 }
+    }
 
-            // Skip stale entries.
-            if entry.cost > best_cost[entry.vertex.0][entry.direction.index()] {
+    // -- Initialization --
+
+    fn init_entry_dirs_at_target(&mut self, target: VertexId, graph: &VisibilityGraph) -> bool {
+        self.entry_directions_to_target = Direction::NONE;
+        let tp = graph.point(target);
+        for edge in graph.out_edges(target) {
+            self.entry_directions_to_target |=
+                Direction::from_point_to_point(graph.point(edge.target), tp);
+        }
+        for &src in &graph.vertex(target).in_edges {
+            self.entry_directions_to_target |= Direction::from_point_to_point(graph.point(src), tp);
+        }
+        !self.entry_directions_to_target.is_none()
+    }
+
+    fn ensure_ve(&mut self, count: usize) {
+        if self.vertex_entries.len() < count {
+            self.vertex_entries.resize(count, [None; 4]);
+        }
+    }
+
+    fn get_ve(&self, v: VertexId, dir: Direction) -> Option<usize> {
+        if v.0 >= self.vertex_entries.len() { return None; }
+        self.vertex_entries[v.0][dir.to_index()]
+    }
+
+    fn set_ve(&mut self, v: VertexId, dir: Direction, idx: usize) {
+        self.ensure_ve(v.0 + 1);
+        self.vertex_entries[v.0][dir.to_index()] = Some(idx);
+    }
+
+    fn has_any_ve(&self, v: VertexId) -> bool {
+        if v.0 >= self.vertex_entries.len() { return false; }
+        self.vertex_entries[v.0].iter().any(|e| e.is_some())
+    }
+
+    fn init_path(
+        &mut self,
+        source_ve: Option<&[Option<VertexEntryIndex>; 4]>,
+        source: VertexId,
+        target: VertexId,
+        graph: &VisibilityGraph,
+    ) -> bool {
+        if source == target || !self.init_entry_dirs_at_target(target, graph) {
+            return false;
+        }
+        self.target = Some(target);
+        self.source = Some(source);
+
+        let cost = self.total_cost_from_source(0.0, 0)
+            + self.heuristic_to_target(graph.point(source), Direction::NONE, graph);
+        if cost >= self.upper_bound_on_cost { return false; }
+
+        self.ensure_ve(graph.vertex_count());
+        self.visited_vertices.push(source);
+
+        if source_ve.is_none() {
+            self.enqueue_initial(cost, graph);
+        }
+        !self.queue.is_empty()
+    }
+
+    fn enqueue_initial(&mut self, cost: f64, graph: &VisibilityGraph) {
+        let src = self.source.unwrap();
+        let src_idx = self.arena.len();
+        self.arena.push(SearchEntry {
+            vertex: src, direction: Direction::NONE, previous_entry: None,
+            length: 0.0, number_of_bends: 0, cost, is_closed: true,
+        });
+
+        let mut neighbors = Vec::new();
+        for edge in graph.out_edges(src) {
+            neighbors.push((edge.target, edge.weight));
+        }
+        let in_srcs: Vec<VertexId> = graph.vertex(src).in_edges.clone();
+        for s in in_srcs {
+            let w = graph.out_edges(s).find(|e| e.target == src)
+                .map(|e| e.weight).unwrap_or(1.0);
+            neighbors.push((s, w));
+        }
+        for (n, w) in neighbors {
+            self.extend_to_neighbor(src_idx, n, w, graph);
+        }
+    }
+
+    // -- Main search loop: faithful port of C# GetPathWithCost --
+
+    #[allow(clippy::too_many_arguments)]
+    pub fn get_path_with_cost(
+        &mut self,
+        source_ve: Option<&[Option<VertexEntryIndex>; 4]>,
+        source: VertexId,
+        source_cost_adj: f64,
+        target_ve: Option<&mut [Option<VertexEntryIndex>; 4]>,
+        target: VertexId,
+        target_cost_adj: f64,
+        prior_best: f64,
+        graph: &VisibilityGraph,
+    ) -> Option<VertexEntryIndex> {
+        self.upper_bound_on_cost = prior_best;
+        self.source_cost_adjustment = source_cost_adj;
+        self.target_cost_adjustment = target_cost_adj;
+
+        if !self.init_path(source_ve, source, target, graph) { return None; }
+
+        let tid = self.target.unwrap();
+        let sid = self.source.unwrap();
+        let has_tve = target_ve.is_some();
+
+        while let Some(item) = self.queue.pop() {
+            let e = &self.arena[item.arena_index];
+            if e.is_closed { continue; }
+            if (e.cost - item.cost).abs() > 1e-12 { continue; }
+
+            if e.vertex == tid {
+                if !has_tve { self.cleanup(); return Some(VertexEntryIndex(item.arena_index)); }
+                let ed = e.direction;
+                if ed.is_pure() { self.entry_directions_to_target &= !ed; }
+                if self.entry_directions_to_target.is_none() { self.cleanup(); return None; }
+                let ec = e.cost;
+                self.upper_bound_on_cost =
+                    self.multistage_adjusted_cost_bound(ec).min(self.upper_bound_on_cost);
                 continue;
             }
 
-            // Reached target.
-            if entry.vertex == target_id {
-                return Some(self.reconstruct_path(&arena, item.arena_index, source, graph));
+            self.arena[item.arena_index].is_closed = true;
+            let edir = self.arena[item.arena_index].direction;
+            let pbd = if edir.is_pure() { edir.right() } else { Direction::NONE };
+
+            let mut nn = [NextNeighbor::new(), NextNeighbor::new(), NextNeighbor::new()];
+            let mut edges: Vec<(VertexId, f64)> = Vec::new();
+
+            let bv = self.arena[item.arena_index].vertex;
+            for &s in &graph.vertex(bv).in_edges {
+                let w = graph.out_edges(s).find(|e| e.target == bv)
+                    .map(|e| e.weight).unwrap_or(1.0);
+                edges.push((s, w));
             }
+            for oe in graph.out_edges(bv) { edges.push((oe.target, oe.weight)); }
 
-            let cur_point = graph.point(entry.vertex);
-            let neighbors = self.collect_neighbors(graph, entry.vertex);
+            let bp = graph.point(bv);
+            let pv = self.arena[item.arena_index].previous_entry.map(|i| self.arena[i].vertex);
 
-            for (neighbor_id, edge_weight) in &neighbors {
-                // Don't backtrack to source (unless it's also the target).
-                if *neighbor_id == source_id && *neighbor_id != target_id {
+            for (nv, w) in &edges {
+                if Some(*nv) == pv {
+                    if graph.degree(bv) > 1 || bv != sid { continue; }
+                    nn[2].set(*nv, *w);
                     continue;
                 }
+                let nd = Direction::pure_from_point_to_point(bp, graph.point(*nv));
+                if nd == edir { nn[2].set(*nv, *w); }
+                else if nd == pbd { nn[1].set(*nv, *w); }
+                else { nn[0].set(*nv, *w); }
+            }
 
-                let neighbor_point = graph.point(*neighbor_id);
-                let dir = match CompassDirection::from_points(cur_point, neighbor_point) {
-                    Some(d) => d,
-                    None => continue,
-                };
-
-                let new_bends = if dir != entry.direction {
-                    entry.bends + 1
-                } else {
-                    entry.bends
-                };
-                let new_length = entry.length + edge_weight;
-                let new_cost = self.compute_cost(new_length, new_bends, source_target_distance);
-
-                if new_cost < best_cost[neighbor_id.0][dir.index()] {
-                    best_cost[neighbor_id.0][dir.index()] = new_cost;
-                    let h = self.heuristic(neighbor_point, target, dir, source_target_distance);
-                    let idx = arena.len();
-                    arena.push(SearchEntry {
-                        vertex: *neighbor_id,
-                        direction: dir,
-                        cost: new_cost,
-                        length: new_length,
-                        bends: new_bends,
-                        prev_entry: Some(item.arena_index),
-                    });
-                    heap.push(QueueItem {
-                        f_score: new_cost + h,
-                        arena_index: idx,
-                    });
+            for slot in &nn {
+                if let Some(v) = slot.vertex {
+                    self.extend_to_neighbor(item.arena_index, v, slot.weight, graph);
                 }
             }
         }
-
+        self.cleanup();
         None
     }
 
-    /// Collect all reachable neighbors from a vertex (out-edges + in-edges reversed).
-    fn collect_neighbors(&self, graph: &VisibilityGraph, vertex: VertexId) -> Vec<(VertexId, f64)> {
-        let mut neighbors = Vec::new();
+    fn extend_to_neighbor(&mut self, bi: usize, nv: VertexId, w: f64, g: &VisibilityGraph) {
+        let bp = g.point(self.arena[bi].vertex);
+        let dir = Direction::pure_from_point_to_point(bp, g.point(nv));
 
-        for edge in graph.out_edges(vertex) {
-            neighbors.push((edge.target, edge.weight));
+        if let Some(ei) = self.get_ve(nv, dir) {
+            if !self.arena[ei].is_closed { self.update_if_needed(bi, ei, w, g); }
+            return;
         }
-
-        let in_sources: Vec<VertexId> = graph.vertex(vertex).in_edges.clone();
-        for src in in_sources {
-            let weight = graph
-                .out_edges(src)
-                .find(|e| e.target == vertex)
-                .map(|e| e.weight)
-                .unwrap_or_else(|| {
-                    let a = graph.point(src);
-                    let b = graph.point(vertex);
-                    (a - b).length()
-                });
-            neighbors.push((src, weight));
-        }
-
-        neighbors
+        if self.try_reversed(bi, nv, w, g) { return; }
+        self.create_enqueue(bi, nv, w, g);
     }
 
-    /// A* heuristic: Manhattan distance to target plus estimated bend cost.
-    fn heuristic(
-        &self,
-        point: Point,
-        target: Point,
-        direction: CompassDirection,
-        source_target_distance: f64,
-    ) -> f64 {
-        let dx = (target.x() - point.x()).abs();
-        let dy = (target.y() - point.y()).abs();
-        let manhattan = dx + dy;
-        let est_bends = estimated_bends_to_target(direction, point, target);
-        let bend_cost = source_target_distance * self.bend_penalty_as_percentage / 100.0;
-        manhattan + bend_cost * est_bends as f64
+    fn update_if_needed(&mut self, bi: usize, ni: usize, w: f64, g: &VisibilityGraph) {
+        let nv = self.arena[ni].vertex;
+        let (dir, len, bends) = self.len_bends(bi, nv, w, g);
+        let old = self.combined_cost(self.arena[ni].length, self.arena[ni].number_of_bends);
+        if self.combined_cost(len, bends) < old {
+            let total = self.total_cost_from_source(len, bends)
+                + self.heuristic_to_target(g.point(nv), dir, g);
+            self.arena[ni].previous_entry = Some(bi);
+            self.arena[ni].length = len;
+            self.arena[ni].number_of_bends = bends;
+            self.arena[ni].cost = total;
+            self.queue.push(QueueItem { cost: total, arena_index: ni });
+        }
     }
 
-    /// Walk the `prev_entry` chain to reconstruct the path, discarding
-    /// collinear intermediate waypoints.
-    fn reconstruct_path(
-        &self,
-        arena: &[SearchEntry],
-        final_index: usize,
-        source: Point,
-        graph: &VisibilityGraph,
-    ) -> Vec<Point> {
-        let mut points = Vec::new();
-        let mut idx = Some(final_index);
-
-        while let Some(i) = idx {
-            let entry = &arena[i];
-            points.push(graph.point(entry.vertex));
-            idx = entry.prev_entry;
-        }
-
-        points.push(source);
-        points.reverse();
-
-        if points.len() <= 2 {
-            return points;
-        }
-
-        let mut filtered = Vec::with_capacity(points.len());
-        filtered.push(points[0]);
-
-        for i in 1..points.len() - 1 {
-            let prev = *filtered.last().unwrap();
-            let curr = points[i];
-            let next = points[i + 1];
-
-            let dir1 = CompassDirection::from_points(prev, curr);
-            let dir2 = CompassDirection::from_points(curr, next);
-            if dir1 != dir2 {
-                filtered.push(curr);
+    fn try_reversed(&mut self, bi: usize, nv: VertexId, w: f64, g: &VisibilityGraph) -> bool {
+        let bv = self.arena[bi].vertex;
+        if !self.has_any_ve(bv) { return false; }
+        let df = Direction::pure_from_point_to_point(g.point(nv), g.point(bv));
+        if let Some(efi) = self.get_ve(bv, df) {
+            let pv = self.arena[efi].previous_entry.map(|i| self.arena[i].vertex);
+            if pv == Some(nv) {
+                self.queue_reversed(bi, efi, w, g);
+                return true;
             }
         }
-
-        filtered.push(*points.last().unwrap());
-        filtered
-    }
-}
-
-/// Compute the Manhattan distance between two points.
-pub fn manhattan_distance(a: Point, b: Point) -> f64 {
-    (b.x() - a.x()).abs() + (b.y() - a.y()).abs()
-}
-
-/// Estimate the number of bends needed to reach `target` from `point` in `direction`.
-pub fn estimated_bends_to_target(direction: CompassDirection, point: Point, target: Point) -> u32 {
-    let dx = target.x() - point.x();
-    let dy = target.y() - point.y();
-
-    if dx.abs() < 1e-9 && dy.abs() < 1e-9 {
-        return 0;
+        false
     }
 
-    let going_toward = match direction {
-        CompassDirection::East => dx > 1e-9,
-        CompassDirection::West => dx < -1e-9,
-        CompassDirection::North => dy > 1e-9,
-        CompassDirection::South => dy < -1e-9,
-    };
-
-    let need_horizontal = dx.abs() > 1e-9;
-    let need_vertical = dy.abs() > 1e-9;
-
-    if !need_horizontal && !need_vertical {
-        0
-    } else if need_horizontal && need_vertical {
-        if going_toward {
-            1
-        } else {
-            2
+    fn queue_reversed(&mut self, bi: usize, efi: usize, w: f64, g: &VisibilityGraph) {
+        let pv = self.arena[efi].previous_entry.map(|i| self.arena[i].vertex).unwrap();
+        let (dir, len, bends) = self.len_bends(bi, pv, w, g);
+        let old = self.combined_cost(self.arena[efi].length, self.arena[efi].number_of_bends);
+        if self.combined_cost(len, bends) < old || g.degree(self.arena[bi].vertex) == 1 {
+            let cost = self.total_cost_from_source(len, bends)
+                + self.heuristic_to_target(g.point(pv), dir, g);
+            self.do_enqueue(bi, pv, dir, len, bends, cost);
         }
-    } else if going_toward {
-        0
-    } else {
-        2
+    }
+
+    fn create_enqueue(&mut self, bi: usize, nv: VertexId, w: f64, g: &VisibilityGraph) {
+        let (dir, len, bends) = self.len_bends(bi, nv, w, g);
+        let cost = self.total_cost_from_source(len, bends)
+            + self.heuristic_to_target(g.point(nv), dir, g);
+        if cost < self.upper_bound_on_cost {
+            if !self.has_any_ve(nv) { self.visited_vertices.push(nv); }
+            self.do_enqueue(bi, nv, dir, len, bends, cost);
+        }
+    }
+
+    fn do_enqueue(&mut self, bi: usize, nv: VertexId, d: Direction, l: f64, b: i32, c: f64) {
+        let ai = self.arena.len();
+        self.arena.push(SearchEntry {
+            vertex: nv, direction: d, previous_entry: Some(bi),
+            length: l, number_of_bends: b, cost: c, is_closed: false,
+        });
+        self.set_ve(nv, d, ai);
+        self.queue.push(QueueItem { cost: c, arena_index: ai });
+    }
+
+    /// Matches C# `GetLengthAndNumberOfBendsToNeighborVertex`.
+    fn len_bends(&self, pi: usize, v: VertexId, w: f64, g: &VisibilityGraph) -> (Direction, f64, i32) {
+        let p = &self.arena[pi];
+        let pp = g.point(p.vertex);
+        let vp = g.point(v);
+        let len = p.length + manhattan_distance(pp, vp) * w;
+        let dir = Direction::pure_from_point_to_point(pp, vp);
+        let mut bends = p.number_of_bends;
+        if !p.direction.is_none() && dir != p.direction { bends += 1; }
+        (dir, len, bends)
+    }
+
+    fn cleanup(&mut self) {
+        self.visited_vertices.clear();
+        self.queue.clear();
+    }
+
+    /// Restore path from arena, collapsing collinear points.
+    /// Matches C# `RestorePath`.
+    pub fn restore_path_v(
+        arena: &SearchArena, entry_idx: Option<VertexEntryIndex>, graph: &VisibilityGraph,
+    ) -> Vec<Point> {
+        let idx = match entry_idx { Some(i) => i.0, None => return Vec::new() };
+        let entries = arena.entries();
+        let mut list = Vec::new();
+        #[allow(unused_assignments)]
+        let mut skipped = false;
+        let mut last_dir = Direction::NONE;
+        let mut ci = idx;
+        loop {
+            let e = &entries[ci];
+            if last_dir == e.direction { skipped = true; }
+            else { skipped = false; list.push(graph.point(e.vertex)); last_dir = e.direction; }
+            match e.previous_entry { Some(prev) => ci = prev, None => break }
+        }
+        if skipped { list.push(graph.point(entries[ci].vertex)); }
+        list.reverse();
+        list
     }
 }
