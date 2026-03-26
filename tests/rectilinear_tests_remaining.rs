@@ -95,7 +95,6 @@ fn flat_worker(
 /// Tests handling of an almost-flat HighObstacleSide with multiple crosses.
 /// C#: FlatWorker(0, FlatOffset)
 #[test]
-#[ignore = "requires non-rectangular obstacle support"]
 fn almost_flat_high_side_with_multiple_crosses() {
     let mut b = ScenarioBuilder::new();
     flat_worker(&mut b, 0.0, FLAT_OFFSET);
@@ -116,7 +115,6 @@ fn almost_flat_high_side_with_multiple_crosses() {
 /// Tests handling of an almost-flat LowObstacleSide with multiple crosses.
 /// C#: FlatWorker(FlatOffset, 0)
 #[test]
-#[ignore = "requires non-rectangular obstacle support"]
 fn almost_flat_low_side_with_multiple_crosses() {
     let mut b = ScenarioBuilder::new();
     flat_worker(&mut b, FLAT_OFFSET, 0.0);
@@ -152,7 +150,6 @@ fn dead_end_open_space_obstacles(b: &mut ScenarioBuilder) -> Vec<usize> {
 /// Two dead-ends of ScanSegments strike an angled side, creating open space.
 /// C#: routes from obstacle 0 to all others.
 #[test]
-#[ignore = "requires non-rectangular obstacle support"]
 fn dead_end_open_space_obstacle_port0() {
     let mut b = ScenarioBuilder::new();
     let ids = dead_end_open_space_obstacles(&mut b);
@@ -169,7 +166,6 @@ fn dead_end_open_space_obstacle_port0() {
 /// Same geometry but routes from all obstacles to a free port at (40,50).
 /// C#: CreateSourceToFreePortRoutings(obstacles, -1, freePorts).
 #[test]
-#[ignore = "requires free port routing from all obstacles to a free point"]
 fn dead_end_open_space_free_port0() {
     let mut b = ScenarioBuilder::new();
     let _ids = dead_end_open_space_obstacles(&mut b);
@@ -183,7 +179,6 @@ fn dead_end_open_space_free_port0() {
 /// Verifies no extraneous bends when dead-ends create open space.
 /// C#: routes obstacle 0 to obstacle 1, checks bendCount == 1.
 #[test]
-#[ignore = "requires non-rectangular obstacle support"]
 fn dead_end_open_space_obstacle_port0_eliminate_extra_bend() {
     let mut b = ScenarioBuilder::new();
     // Obstacles in different order from the other DeadEnd tests:
@@ -206,7 +201,6 @@ fn dead_end_open_space_obstacle_port0_eliminate_extra_bend() {
 /// C#: triangle (70,30)-(30,70)-(110,70), rect (0,40)-(20,80), rect (40,0)-(80,20).
 /// Routes from obstacle 0 to all others; each path should have 2 bends.
 #[test]
-#[ignore = "requires non-rectangular obstacle support"]
 fn dead_end_crossing() {
     let mut b = ScenarioBuilder::new();
     let tri = add_nonrect_placeholder(&mut b, &[
@@ -227,7 +221,6 @@ fn dead_end_crossing() {
 /// and the obstacle.
 /// C#: rect (0,10)-(20,90), rect (30,0)-(110,20), triangle (110,30)-(50,90)-(110,90).
 #[test]
-#[ignore = "requires non-rectangular obstacle support"]
 fn dead_end_crossing_edge_chains_intersect() {
     let mut b = ScenarioBuilder::new();
     let r0 = b.add_rectangle_corners(0.0, 10.0, 20.0, 90.0);
@@ -250,7 +243,6 @@ fn dead_end_crossing_edge_chains_intersect() {
 /// C#: 8 obstacles (2 routing endpoints, 2 wide blockers, 2 small squares,
 /// 2 triangles that force convex hull creation).
 #[test]
-#[ignore = "requires non-rectangular obstacle support for convex hull triangles"]
 fn nudger_smoothing_staircases_along_convex_hulls() {
     let mut b = ScenarioBuilder::new();
     // Source and target
@@ -287,7 +279,6 @@ fn nudger_smoothing_staircases_along_convex_hulls() {
 /// resizes the blockers to make a shortcut cost-effective and routes again.
 /// C#: two rounds of DoRouting with different obstacle sizes.
 #[test]
-#[ignore = "requires non-rectangular obstacle support for parallelograms"]
 fn reflections_taken_and_skipped() {
     // Round 1: original parallelograms
     {
@@ -332,7 +323,6 @@ fn reflections_taken_and_skipped() {
 /// C#: triangle (0,0)-(0,70)-(70,70), plus two small parallelograms.
 /// Validates 2 horizontal + 3 vertical reflection segments.
 #[test]
-#[ignore = "requires non-rectangular obstacle support and reflection segment counting"]
 fn reflections_detected_by_already_loaded_side() {
     let mut b = ScenarioBuilder::new();
     // Large triangle
@@ -359,7 +349,6 @@ fn reflections_detected_by_already_loaded_side() {
 /// create a reversed-direction lookahead.
 /// C#: three non-rectangular shapes, validates 4 horizontal + 3 vertical reflections.
 #[test]
-#[ignore = "requires non-rectangular obstacle support and reflection segment counting"]
 fn reflections_sited_by_low_side_are_not_loaded_by_high_side() {
     let mut b = ScenarioBuilder::new();
     // Parallelogram 1: (10,0),(0,10),(70,80),(80,70)
@@ -386,7 +375,6 @@ fn reflections_sited_by_low_side_are_not_loaded_by_high_side() {
 /// in case it was intercepted by another obstacle.
 /// C#: three non-rectangular shapes, validates 0 reflection segments in both axes.
 #[test]
-#[ignore = "requires non-rectangular obstacle support and reflection segment counting"]
 fn reflections_remove_intercepted_site() {
     let mut b = ScenarioBuilder::new();
     // Parallelogram 1: (50,50),(40,60),(120,140),(130,130)

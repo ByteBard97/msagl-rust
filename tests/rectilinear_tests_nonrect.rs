@@ -104,7 +104,6 @@ fn add_diamond3_square8(b: &mut ScenarioBuilder) -> Vec<usize> {
 /// Three diamond-shaped obstacles, route between all pairs.
 /// C#: Create_Diamond3() + CreateRoutingBetweenObstacles(obstacles, 0, -1).
 #[test]
-#[ignore = "requires non-rectangular obstacle support"]
 fn diamond3() {
     // Actual shapes: 3 diamonds (see add_diamond3 for vertex coords).
     // Placeholder: bounding-box rectangles.
@@ -123,7 +122,6 @@ fn diamond3() {
 /// Port: Diamond3_With_FreePorts
 /// Three diamonds + two free (floating) ports at (65,525) and (50,465).
 #[test]
-#[ignore = "requires non-rectangular obstacle support"]
 fn diamond3_with_free_ports() {
     // C#: Create_Diamond3(), MakeAbsoluteFreePort at (65,525) and (50,465).
     // Free ports route between obstacles without being attached to any shape.
@@ -299,7 +297,6 @@ fn flat_worker(b: &mut ScenarioBuilder, left_bottom_offset: f64, left_top_offset
 /// Port: FlatTopSideWithMultipleCrosses
 /// Tests handling of a flat top side with multiple other obstacle sides crossing it.
 #[test]
-#[ignore = "requires non-rectangular obstacle support"]
 fn flat_top_side_with_multiple_crosses() {
     let mut b = ScenarioBuilder::new();
     flat_worker(&mut b, 0.0, 0.0);
@@ -318,7 +315,6 @@ fn flat_top_side_with_multiple_crosses() {
 /// Port: FlatBottomSideWithMultipleCrosses
 /// Tests handling of a flat bottom side with multiple other obstacle sides crossing it.
 #[test]
-#[ignore = "requires non-rectangular obstacle support"]
 fn flat_bottom_side_with_multiple_crosses() {
     // C# calls FlatWorker(0, 0) — same as FlatTopSide (tests same geometry,
     // the distinction is in sweep direction handling).

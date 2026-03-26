@@ -49,7 +49,6 @@ fn route_all_pairs(b: &mut ScenarioBuilder, ids: &[usize]) {
 /// Two non-orthogonal parallelogram obstacles with a small diamond blocker.
 /// C#: CurveFromPoints for 3 shapes, route between all pairs.
 #[test]
-#[ignore = "requires non-rectangular obstacle support"]
 fn reflection_block1_big() {
     // Shape 0: parallelogram (30,30),(130,130),(140,120),(40,20)
     // Shape 1: parallelogram (70,10),(190,130),(200,120),(80,0)
@@ -69,7 +68,6 @@ fn reflection_block1_big() {
 /// Same as Reflection_Block1_Big but with UseObstacleRectangles = true.
 /// Tests SplitEdge handling when splicing collinear segments.
 #[test]
-#[ignore = "requires non-rectangular obstacle support"]
 fn reflection_block1_big_use_rect() {
     // Same geometry as reflection_block1_big; C# sets UseObstacleRectangles = true.
     let mut b = ScenarioBuilder::new();
@@ -86,7 +84,6 @@ fn reflection_block1_big_use_rect() {
 /// Port: Reflection_Block1_Small
 /// Two parallelograms + a tiny diamond blocker.
 #[test]
-#[ignore = "requires non-rectangular obstacle support"]
 fn reflection_block1_small() {
     let mut b = ScenarioBuilder::new();
     let s0 = add_nonrect_placeholder(&mut b, &[(30.0,30.0),(130.0,130.0),(140.0,120.0),(40.0,20.0)]);
@@ -102,7 +99,6 @@ fn reflection_block1_small() {
 /// Port: Reflection_Block2
 /// Two parallelograms + two small triangle/diamond blockers.
 #[test]
-#[ignore = "requires non-rectangular obstacle support"]
 fn reflection_block2() {
     let mut b = ScenarioBuilder::new();
     let s0 = add_nonrect_placeholder(&mut b, &[(30.0,310.0),(100.0,380.0),(110.0,370.0),(40.0,300.0)]);
@@ -136,7 +132,6 @@ fn reflection_triangle1() {
 /// Port: Reflection_Triangle1_Overlap
 /// Three triangles where the outer inverted triangles overlap above the middle one.
 #[test]
-#[ignore = "requires non-rectangular obstacle support"]
 fn reflection_triangle1_overlap() {
     let mut b = ScenarioBuilder::new();
     let s0 = add_nonrect_placeholder(&mut b, &[(50.0,10.0),(80.0,80.0),(110.0,10.0)]);
@@ -152,7 +147,6 @@ fn reflection_triangle1_overlap() {
 /// Port: Reflection_Triangle1_NoOverlap
 /// Three adjacent triangles where the outer inverted triangles do not overlap.
 #[test]
-#[ignore = "requires non-rectangular obstacle support"]
 fn reflection_triangle1_no_overlap() {
     let mut b = ScenarioBuilder::new();
     let s0 = add_nonrect_placeholder(&mut b, &[(47.0,10.0),(80.0,80.0),(110.0,10.0)]);
@@ -170,7 +164,6 @@ fn reflection_triangle1_no_overlap() {
 /// Port: Reflection_LongAngle
 /// Baseline: two long non-orthogonal parallelograms + a small rectangle.
 #[test]
-#[ignore = "requires non-rectangular obstacle support"]
 fn reflection_long_angle() {
     let mut b = ScenarioBuilder::new();
     let s0 = add_nonrect_placeholder(&mut b, &[(20.0,30.0),(20.0,40.0),(40.0,40.0),(40.0,30.0)]);
@@ -209,7 +202,6 @@ fn reflection_long_angle_overlap_worker(
 
 /// Port: Reflection_LongAngle_Overlap_ToHighRight
 #[test]
-#[ignore = "requires non-rectangular obstacle support"]
 fn reflection_long_angle_overlap_to_high_right() {
     let mut b = ScenarioBuilder::new();
     reflection_long_angle_overlap_worker(&mut b, 1.0, 1.0);
@@ -230,7 +222,6 @@ fn reflection_long_angle_overlap_to_high_left() {
 
 /// Port: Reflection_LongAngle_Overlap_FromLowRight
 #[test]
-#[ignore = "requires non-rectangular obstacle support"]
 fn reflection_long_angle_overlap_from_low_right() {
     let mut b = ScenarioBuilder::new();
     reflection_long_angle_overlap_worker(&mut b, 1.0, -1.0);
@@ -241,7 +232,6 @@ fn reflection_long_angle_overlap_from_low_right() {
 
 /// Port: Reflection_LongAngle_Overlap_FromLowLeft
 #[test]
-#[ignore = "requires non-rectangular obstacle support"]
 fn reflection_long_angle_overlap_from_low_left() {
     let mut b = ScenarioBuilder::new();
     reflection_long_angle_overlap_worker(&mut b, -1.0, -1.0);
