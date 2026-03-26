@@ -2,13 +2,6 @@
 //!
 //! Uses the sweep-line algorithm (FreeSpaceFinderSweep) ported from C#
 //! FreeSpaceFinder.cs for O(n log n) obstacle constraint computation.
-//!
-//! The sweep handles both bound computation and neighbor discovery.
-//! For neighbor discovery, the sweep correctly finds all adjacent-container
-//! neighbor pairs (matching C#), but the simplified O(n log n) sorted-list
-//! approach is used instead because the downstream projection solver has
-//! O(n^2) behavior with large constraint sets. Once the solver is optimized,
-//! the sweep's neighbor discovery can be re-enabled.
 
 use crate::geometry::rectangle::Rectangle;
 use crate::routing::scan_direction::Direction;
@@ -33,15 +26,11 @@ pub fn find_free_space(
         return;
     }
 
-    // Use sweep for obstacle bound computation (O(n log n)).
+    // No obstacle-to-edge mapping available at this call site;
+    // pass None for all edges (no edge is exempt from any obstacle).
     let axis_edge_to_obstacle: Vec<Option<usize>> = vec![None; axis_edges.len()];
+
     let mut sweep = FreeSpaceFinderSweep::new(direction, axis_edges.len());
     sweep.find_free_space(axis_edges, obstacles, &axis_edge_to_obstacle);
-    // Apply only bounds (not neighbors) from the sweep.
-    sweep.apply_bounds_only(axis_edges);
-
-    // Use simplified neighbor finding (sorted-list approach).
-    // The sweep's neighbor discovery is correct per C# but produces O(n*m)
-    // pairs for large adjacent containers, overwhelming the solver.
-    super::free_space_finder_simple::find_right_neighbors_only(axis_edges, direction);
+    sweep.apply_results(axis_edges);
 }

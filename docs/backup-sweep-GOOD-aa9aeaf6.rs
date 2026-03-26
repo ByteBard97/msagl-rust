@@ -29,7 +29,7 @@ use crate::routing::scan_direction::Direction;
 /// Sweep event — C# LineSweeperBase processes these in priority order.
 /// Priority: lower Z first, then lower perpendicular coordinate.
 #[derive(Clone)]
-pub(super) enum SweepEvent {
+enum SweepEvent {
     /// C# LowestVertexEvent — dispatches to BOTH left and right vertex processing
     LowestVertex {
         point: Point,
@@ -61,7 +61,7 @@ pub(super) enum SweepEvent {
 }
 
 impl SweepEvent {
-    pub(super) fn site(&self) -> Point {
+    fn site(&self) -> Point {
         match self {
             SweepEvent::LowestVertex { point, .. }
             | SweepEvent::LeftVertex { point, .. }
@@ -79,10 +79,10 @@ impl SweepEvent {
 /// An active obstacle side in the sweep — ordered by intersection with sweep line.
 /// C# uses LeftObstacleSide / RightObstacleSide in RbTree<SegmentBase>.
 #[derive(Clone, Debug)]
-pub(super) struct ActiveSide {
-    pub(super) start: Point,
-    pub(super) end: Point,
-    pub(super) obstacle_idx: usize,
+struct ActiveSide {
+    start: Point,
+    end: Point,
+    obstacle_idx: usize,
 }
 
 // =============================================================================
@@ -92,9 +92,9 @@ pub(super) struct ActiveSide {
 /// Groups axis edges at the same perpendicular coordinate.
 /// C# AxisEdgesContainer — ordered in edgeContainersTree by perpendicular projection.
 #[allow(dead_code)]
-pub(super) struct AxisEdgesContainer {
-    pub(super) source: Point,
-    pub(super) edges: Vec<AxisEdgeId>,
+struct AxisEdgesContainer {
+    source: Point,
+    edges: Vec<AxisEdgeId>,
 }
 
 // =============================================================================
@@ -110,53 +110,53 @@ pub(super) struct AxisEdgesContainer {
 /// - edge_containers: BTreeMap (C# RbTree<AxisEdgesContainer> edgeContainersTree)
 pub struct FreeSpaceFinderSweep {
     /// Sweep direction — C# SweepDirection (Point used as unit vector)
-    pub(super) direction: Direction,
+    direction: Direction,
     /// Perpendicular to sweep direction — C# DirectionPerp
     #[allow(dead_code)]
-    pub(super) direction_perp: Direction,
+    direction_perp: Direction,
 
     /// Current Z coordinate — C# LineSweeperBase.Z
-    pub(super) z: f64,
+    z: f64,
 
     /// Event queue — C# LineSweeperBase.EventQueue (BinaryHeapWithComparer)
     /// MUST use BinaryHeap, not Vec + sort.
-    pub(super) event_queue: BinaryHeap<SweepEventEntry>,
+    event_queue: BinaryHeap<SweepEventEntry>,
 
     /// Active left obstacle sides — C# LineSweeperBase.LeftObstacleSideTree
     /// Key: OrderedFloat of the side's intersection with the current sweep line
     /// MUST use BTreeMap for O(log n) FindFirst/FindLast. DO NOT use Vec.
-    pub(super) left_side_tree: BTreeMap<OrderedFloat<f64>, Vec<ActiveSide>>,
+    left_side_tree: BTreeMap<OrderedFloat<f64>, Vec<ActiveSide>>,
 
     /// Active right obstacle sides — C# LineSweeperBase.RightObstacleSideTree
     /// MUST use BTreeMap for O(log n) FindFirst/FindLast. DO NOT use Vec.
-    pub(super) right_side_tree: BTreeMap<OrderedFloat<f64>, Vec<ActiveSide>>,
+    right_side_tree: BTreeMap<OrderedFloat<f64>, Vec<ActiveSide>>,
 
     /// Active axis edge containers — C# FreeSpaceFinder.edgeContainersTree
     /// Key: perpendicular projection of the container's source point
     /// MUST use BTreeMap for O(log n) Previous/Next/FindFirst. DO NOT use Vec.
-    pub(super) edge_containers: BTreeMap<OrderedFloat<f64>, AxisEdgesContainer>,
+    edge_containers: BTreeMap<OrderedFloat<f64>, AxisEdgesContainer>,
 
     /// Maps axis edge to the obstacle it originated from — C# AxisEdgesToObstaclesTheyOriginatedFrom
     /// Used by NotRestricting() to exempt an edge from being constrained by its own obstacle.
-    pub(super) axis_edge_to_obstacle: Vec<Option<usize>>,
+    axis_edge_to_obstacle: Vec<Option<usize>>,
 
     /// Accumulated left/right bounds to apply after sweep
-    pub(super) left_bounds: Vec<(AxisEdgeId, f64)>,
-    pub(super) right_bounds: Vec<(AxisEdgeId, f64)>,
+    left_bounds: Vec<(AxisEdgeId, f64)>,
+    right_bounds: Vec<(AxisEdgeId, f64)>,
     /// Accumulated neighbor pairs to apply after sweep
-    pub(super) neighbor_pairs: Vec<(AxisEdgeId, AxisEdgeId)>,
+    neighbor_pairs: Vec<(AxisEdgeId, AxisEdgeId)>,
 }
 
 /// Priority queue entry — wraps SweepEvent with Ord for BinaryHeap.
 /// C# LineSweeperBase.Compare: lower Z first, then lower perp coordinate.
 #[derive(Clone)]
-pub(super) struct SweepEventEntry {
+struct SweepEventEntry {
     /// Z projection (sweep direction · site) — primary sort key
-    pub(super) z: OrderedFloat<f64>,
+    z: OrderedFloat<f64>,
     /// Perpendicular projection — secondary sort key
-    pub(super) perp: OrderedFloat<f64>,
+    perp: OrderedFloat<f64>,
     /// The event payload
-    pub(super) event: SweepEvent,
+    event: SweepEvent,
 }
 
 // BinaryHeap is a max-heap, so we reverse the ordering for min-heap behavior.
@@ -645,5 +645,584 @@ impl FreeSpaceFinderSweep {
         }
     }
 
-    // Constraint, helper, and geometry methods are in free_space_finder_sweep_helpers.rs
+    // =========================================================================
+    // Constraint application — C# ConstraintEdgeWithObstaclesAtZ (lines 167-171)
+    //   ConstraintEdgeWithObstaclesAtZFromLeft (lines 186-193)
+    //   ConstraintEdgeWithObstaclesAtZFromRight (lines 173-179)
+    // =========================================================================
+
+    /// C# ConstraintEdgeWithObstaclesAtZ:
+    ///   ConstraintEdgeWithObstaclesAtZFromLeft(edge, point)
+    ///   ConstraintEdgeWithObstaclesAtZFromRight(edge, point)
+    fn constraint_edge_with_obstacles_at_z(
+        &mut self,
+        edge_id: AxisEdgeId,
+        point: Point,
+        axis_edges: &[AxisEdge],
+    ) {
+        self.constraint_from_left(edge_id, point, axis_edges);
+        self.constraint_from_right(edge_id, point, axis_edges);
+    }
+
+    /// C# ConstraintEdgeWithObstaclesAtZFromLeft:
+    /// 1. GetActiveSideFromLeft(point) — O(log n) BTreeMap FindLast
+    /// 2. If not restricting (edge originated from this obstacle): return
+    /// 3. Compute intersection of side with sweep line
+    /// 4. edge.BoundFromLeft(intersection * DirectionPerp)
+    fn constraint_from_left(
+        &mut self,
+        edge_id: AxisEdgeId,
+        point: Point,
+        _axis_edges: &[AxisEdge],
+    ) {
+        // C# GetActiveSideFromLeft (line 203-206):
+        // RightObstacleSideTree.FindLast(side => PointToTheRightOfLineOrOnLineLocal(point, side.Start, side.End))
+        // MUST use BTreeMap range query for FindLast — NOT linear scan.
+        //
+        // We look for the rightmost right-obstacle-side that is to the left of point.
+        // The right_side_tree is keyed by the side's intersection with the sweep line.
+        // FindLast means: find the entry with the largest key such that the point is
+        // to the right of (or on) the side's line.
+        let point_perp = self.x_projection(point);
+
+        // MUST use BTreeMap range() — NOT linear scan.
+        // Look at sides with intersection <= point_perp (they're candidates for being to the left)
+        let side_opt = self
+            .right_side_tree
+            .range(..=OrderedFloat(point_perp + GeomConstants::DISTANCE_EPSILON))
+            .next_back()
+            .and_then(|(_, sides)| {
+                sides.iter().find(|s| {
+                    Self::point_to_right_of_line_or_on_line(point, s.start, s.end)
+                }).cloned()
+            });
+
+        if let Some(side) = side_opt {
+            // Check NotRestricting
+            if self.not_restricting(edge_id, side.obstacle_idx) {
+                return;
+            }
+            // Compute intersection of side with sweep line
+            let x = self.intersection_of_side_and_sweep_line(&side);
+            // C# edge.BoundFromLeft(x * DirectionPerp)
+            // In C#, DirectionPerp is a Point and x is a Point, so x*DirectionPerp is a dot product.
+            // Actually in C#: x = ObstacleSideComparer.IntersectionOfSideAndSweepLine(node.Item)
+            // which returns a Point, and then: edge.BoundFromLeft(x * DirectionPerp)
+            // where * is dot product between two Points.
+            // In our case, x is already the perpendicular coordinate.
+            self.left_bounds.push((edge_id, x));
+        }
+    }
+
+    /// C# ConstraintEdgeWithObstaclesAtZFromRight:
+    /// 1. GetActiveSideFromRight(point) — O(log n) BTreeMap FindFirst
+    /// 2. If not restricting: return
+    /// 3. Compute intersection of side with sweep line
+    /// 4. edge.BoundFromRight(intersection * DirectionPerp)
+    fn constraint_from_right(
+        &mut self,
+        edge_id: AxisEdgeId,
+        point: Point,
+        _axis_edges: &[AxisEdge],
+    ) {
+        // C# GetActiveSideFromRight (lines 181-184):
+        // LeftObstacleSideTree.FindFirst(side => PointToTheLeftOfLineOrOnLineLocal(point, side.Start, side.End))
+        // MUST use BTreeMap range query for FindFirst — NOT linear scan.
+        let point_perp = self.x_projection(point);
+
+        // MUST use BTreeMap range() — NOT linear scan.
+        // Look at sides with intersection >= point_perp (candidates for being to the right)
+        let side_opt = self
+            .left_side_tree
+            .range(OrderedFloat(point_perp - GeomConstants::DISTANCE_EPSILON)..)
+            .next()
+            .and_then(|(_, sides)| {
+                sides.iter().find(|s| {
+                    Self::point_to_left_of_line_or_on_line(point, s.start, s.end)
+                }).cloned()
+            });
+
+        if let Some(side) = side_opt {
+            if self.not_restricting(edge_id, side.obstacle_idx) {
+                return;
+            }
+            let x = self.intersection_of_side_and_sweep_line(&side);
+            self.right_bounds.push((edge_id, x));
+        }
+    }
+
+    // =========================================================================
+    // Helper: NotRestricting — C# line 400-403
+    // =========================================================================
+
+    /// Returns true if the edge originated from the given obstacle
+    /// (meaning the obstacle should NOT constrain this edge).
+    fn not_restricting(&self, edge_id: AxisEdgeId, obstacle_idx: usize) -> bool {
+        // C# NotRestricting: return AxisEdgesToObstaclesTheyOriginatedFrom.TryGetValue(edge, out p) && p == polyline
+        if edge_id < self.axis_edge_to_obstacle.len() {
+            self.axis_edge_to_obstacle[edge_id] == Some(obstacle_idx)
+        } else {
+            false
+        }
+    }
+
+    // =========================================================================
+    // Helper: TryToAddRightNeighbor — C# lines 120-123
+    // =========================================================================
+
+    fn try_to_add_right_neighbor(
+        &mut self,
+        left_edge: AxisEdgeId,
+        right_edge: AxisEdgeId,
+        axis_edges: &[AxisEdge],
+    ) {
+        // C# TryToAddRightNeighbor (lines 120-123):
+        // if (ProjectionsOfEdgesOverlap(leftEdge, rightEdge))
+        //     leftEdge.AddRightNeighbor(rightEdge);
+        if self.projections_overlap(&axis_edges[left_edge], &axis_edges[right_edge]) {
+            self.neighbor_pairs.push((left_edge, right_edge));
+        }
+    }
+
+    // =========================================================================
+    // Helper: ProjectionsOfEdgesOverlap — C# lines 125-131
+    // =========================================================================
+
+    fn projections_overlap(
+        &self,
+        left: &AxisEdge,
+        right: &AxisEdge,
+    ) -> bool {
+        // C# ProjectionsOfEdgesOverlap (lines 125-131):
+        // return SweepPole == Direction.North
+        //     ? !(leftEdge.TargetPoint.Y < rightEdge.SourcePoint.Y - eps ||
+        //         rightEdge.TargetPoint.Y < leftEdge.SourcePoint.Y - eps)
+        //     : !(leftEdge.TargetPoint.X < rightEdge.SourcePoint.X - eps ||
+        //         rightEdge.TargetPoint.X < leftEdge.SourcePoint.X - eps);
+        let eps = GeomConstants::DISTANCE_EPSILON;
+        match self.direction {
+            Direction::North => {
+                !(left.target.y() < right.source.y() - eps
+                    || right.target.y() < left.source.y() - eps)
+            }
+            Direction::East => {
+                !(left.target.x() < right.source.x() - eps
+                    || right.target.x() < left.source.x() - eps)
+            }
+        }
+    }
+
+    // =========================================================================
+    // Helper: GetOrCreateAxisEdgesContainer — C# lines 320-329
+    //   GetAxisEdgesContainerNode — C# lines 335-343
+    // =========================================================================
+
+    /// O(log n) lookup/insert in the BTreeMap.
+    /// C# uses edgeContainersTree.FindFirst with xProjection comparison.
+    fn get_or_create_container_key(&mut self, source: Point) -> OrderedFloat<f64> {
+        // C# GetOrCreateAxisEdgesContainer (lines 320-329):
+        // var ret = GetAxisEdgesContainerNode(source);
+        // if (ret != null) return ret;
+        // return edgeContainersTree.Insert(new AxisEdgesContainer(source));
+        //
+        // C# GetAxisEdgesContainerNode (lines 335-343):
+        // var prj = xProjection(point);
+        // var ret = edgeContainersTree.FindFirst(cont => xProjection(cont.Source) >= prj - eps/2);
+        // if (ret != null && xProjection(ret.Item.Source) <= prj + eps/2) return ret;
+        // return null;
+        //
+        // MUST use BTreeMap range query — NOT linear scan.
+        let prj = self.x_projection(source);
+        let half_eps = GeomConstants::DISTANCE_EPSILON / 2.0;
+
+        // FindFirst: find first container whose x_projection >= prj - half_eps
+        // MUST use BTreeMap range — NOT linear scan.
+        let existing_key = self
+            .edge_containers
+            .range(OrderedFloat(prj - half_eps)..)
+            .next()
+            .and_then(|(k, _)| {
+                if k.into_inner() <= prj + half_eps {
+                    Some(*k)
+                } else {
+                    None
+                }
+            });
+
+        if let Some(key) = existing_key {
+            key
+        } else {
+            let key = OrderedFloat(prj);
+            self.edge_containers.insert(
+                key,
+                AxisEdgesContainer {
+                    source,
+                    edges: Vec::new(),
+                },
+            );
+            key
+        }
+    }
+
+    // =========================================================================
+    // Helper: RemoveEdge — C# lines 415-420
+    // =========================================================================
+
+    fn remove_edge(&mut self, edge_id: AxisEdgeId, source: Point) {
+        // C# RemoveEdge (lines 415-420):
+        // var containerNode = GetAxisEdgesContainerNode(edge.Source.Point);
+        // containerNode.Item.RemoveAxis(edge);
+        // if (containerNode.Item.IsEmpty()) edgeContainersTree.DeleteNodeInternal(containerNode);
+        //
+        // O(log n) BTreeMap lookup + remove.
+        let prj = self.x_projection(source);
+        let half_eps = GeomConstants::DISTANCE_EPSILON / 2.0;
+
+        // MUST use BTreeMap range — NOT linear scan.
+        let key_opt = self
+            .edge_containers
+            .range(OrderedFloat(prj - half_eps)..)
+            .next()
+            .and_then(|(k, _)| {
+                if k.into_inner() <= prj + half_eps {
+                    Some(*k)
+                } else {
+                    None
+                }
+            });
+
+        if let Some(key) = key_opt {
+            let should_remove = {
+                let container = self.edge_containers.get_mut(&key).unwrap();
+                container.edges.retain(|&e| e != edge_id);
+                container.edges.is_empty()
+            };
+            if should_remove {
+                self.edge_containers.remove(&key);
+            }
+        }
+    }
+
+    // =========================================================================
+    // Result application — called after sweep completes
+    // =========================================================================
+
+    pub fn apply_results(&self, axis_edges: &mut [AxisEdge]) {
+        // Apply accumulated left bounds
+        for &(edge_id, bound) in &self.left_bounds {
+            axis_edges[edge_id].bound_from_left(bound);
+        }
+        // Apply accumulated right bounds
+        for &(edge_id, bound) in &self.right_bounds {
+            axis_edges[edge_id].bound_from_right(bound);
+        }
+        // Apply accumulated neighbor pairs
+        for &(left_id, right_id) in &self.neighbor_pairs {
+            axis_edges[left_id].right_neighbors.push(right_id);
+        }
+    }
+
+    // =========================================================================
+    // Private helpers
+    // =========================================================================
+
+    /// C# xProjection: for North sweep returns point.X, for East returns -point.Y
+    #[inline]
+    fn x_projection(&self, p: Point) -> f64 {
+        match self.direction {
+            Direction::North => p.x(),
+            Direction::East => -p.y(),
+        }
+    }
+
+    /// C# SweepDirection as a Point vector
+    #[inline]
+    fn sweep_dir_vec(&self) -> Point {
+        match self.direction {
+            Direction::North => Point::new(0.0, 1.0),
+            Direction::East => Point::new(1.0, 0.0),
+        }
+    }
+
+    /// C# DirectionPerp as a Point vector
+    #[inline]
+    fn dir_perp_vec(&self) -> Point {
+        match self.direction {
+            Direction::North => Point::new(1.0, 0.0),
+            Direction::East => Point::new(0.0, -1.0),
+        }
+    }
+
+    /// Dot product with sweep direction
+    #[inline]
+    fn dot_sweep(&self, p: Point) -> f64 {
+        p.dot(self.sweep_dir_vec())
+    }
+
+    /// Dot product with perpendicular direction
+    #[inline]
+    fn dot_perp(&self, p: Point) -> f64 {
+        p.dot(self.dir_perp_vec())
+    }
+
+    /// C# GetZ(point) = SweepDirection * point (dot product)
+    #[inline]
+    fn get_z(&self, p: Point) -> f64 {
+        self.dot_sweep(p)
+    }
+
+    /// Check if an axis edge is parallel to the sweep direction.
+    /// C# EdgeIsParallelToSweepDir (lines 490-492)
+    fn edge_is_parallel_to_sweep_dir(&self, edge: &AxisEdge) -> bool {
+        // C#: edge.Direction == SweepPole || edge.Direction == OppositeDir(SweepPole)
+        // Since our edges are always oriented North or East, and SweepPole = direction:
+        edge.direction == self.direction
+    }
+
+    /// Get ordered endpoints (low, high) in sweep direction
+    fn ordered_endpoints(&self, edge: &AxisEdge) -> (Point, Point) {
+        let sz = self.dot_sweep(edge.source);
+        let tz = self.dot_sweep(edge.target);
+        if sz <= tz {
+            (edge.source, edge.target)
+        } else {
+            (edge.target, edge.source)
+        }
+    }
+
+    /// Find lowest vertex of a rectangle polyline (lowest Z, then lowest perp)
+    fn get_lowest_vertex_idx(&self, vertices: &[Point; 4]) -> usize {
+        let mut best = 0;
+        for i in 1..4 {
+            if self.sweep_less(vertices[i], vertices[best]) {
+                best = i;
+            }
+        }
+        best
+    }
+
+    /// Compare two points for sweep order: lower Z first, then lower perp
+    fn sweep_less(&self, a: Point, b: Point) -> bool {
+        let az = self.dot_sweep(a);
+        let bz = self.dot_sweep(b);
+        if az < bz {
+            return true;
+        }
+        if az > bz {
+            return false;
+        }
+        self.dot_perp(a) < self.dot_perp(b)
+    }
+
+    /// Enqueue a sweep event
+    fn enqueue_event(&mut self, event: SweepEvent) {
+        let site = event.site();
+        let z = OrderedFloat(self.dot_sweep(site));
+        let perp = OrderedFloat(self.dot_perp(site));
+        self.event_queue.push(SweepEventEntry { z, perp, event });
+    }
+
+    // -- Active side tree operations --
+
+    /// Compute the perpendicular intersection of a side with the current sweep line.
+    /// C# ObstacleSideComparer.IntersectionOfSideAndSweepLine
+    fn intersection_of_side_and_sweep_line(&self, side: &ActiveSide) -> f64 {
+        let start_z = self.dot_sweep(side.start);
+        let end_z = self.dot_sweep(side.end);
+        let dz = end_z - start_z;
+
+        if dz.abs() < GeomConstants::DISTANCE_EPSILON {
+            // Horizontal side — return perp coordinate of start
+            self.dot_perp(side.start)
+        } else {
+            // Interpolate: perp = start_perp + (z - start_z) / dz * (end_perp - start_perp)
+            let start_perp = self.dot_perp(side.start);
+            let end_perp = self.dot_perp(side.end);
+            let t = (self.z - start_z) / dz;
+            start_perp + t * (end_perp - start_perp)
+        }
+    }
+
+    /// Compute the key for inserting/finding a side in the tree.
+    fn side_key(&self, side: &ActiveSide) -> OrderedFloat<f64> {
+        OrderedFloat(self.intersection_of_side_and_sweep_line(side))
+    }
+
+    /// C# InsertLeftSide — add to left obstacle side tree
+    fn insert_left_side(&mut self, start: Point, end: Point, obstacle_idx: usize) {
+        let side = ActiveSide {
+            start,
+            end,
+            obstacle_idx,
+        };
+        let key = self.side_key(&side);
+        self.left_side_tree
+            .entry(key)
+            .or_insert_with(Vec::new)
+            .push(side);
+    }
+
+    /// C# InsertRightSide — add to right obstacle side tree
+    fn insert_right_side(&mut self, start: Point, end: Point, obstacle_idx: usize) {
+        let side = ActiveSide {
+            start,
+            end,
+            obstacle_idx,
+        };
+        let key = self.side_key(&side);
+        self.right_side_tree
+            .entry(key)
+            .or_insert_with(Vec::new)
+            .push(side);
+    }
+
+    /// C# RemoveLeftSide — remove from left obstacle side tree
+    fn remove_left_side(&mut self, start: Point, end: Point) {
+        // Find and remove the matching side
+        let side = ActiveSide {
+            start,
+            end,
+            obstacle_idx: 0, // obstacle_idx not needed for key lookup
+        };
+        let key = self.side_key(&side);
+        let half_eps = GeomConstants::DISTANCE_EPSILON;
+
+        // MUST use BTreeMap range — NOT linear scan.
+        // Search in a small range around the expected key
+        let mut key_to_clean = None;
+        for (&k, sides) in self
+            .left_side_tree
+            .range(OrderedFloat(key.into_inner() - half_eps)..=OrderedFloat(key.into_inner() + half_eps))
+        {
+            if sides.iter().any(|s| s.start.close_to(start) && s.end.close_to(end)) {
+                key_to_clean = Some(k);
+                break;
+            }
+        }
+
+        if let Some(k) = key_to_clean {
+            let sides = self.left_side_tree.get_mut(&k).unwrap();
+            sides.retain(|s| !(s.start.close_to(start) && s.end.close_to(end)));
+            if sides.is_empty() {
+                self.left_side_tree.remove(&k);
+            }
+        }
+    }
+
+    /// C# RemoveRightSide — remove from right obstacle side tree
+    fn remove_right_side(&mut self, start: Point, end: Point) {
+        let side = ActiveSide {
+            start,
+            end,
+            obstacle_idx: 0,
+        };
+        let key = self.side_key(&side);
+        let half_eps = GeomConstants::DISTANCE_EPSILON;
+
+        // MUST use BTreeMap range — NOT linear scan.
+        let mut key_to_clean = None;
+        for (&k, sides) in self
+            .right_side_tree
+            .range(OrderedFloat(key.into_inner() - half_eps)..=OrderedFloat(key.into_inner() + half_eps))
+        {
+            if sides.iter().any(|s| s.start.close_to(start) && s.end.close_to(end)) {
+                key_to_clean = Some(k);
+                break;
+            }
+        }
+
+        if let Some(k) = key_to_clean {
+            let sides = self.right_side_tree.get_mut(&k).unwrap();
+            sides.retain(|s| !(s.start.close_to(start) && s.end.close_to(end)));
+            if sides.is_empty() {
+                self.right_side_tree.remove(&k);
+            }
+        }
+    }
+
+    // -- Geometry predicates --
+
+    /// C# PointToTheLeftOfLineOrOnLineLocal (line 195-197):
+    /// SignedDoubledTriangleArea(a, linePoint0, linePoint1) > -AreaComparisonEpsilon
+    fn point_to_left_of_line_or_on_line(a: Point, line0: Point, line1: Point) -> bool {
+        Point::signed_doubled_triangle_area(a, line0, line1)
+            > -GeomConstants::INTERSECTION_EPSILON
+    }
+
+    /// C# PointToTheRightOfLineOrOnLineLocal (line 199-201):
+    /// SignedDoubledTriangleArea(linePoint0, linePoint1, a) < AreaComparisonEpsilon
+    fn point_to_right_of_line_or_on_line(a: Point, line0: Point, line1: Point) -> bool {
+        Point::signed_doubled_triangle_area(line0, line1, a)
+            < GeomConstants::INTERSECTION_EPSILON
+    }
+
+    // -- Edge restriction helpers --
+
+    /// C# RestrictEdgeFromTheLeftOfEvent (lines 445-454):
+    /// Find container node to the left of event, bound its edges from right.
+    fn restrict_edge_from_left_of_event(
+        &mut self,
+        site: Point,
+        obstacle_idx: usize,
+        _axis_edges: &[AxisEdge],
+    ) {
+        // C# GetContainerNodeToTheLeftOfEvent (lines 456-463):
+        // double siteX = xProjection(site);
+        // return edgeContainersTree.FindLast(container => xProjection(container.Source) <= siteX);
+        let site_x = self.x_projection(site);
+        let site_perp = self.dot_perp(site);
+
+        // MUST use BTreeMap range query — NOT linear scan.
+        let container_edges: Option<Vec<AxisEdgeId>> = self
+            .edge_containers
+            .range(..=OrderedFloat(site_x + GeomConstants::DISTANCE_EPSILON))
+            .next_back()
+            .map(|(_, c)| c.edges.clone());
+
+        if let Some(edges) = container_edges {
+            // C# foreach (var edge in containerNode.Item.Edges)
+            //     if (!NotRestricting(edge, polylinePoint.Polyline))
+            //         edge.BoundFromRight(site * DirectionPerp);
+            for &edge_id in &edges {
+                if !self.not_restricting(edge_id, obstacle_idx) {
+                    self.right_bounds.push((edge_id, site_perp));
+                }
+            }
+        }
+    }
+
+    /// C# RestrictEdgeContainerToTheRightOfEvent (lines 387-398):
+    /// Find container node to the right of event, bound its edges from left.
+    fn restrict_edge_container_to_right_of_event(
+        &mut self,
+        site: Point,
+        obstacle_idx: usize,
+        _axis_edges: &[AxisEdge],
+    ) {
+        // C# (lines 388-398):
+        // var siteX = xProjection(site);
+        // var containerNode = edgeContainersTree.FindFirst(
+        //     container => siteX <= xProjection(container.Source));
+        // if (containerNode != null)
+        //     foreach (var edge in containerNode.Item.Edges)
+        //         if (!NotRestricting(edge, polylinePoint.Polyline))
+        //             edge.BoundFromLeft(DirectionPerp * site);
+        let site_x = self.x_projection(site);
+        let site_perp = self.dot_perp(site);
+
+        // MUST use BTreeMap range query — NOT linear scan.
+        let container_edges: Option<Vec<AxisEdgeId>> = self
+            .edge_containers
+            .range(OrderedFloat(site_x - GeomConstants::DISTANCE_EPSILON)..)
+            .next()
+            .map(|(_, c)| c.edges.clone());
+
+        if let Some(edges) = container_edges {
+            for &edge_id in &edges {
+                if !self.not_restricting(edge_id, obstacle_idx) {
+                    self.left_bounds.push((edge_id, site_perp));
+                }
+            }
+        }
+    }
 }
