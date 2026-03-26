@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <!-- Suppress MSAGL doc-comment warnings -->
+    <NoWarn>CS1591;CS1570;CS1572;CS1587;CS1573;CS1712</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Reference the MSAGL library project directly -->
+    <ProjectReference Include="../../../MSAGL-Reference/GraphLayout/MSAGL/AutomaticGraphLayout.csproj" />
+  </ItemGroup>
+</Project>
