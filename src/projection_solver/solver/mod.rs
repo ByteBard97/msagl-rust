@@ -39,6 +39,11 @@ pub struct Solver {
     solver_params: Parameters,
     solver_solution: Solution,
     violation_cache_min_block_cutoff: usize,
+    /// Generation counter for zero-allocation visited tracking in get_connected_variables.
+    visited_generation: u64,
+    /// Per-variable generation stamps, parallel to `variables`. Avoids allocating
+    /// a `vec![false; n]` on every `get_connected_variables` call.
+    visited_gen: Vec<u64>,
 }
 
 impl Default for Solver {
@@ -65,6 +70,8 @@ impl Solver {
             solver_params: Parameters::default(),
             solver_solution: Solution::new(),
             violation_cache_min_block_cutoff: usize::MAX,
+            visited_generation: 0,
+            visited_gen: Vec::new(),
         }
     }
 
@@ -79,6 +86,7 @@ impl Solver {
         let bi = BlockIndex(self.blocks.len());
         var.block = bi;
         self.variables.push(var);
+        self.visited_gen.push(0);
 
         let block = Block::new(bi, vi, desired_pos, weight, scale);
         // Track in block vector
