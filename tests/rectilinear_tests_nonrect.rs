@@ -3,25 +3,20 @@
 /// Reference: MSAGL-Reference/GraphLayout/Test/MSAGLTests/Rectilinear/RectilinearTests.cs
 ///
 /// These tests exercise diamond, circle, triangle, and other non-rectangular
-/// obstacle shapes. Since `ScenarioBuilder` currently only supports rectangles,
-/// each test uses bounding-box rectangles as placeholders. When non-rectangular
-/// obstacle support is added, replace the bounding-box placeholders with actual
-/// polygon/curve shapes.
-///
-/// ALL tests are marked `#[ignore]` because they require non-rectangular obstacle
-/// support to produce meaningful results.
+/// obstacle shapes. Diamond and circle shapes use actual polygon boundaries.
+/// Triangle and other shapes still use bounding-box placeholders pending
+/// full non-convex support.
 
 #[path = "test_harness/mod.rs"]
 mod test_harness;
 
+use msagl_rust::Point;
 use test_harness::verifier::RECTILINEAR_TOLERANCE;
 use test_harness::{ScenarioBuilder, Verifier};
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
-/// Bounding box for a diamond with vertices at the given points.
-/// C# `CurveFromPoints` creates a closed polyline; we approximate with
-/// the axis-aligned bounding box until polygon obstacles are supported.
+/// Bounding box for a set of points.
 fn bounding_box(points: &[(f64, f64)]) -> (f64, f64, f64, f64) {
     let min_x = points.iter().map(|p| p.0).fold(f64::INFINITY, f64::min);
     let max_x = points.iter().map(|p| p.0).fold(f64::NEG_INFINITY, f64::max);
@@ -30,22 +25,25 @@ fn bounding_box(points: &[(f64, f64)]) -> (f64, f64, f64, f64) {
     (min_x, min_y, max_x - min_x, max_y - min_y)
 }
 
+/// Add a polygon obstacle from a list of (x, y) tuples.
+/// Returns the obstacle index.
+fn add_polygon(b: &mut ScenarioBuilder, points: &[(f64, f64)]) -> usize {
+    let pts: Vec<Point> = points.iter().map(|&(x, y)| Point::new(x, y)).collect();
+    b.add_polygon(&pts)
+}
+
 /// Add a bounding-box rectangle placeholder for a non-rectangular obstacle.
+/// Used for shapes not yet fully supported (e.g., non-convex shapes).
 /// Returns the obstacle index.
 fn add_nonrect_placeholder(b: &mut ScenarioBuilder, points: &[(f64, f64)]) -> usize {
     let (x, y, w, h) = bounding_box(points);
     b.add_rectangle_bl(x, y, w, h)
 }
 
-/// Add a circle placeholder as a bounding-box square.
-/// C# `CreateCircle(radius, center)` → square centered at `center` with side `2*radius`.
-fn add_circle_placeholder(b: &mut ScenarioBuilder, center: (f64, f64), radius: f64) -> usize {
-    b.add_rectangle_bl(
-        center.0 - radius,
-        center.1 - radius,
-        2.0 * radius,
-        2.0 * radius,
-    )
+/// Add a circle obstacle approximated as a polygon.
+/// Returns the obstacle index.
+fn add_circle_shape(b: &mut ScenarioBuilder, center: (f64, f64), radius: f64) -> usize {
+    b.add_circle(Point::new(center.0, center.1), radius)
 }
 
 // ── Diamond helpers (mirror C# Create_Diamond3, Create_Diamond3_Square6, etc.) ──
@@ -55,7 +53,7 @@ fn add_circle_placeholder(b: &mut ScenarioBuilder, center: (f64, f64), radius: f
 /// Diamond 1: (40,420),(80,480),(120,420),(80,380) — bbox 40..120, 380..480
 /// Diamond 2: (160,440),(200,480),(240,440),(200,400) — bbox 160..240, 400..480
 fn add_diamond3(b: &mut ScenarioBuilder) -> Vec<usize> {
-    let d0 = add_nonrect_placeholder(
+    let d0 = add_polygon(
         b,
         &[
             (100.0, 500.0),
@@ -64,11 +62,11 @@ fn add_diamond3(b: &mut ScenarioBuilder) -> Vec<usize> {
             (140.0, 460.0),
         ],
     );
-    let d1 = add_nonrect_placeholder(
+    let d1 = add_polygon(
         b,
         &[(40.0, 420.0), (80.0, 480.0), (120.0, 420.0), (80.0, 380.0)],
     );
-    let d2 = add_nonrect_placeholder(
+    let d2 = add_polygon(
         b,
         &[
             (160.0, 440.0),
@@ -152,42 +150,39 @@ fn diamond3_with_free_ports() {
 
 /// Port: Diamond3_Square6_Overlap
 /// Three diamonds + 6 overlapping rectangles.
+/// C#: CreateRoutingBetweenObstacles(obstacles, 0, -1) — routes from obstacle[0] to all others.
 #[test]
-#[ignore = "requires non-rectangular obstacle support"]
 fn diamond3_square6_overlap() {
     let mut b = ScenarioBuilder::new();
     let ids = add_diamond3_square6(&mut b);
-    for i in 0..ids.len() {
-        for j in (i + 1)..ids.len() {
-            b.route_between(ids[i], ids[j]);
-        }
+    // C# routes from obstacle[0] (diamond 0) to every other obstacle.
+    for j in 1..ids.len() {
+        b.route_between(ids[0], ids[j]);
     }
     let shapes = b.shapes().to_vec();
     let result = b.run();
-    Verifier::verify_all(&result, &shapes, RECTILINEAR_TOLERANCE);
+    Verifier::verify_nonrect(&result, &shapes, RECTILINEAR_TOLERANCE);
 }
 
 /// Port: Diamond3_Square8_Overlap
 /// Three diamonds + 6 overlapping rectangles + 2 interior rectangles.
+/// C#: CreateRoutingBetweenObstacles(obstacles, 0, -1) — routes from obstacle[0] to all others.
 #[test]
-#[ignore = "requires non-rectangular obstacle support"]
 fn diamond3_square8_overlap() {
     let mut b = ScenarioBuilder::new();
     let ids = add_diamond3_square8(&mut b);
-    for i in 0..ids.len() {
-        for j in (i + 1)..ids.len() {
-            b.route_between(ids[i], ids[j]);
-        }
+    for j in 1..ids.len() {
+        b.route_between(ids[0], ids[j]);
     }
     let shapes = b.shapes().to_vec();
     let result = b.run();
-    Verifier::verify_all(&result, &shapes, RECTILINEAR_TOLERANCE);
+    Verifier::verify_nonrect(&result, &shapes, RECTILINEAR_TOLERANCE);
 }
 
 /// Port: Diamond3_Square9_Overlap
 /// Diamond3_Square8 + one more overlapping rectangle at (119.5,471)-(160,530).
+/// C#: CreateRoutingBetweenObstacles(obstacles, 0, -1) — routes from obstacle[0] to all others.
 #[test]
-#[ignore = "requires non-rectangular obstacle support"]
 fn diamond3_square9_overlap() {
     let mut b = ScenarioBuilder::new();
     let mut ids = add_diamond3_square8(&mut b);
@@ -195,21 +190,19 @@ fn diamond3_square9_overlap() {
     // w = 160 - 119.5 = 40.5, h = 530 - 471 = 59, center = (139.75, 500.5)
     // bl = (119.5, 471)
     ids.push(b.add_rectangle_bl(119.5, 471.0, 40.5, 59.0));
-    for i in 0..ids.len() {
-        for j in (i + 1)..ids.len() {
-            b.route_between(ids[i], ids[j]);
-        }
+    for j in 1..ids.len() {
+        b.route_between(ids[0], ids[j]);
     }
     let shapes = b.shapes().to_vec();
     let result = b.run();
-    Verifier::verify_all(&result, &shapes, RECTILINEAR_TOLERANCE);
+    Verifier::verify_nonrect(&result, &shapes, RECTILINEAR_TOLERANCE);
 }
 
 /// Port: Diamond3_Square9_Overlap_HalfWidths
 /// Diamond3_Square8 + one more rectangle at half-width/half-height.
 /// C#: rect center=(141.25,500.5), half-w=18.75/2, half-h=29.5/2.
+/// C#: CreateRoutingBetweenObstacles(obstacles, 0, -1) — routes from obstacle[0] to all others.
 #[test]
-#[ignore = "requires non-rectangular obstacle support"]
 fn diamond3_square9_overlap_half_widths() {
     let mut b = ScenarioBuilder::new();
     let mut ids = add_diamond3_square8(&mut b);
@@ -217,14 +210,12 @@ fn diamond3_square9_overlap_half_widths() {
     // Full rect: bl=(122.5,471), w=37.5, h=59 → center=(141.25, 500.5)
     // Half-size rect: w=18.75, h=29.5, center=(141.25,500.5) → bl=(131.875, 485.75)
     ids.push(b.add_rectangle_bl(131.875, 485.75, 18.75, 29.5));
-    for i in 0..ids.len() {
-        for j in (i + 1)..ids.len() {
-            b.route_between(ids[i], ids[j]);
-        }
+    for j in 1..ids.len() {
+        b.route_between(ids[0], ids[j]);
     }
     let shapes = b.shapes().to_vec();
     let result = b.run();
-    Verifier::verify_all(&result, &shapes, RECTILINEAR_TOLERANCE);
+    Verifier::verify_nonrect(&result, &shapes, RECTILINEAR_TOLERANCE);
 }
 
 // ── Category: Circle tests ───────────────────────────────────────────────────
@@ -233,10 +224,7 @@ fn diamond3_square9_overlap_half_widths() {
 /// 20 circles of radius 50 with specific routing edges between them.
 /// C#: CreateCircle(50, center) for each, then AddRoutingPorts for specific pairs.
 #[test]
-#[ignore = "requires non-rectangular obstacle support"]
 fn circle_test() {
-    // Actual shapes: circles with radius=50 at the given centers.
-    // Placeholder: bounding-box squares (side=100) centered at each point.
     let mut b = ScenarioBuilder::new();
     let centers: [(f64, f64); 20] = [
         (1222.0, 881.0),
@@ -263,7 +251,7 @@ fn circle_test() {
     let radius = 50.0;
     let ids: Vec<usize> = centers
         .iter()
-        .map(|&c| add_circle_placeholder(&mut b, c, radius))
+        .map(|&c| add_circle_shape(&mut b, c, radius))
         .collect();
 
     // C# routing pairs: (src_idx, tgt_idx)
@@ -297,7 +285,7 @@ fn circle_test() {
 
     let shapes = b.shapes().to_vec();
     let result = b.run();
-    Verifier::verify_all(&result, &shapes, RECTILINEAR_TOLERANCE);
+    Verifier::verify_nonrect(&result, &shapes, RECTILINEAR_TOLERANCE);
     Verifier::assert_edge_count(&result, pairs.len());
 }
 
