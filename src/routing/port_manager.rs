@@ -1,4 +1,5 @@
 use super::compass_direction::CompassDirection;
+use super::static_graph_utility::StaticGraphUtility;
 use super::transient_graph_utility::TransientGraphUtility;
 use crate::geometry::point::Point;
 use crate::geometry::point_comparer::GeomConstants;
@@ -30,22 +31,22 @@ impl PortManager {
     /// Splice a port location into the visibility graph using
     /// `TransientGraphUtility` for proper edge management.
     ///
-    /// First tries to find existing axis-aligned VG vertices. If none are
-    /// found (port is inside an obstacle gap), falls back to ray-casting
-    /// against VG edges to create intersection vertices.
+    /// For each compass direction, finds the nearest VG structure (either
+    /// a perpendicular crossing edge or an aligned vertex) and connects the
+    /// port to it.
+    ///
+    /// Uses VG adjacency walks (ported from C# `FindNearestPerpendicularOrContainingEdge`)
+    /// instead of brute-force edge scanning to find perpendicular crossings
+    /// efficiently.
     pub fn splice_port(graph: &mut VisibilityGraph, location: Point) -> PortSpliceResult {
         let mut tgu = TransientGraphUtility::new();
         let port_vertex = tgu.find_or_add_vertex(graph, location);
 
-        // For each direction, try ray-casting first (finds the nearest VG edge
-        // the axis-ray crosses). This correctly handles ports inside obstacles by
-        // connecting only to the nearest boundary, not to distant aligned vertices
-        // that may be on the other side of an obstacle.
-        //
-        // If ray-casting finds nothing (port is already on a VG edge), fall back
-        // to aligned-vertex search.
         for &direction in &CompassDirection::all() {
-            if let Some(intersection) = Self::find_nearest_crossing_edge(graph, location, direction)
+            // Strategy 1: Find the nearest perpendicular VG edge crossing
+            // using the VG adjacency walk.
+            if let Some(intersection) =
+                Self::find_nearest_crossing_edge(graph, location, direction)
             {
                 let (edge_source, edge_target, intersect_point) = intersection;
                 // Detect zombie vertices: vertices left behind by a previous
@@ -64,9 +65,7 @@ impl PortManager {
 
                 // If the vertex was orphaned and the original VG edge still
                 // exists unsplit, split it to reconnect the vertex to the VG.
-                if was_orphan
-                    && graph.find_edge(edge_source, edge_target).is_some()
-                {
+                if was_orphan && graph.find_edge(edge_source, edge_target).is_some() {
                     tgu.split_edge(graph, edge_source, edge_target, split_vertex);
                 }
 
@@ -79,6 +78,7 @@ impl PortManager {
             } else if let Some((neighbor, dist)) =
                 Self::find_nearest_aligned(graph, port_vertex, location, direction)
             {
+                // Strategy 2: Direct aligned-vertex connection.
                 tgu.find_or_add_edge(graph, port_vertex, neighbor, dist);
             }
         }
@@ -94,9 +94,20 @@ impl PortManager {
     /// Find the nearest VG edge that an axis-aligned ray from `location`
     /// in `direction` crosses.
     ///
-    /// For East/West: looks for vertical VG edges on the same row (perpendicular
-    /// edges the horizontal ray would cross). Actually, more precisely, we look
-    /// for any edge whose perpendicular extent brackets the port's coordinate.
+    /// Uses VG adjacency walk instead of brute-force edge scanning:
+    ///
+    /// 1. Find candidate vertices on perpendicular VG lines in the search
+    ///    direction (O(V) vertex coordinate scan -- no edge iteration).
+    /// 2. For each distinct perpendicular line (nearest first), walk the VG
+    ///    adjacency chain to find the edge that brackets the port's
+    ///    perpendicular coordinate (O(chain_length) per line).
+    ///
+    /// This replaces the former O(V*E) approach (iterating all edges of all
+    /// vertices) with O(V + k*chain_length) where k is the number of
+    /// distinct perpendicular lines checked (typically 1-3).
+    ///
+    /// Ported from C# TransientGraphUtility.FindNearestPerpendicularOrContainingEdge
+    /// (lines 294-329) and StaticGraphUtility.FindAdjacentVertex.
     ///
     /// Returns (edge_source, edge_target, intersection_point).
     fn find_nearest_crossing_edge(
@@ -105,78 +116,275 @@ impl PortManager {
         direction: CompassDirection,
     ) -> Option<(VertexId, VertexId, Point)> {
         let eps = GeomConstants::DISTANCE_EPSILON;
-        let mut best: Option<(VertexId, VertexId, Point, f64)> = None;
+        let is_horizontal = matches!(direction, CompassDirection::East | CompassDirection::West);
+
+        let port_perp_coord = if is_horizontal {
+            location.y()
+        } else {
+            location.x()
+        };
+
+        // Phase 1: Build a map of perpendicular lines -> best seed vertex.
+        // For each distinct primary coordinate (X for vertical lines, Y for
+        // horizontal lines) in the search direction, keep the vertex closest
+        // to the port on the perpendicular axis.
+        //
+        // Key: quantized primary coordinate (rounded to eps precision).
+        // Value: (vertex_id, perp_distance_to_port, primary_distance_to_port).
+        let mut line_seeds: std::collections::BTreeMap<
+            ordered_float::OrderedFloat<f64>,
+            (VertexId, f64, f64),
+        > = std::collections::BTreeMap::new();
 
         for i in 0..graph.vertex_count() {
             let vid = VertexId(i);
-            let v_point = graph.point(vid);
+            // Skip disconnected vertices (zombie vertices from previous unsplice).
+            if graph.out_degree(vid) == 0 && graph.in_degree(vid) == 0 {
+                continue;
+            }
+            let pt = graph.point(vid);
 
-            // Look at all edges from this vertex
-            for edge in graph.out_edges(vid) {
-                let neighbor_id = edge.target;
-                let n_point = graph.point(neighbor_id);
-
-                // Only consider edges perpendicular to the ray direction.
-                let crossing = match direction {
-                    CompassDirection::East | CompassDirection::West => {
-                        // Ray is horizontal. Look for vertical edges.
-                        if (v_point.x() - n_point.x()).abs() > eps {
-                            continue; // not vertical
-                        }
-                        let edge_x = v_point.x();
-                        let (min_y, max_y) = ordered_pair(v_point.y(), n_point.y());
-                        // Does the edge span the port's y?
-                        if location.y() < min_y - eps || location.y() > max_y + eps {
-                            continue;
-                        }
-                        // Is the edge in the right direction?
-                        let in_direction = match direction {
-                            CompassDirection::East => edge_x > location.x() + eps,
-                            CompassDirection::West => edge_x < location.x() - eps,
-                            _ => false,
-                        };
-                        if !in_direction {
-                            continue;
-                        }
-                        let intersect = Point::new(edge_x, location.y());
-                        let dist = (edge_x - location.x()).abs();
-                        Some((intersect, dist))
-                    }
-                    CompassDirection::North | CompassDirection::South => {
-                        // Ray is vertical. Look for horizontal edges.
-                        if (v_point.y() - n_point.y()).abs() > eps {
-                            continue; // not horizontal
-                        }
-                        let edge_y = v_point.y();
-                        let (min_x, max_x) = ordered_pair(v_point.x(), n_point.x());
-                        // Does the edge span the port's x?
-                        if location.x() < min_x - eps || location.x() > max_x + eps {
-                            continue;
-                        }
-                        // Is the edge in the right direction?
-                        let in_direction = match direction {
-                            CompassDirection::North => edge_y > location.y() + eps,
-                            CompassDirection::South => edge_y < location.y() - eps,
-                            _ => false,
-                        };
-                        if !in_direction {
-                            continue;
-                        }
-                        let intersect = Point::new(location.x(), edge_y);
-                        let dist = (edge_y - location.y()).abs();
-                        Some((intersect, dist))
-                    }
+            let (in_direction, primary_coord, perp_coord) = if is_horizontal {
+                let in_dir = match direction {
+                    CompassDirection::East => pt.x() > location.x() + eps,
+                    CompassDirection::West => pt.x() < location.x() - eps,
+                    _ => unreachable!(),
                 };
+                (in_dir, pt.x(), pt.y())
+            } else {
+                let in_dir = match direction {
+                    CompassDirection::North => pt.y() > location.y() + eps,
+                    CompassDirection::South => pt.y() < location.y() - eps,
+                    _ => unreachable!(),
+                };
+                (in_dir, pt.y(), pt.x())
+            };
 
-                if let Some((intersect, dist)) = crossing {
-                    if best.is_none_or(|(_, _, _, d)| dist < d) {
-                        best = Some((vid, neighbor_id, intersect, dist));
+            if !in_direction {
+                continue;
+            }
+
+            // Quantize primary_coord to group vertices on the same perp line.
+            let key = ordered_float::OrderedFloat(
+                (primary_coord / eps).round() * eps,
+            );
+            let perp_dist = (perp_coord - port_perp_coord).abs();
+            let primary_dist = (primary_coord
+                - if is_horizontal {
+                    location.x()
+                } else {
+                    location.y()
+                })
+            .abs();
+
+            line_seeds
+                .entry(key)
+                .and_modify(|existing| {
+                    // Keep the vertex closest to port on perpendicular axis.
+                    if perp_dist < existing.1 {
+                        *existing = (vid, perp_dist, primary_dist);
                     }
+                })
+                .or_insert((vid, perp_dist, primary_dist));
+        }
+
+        if line_seeds.is_empty() {
+            return None;
+        }
+
+        // Phase 2: Iterate perpendicular lines nearest to port first.
+        // Collect and sort by primary distance.
+        let mut lines: Vec<(VertexId, f64)> = line_seeds
+            .values()
+            .map(|(vid, _perp_dist, primary_dist)| (*vid, *primary_dist))
+            .collect();
+        lines.sort_by(|a, b| a.1.partial_cmp(&b.1).unwrap());
+
+        let mut best: Option<(VertexId, VertexId, Point, f64)> = None;
+
+        for &(seed_vid, seed_primary_dist) in &lines {
+            // Early termination: if we already found a crossing at distance d,
+            // skip any perpendicular line that is farther away.
+            if let Some((_, _, _, best_dist)) = best {
+                if seed_primary_dist > best_dist + eps {
+                    break;
+                }
+            }
+
+            // Walk from this seed vertex using the VG adjacency chain to
+            // find if there's a perpendicular edge that brackets the port's
+            // coordinate.
+            if let Some((edge_src, edge_tgt)) =
+                Self::find_bracketing_edge_from_vertex(graph, seed_vid, location, direction)
+            {
+                let src_pt = graph.point(edge_src);
+                let tgt_pt = graph.point(edge_tgt);
+                let intersect = compute_intersection(location, direction, src_pt, tgt_pt);
+                let dist = if is_horizontal {
+                    (intersect.x() - location.x()).abs()
+                } else {
+                    (intersect.y() - location.y()).abs()
+                };
+                if best.is_none_or(|(_, _, _, d)| dist < d) {
+                    best = Some((edge_src, edge_tgt, intersect, dist));
                 }
             }
         }
 
         best.map(|(s, t, p, _)| (s, t, p))
+    }
+
+    /// From a vertex on a perpendicular VG line, walk the adjacency chain
+    /// to find an edge that brackets the port's perpendicular coordinate.
+    ///
+    /// This is the core of the C# adjacency walk: from a vertex on a
+    /// perpendicular line, walk toward the port along that line to find
+    /// the edge spanning the port's coordinate.
+    ///
+    /// Ported from C# TransientGraphUtility.FindPerpendicularOrContainingEdge
+    /// (lines 270-292).
+    fn find_bracketing_edge_from_vertex(
+        graph: &VisibilityGraph,
+        start_vertex: VertexId,
+        location: Point,
+        search_dir: CompassDirection,
+    ) -> Option<(VertexId, VertexId)> {
+        let is_horizontal = matches!(search_dir, CompassDirection::East | CompassDirection::West);
+
+        // Determine the perpendicular direction from the vertex toward the
+        // port's perpendicular coordinate.
+        let start_pt = graph.point(start_vertex);
+        let perp_to_port = if is_horizontal {
+            // Search is horizontal; perpendicular axis is vertical.
+            let dy = location.y() - start_pt.y();
+            if dy > GeomConstants::DISTANCE_EPSILON {
+                Some(CompassDirection::North)
+            } else if dy < -GeomConstants::DISTANCE_EPSILON {
+                Some(CompassDirection::South)
+            } else {
+                None // Already on the same Y — check for edge in search direction.
+            }
+        } else {
+            // Search is vertical; perpendicular axis is horizontal.
+            let dx = location.x() - start_pt.x();
+            if dx > GeomConstants::DISTANCE_EPSILON {
+                Some(CompassDirection::East)
+            } else if dx < -GeomConstants::DISTANCE_EPSILON {
+                Some(CompassDirection::West)
+            } else {
+                None // Already on the same X — check for edge in search direction.
+            }
+        };
+
+        match perp_to_port {
+            None => {
+                // The start vertex is on the same perpendicular coordinate as
+                // the port. The "perpendicular edge" is the edge from this
+                // vertex in the search direction (if it exists).
+                // Return the edge as (start_vertex, next_vertex).
+                let next = StaticGraphUtility::find_adjacent_vertex(
+                    graph,
+                    start_vertex,
+                    search_dir,
+                )?;
+                // Verify the edge crosses or is past the port.
+                let next_pt = graph.point(next);
+                let crosses = if is_horizontal {
+                    match search_dir {
+                        CompassDirection::East => {
+                            next_pt.x() >= location.x() - GeomConstants::DISTANCE_EPSILON
+                        }
+                        CompassDirection::West => {
+                            next_pt.x() <= location.x() + GeomConstants::DISTANCE_EPSILON
+                        }
+                        _ => unreachable!(),
+                    }
+                } else {
+                    match search_dir {
+                        CompassDirection::North => {
+                            next_pt.y() >= location.y() - GeomConstants::DISTANCE_EPSILON
+                        }
+                        CompassDirection::South => {
+                            next_pt.y() <= location.y() + GeomConstants::DISTANCE_EPSILON
+                        }
+                        _ => unreachable!(),
+                    }
+                };
+                if crosses {
+                    Some((start_vertex, next))
+                } else {
+                    None
+                }
+            }
+            Some(perp_dir) => {
+                // Walk from start_vertex toward the port's perpendicular
+                // coordinate. When we find an edge that brackets it, return
+                // that edge. This is FindPerpendicularOrContainingEdge.
+                let mut current = start_vertex;
+                loop {
+                    let next = StaticGraphUtility::find_adjacent_vertex(
+                        graph, current, perp_dir,
+                    );
+                    match next {
+                        None => return None, // Dead end before reaching port's coordinate.
+                        Some(next_id) => {
+                            let next_pt = graph.point(next_id);
+                            let (next_perp, port_perp) = if is_horizontal {
+                                (next_pt.y(), location.y())
+                            } else {
+                                (next_pt.x(), location.x())
+                            };
+
+                            // Check if the edge from current to next brackets the
+                            // port's perpendicular coordinate.
+                            let current_pt = graph.point(current);
+                            let current_perp = if is_horizontal {
+                                current_pt.y()
+                            } else {
+                                current_pt.x()
+                            };
+
+                            let brackets = ordered_brackets(
+                                current_perp, next_perp, port_perp,
+                            );
+
+                            if brackets {
+                                // This edge brackets the port's perpendicular
+                                // coordinate. But we need the edge in `search_dir`
+                                // from this line. Find the VG edge at the port's
+                                // perpendicular coordinate.
+                                //
+                                // The crossing edge is between current and next on
+                                // this perpendicular line.
+                                return graph
+                                    .find_edge(current, next_id)
+                                    .map(|_| (current, next_id))
+                                    .or_else(|| {
+                                        graph
+                                            .find_edge(next_id, current)
+                                            .map(|_| (next_id, current))
+                                    });
+                            }
+
+                            // If next is past the port's coordinate, no bracket found.
+                            let overshot = match perp_dir {
+                                CompassDirection::North | CompassDirection::East => {
+                                    next_perp > port_perp + GeomConstants::DISTANCE_EPSILON
+                                }
+                                CompassDirection::South | CompassDirection::West => {
+                                    next_perp < port_perp - GeomConstants::DISTANCE_EPSILON
+                                }
+                            };
+                            if overshot && !brackets {
+                                return None;
+                            }
+
+                            current = next_id;
+                        }
+                    }
+                }
+            }
+        }
     }
 
     /// Find the nearest vertex axis-aligned with `location` in `direction`.
@@ -228,11 +436,34 @@ impl PortManager {
     }
 }
 
-/// Return (min, max) of two f64 values.
-fn ordered_pair(a: f64, b: f64) -> (f64, f64) {
-    if a <= b {
-        (a, b)
-    } else {
-        (b, a)
+/// Check if `port_coord` is between `a` and `b` (inclusive with epsilon tolerance).
+fn ordered_brackets(a: f64, b: f64, port_coord: f64) -> bool {
+    let eps = GeomConstants::DISTANCE_EPSILON;
+    let (lo, hi) = if a <= b { (a, b) } else { (b, a) };
+    port_coord >= lo - eps && port_coord <= hi + eps
+}
+
+/// Compute the intersection point of an axis-aligned ray from `location`
+/// in `direction` with the edge from `src` to `tgt`.
+///
+/// For horizontal rays (East/West), the intersection is at (edge_x, location.y).
+/// For vertical rays (North/South), the intersection is at (location.x, edge_y).
+fn compute_intersection(
+    location: Point,
+    direction: CompassDirection,
+    src: Point,
+    _tgt: Point,
+) -> Point {
+    match direction {
+        CompassDirection::East | CompassDirection::West => {
+            // Horizontal ray intersects a vertical edge.
+            // Both endpoints share the same X in a rectilinear VG.
+            Point::new(src.x(), location.y())
+        }
+        CompassDirection::North | CompassDirection::South => {
+            // Vertical ray intersects a horizontal edge.
+            // Both endpoints share the same Y in a rectilinear VG.
+            Point::new(location.x(), src.y())
+        }
     }
 }

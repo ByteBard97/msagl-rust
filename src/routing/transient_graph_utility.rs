@@ -361,6 +361,139 @@ impl TransientGraphUtility {
         }
     }
 
+    /// Find the nearest perpendicular or containing edge by first walking
+    /// toward `point_location`, then searching for perpendicular edges.
+    ///
+    /// Similar to `find_perpendicular_or_containing_edge`, but first tries to
+    /// move closer to `point_location` along the perpendicular axis before
+    /// searching in `dir`.
+    ///
+    /// Faithfully ports `FindNearestPerpendicularOrContainingEdge` from C#
+    /// TransientGraphUtility.cs lines 294-329.
+    ///
+    /// Algorithm:
+    /// 1. Compute `dir_toward_location` = the perpendicular component of the
+    ///    direction from `start_vertex` to `point_location` (excluding `dir`).
+    /// 2. Walk toward `point_location` along `dir_toward_location` as far as
+    ///    possible without overshooting.
+    /// 3. From the closest vertex found, try `find_perpendicular_or_containing_edge`.
+    /// 4. If that fails, walk back toward `start_vertex` trying each vertex
+    ///    until we find a perpendicular edge or return to `start_vertex`.
+    pub fn find_nearest_perpendicular_or_containing_edge(
+        graph: &VisibilityGraph,
+        start_vertex: VertexId,
+        dir: CompassDirection,
+        point_location: Point,
+    ) -> Option<(VertexId, VertexId)> {
+        let start_point = graph.point(start_vertex);
+
+        // Compute the perpendicular direction toward point_location.
+        // C#: Direction dirTowardLocation = ~dir & GetDirections(startVertex.Point, pointLocation)
+        let dir_toward_location =
+            Self::perpendicular_component(start_point, point_location, dir);
+
+        let mut current_vertex = start_vertex;
+
+        // Phase 1: Move toward pointLocation as far as we can.
+        if let Some(toward_dir) = dir_toward_location {
+            let mut current_dir_toward = dir_toward_location;
+            while current_dir_toward.is_some() {
+                let next = StaticGraphUtility::find_adjacent_vertex(
+                    graph,
+                    current_vertex,
+                    toward_dir,
+                );
+                let next_id = match next {
+                    Some(id) => id,
+                    None => break,
+                };
+
+                let next_point = graph.point(next_id);
+                // Check if next vertex has overshot point_location in the toward direction.
+                if CompassDirection::from_points(next_point, point_location)
+                    == Some(toward_dir.opposite())
+                {
+                    break;
+                }
+
+                current_vertex = next_id;
+                // Recompute the perpendicular component from the new position.
+                current_dir_toward = Self::perpendicular_component(
+                    graph.point(current_vertex),
+                    point_location,
+                    dir,
+                );
+            }
+        }
+
+        // Phase 2: Find a perpendicular edge, walking back toward start if needed.
+        loop {
+            let perp_edge = Self::find_perpendicular_or_containing_edge(
+                graph,
+                current_vertex,
+                dir,
+                point_location,
+            );
+            if perp_edge.is_some() || current_vertex == start_vertex {
+                return perp_edge;
+            }
+
+            // Walk back toward start_vertex (opposite of dir_toward_location).
+            match dir_toward_location {
+                Some(toward_dir) => {
+                    match StaticGraphUtility::find_adjacent_vertex(
+                        graph,
+                        current_vertex,
+                        toward_dir.opposite(),
+                    ) {
+                        Some(prev) => current_vertex = prev,
+                        None => return None,
+                    }
+                }
+                None => return None,
+            }
+        }
+    }
+
+    /// Compute the perpendicular component of the direction from `from` to `to`,
+    /// excluding the given `main_dir` and its opposite.
+    ///
+    /// For example, if `main_dir` is East and the direction from `from` to `to`
+    /// is NorthEast, this returns Some(North).
+    /// If collinear (same axis as main_dir), returns None.
+    fn perpendicular_component(
+        from: Point,
+        to: Point,
+        main_dir: CompassDirection,
+    ) -> Option<CompassDirection> {
+        let dx = to.x() - from.x();
+        let dy = to.y() - from.y();
+        let eps = GeomConstants::DISTANCE_EPSILON;
+
+        match main_dir {
+            // main_dir is horizontal -> perpendicular component is vertical
+            CompassDirection::East | CompassDirection::West => {
+                if dy > eps {
+                    Some(CompassDirection::North)
+                } else if dy < -eps {
+                    Some(CompassDirection::South)
+                } else {
+                    None // collinear
+                }
+            }
+            // main_dir is vertical -> perpendicular component is horizontal
+            CompassDirection::North | CompassDirection::South => {
+                if dx > eps {
+                    Some(CompassDirection::East)
+                } else if dx < -eps {
+                    Some(CompassDirection::West)
+                } else {
+                    None // collinear
+                }
+            }
+        }
+    }
+
     /// Remove all transient additions, restoring the graph to its pre-splicing state.
     ///
     /// Faithfully ports `RemoveFromGraph` from TransientGraphUtility.ts lines 178-182.
