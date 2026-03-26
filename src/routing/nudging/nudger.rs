@@ -52,6 +52,14 @@ pub fn nudge_paths(paths: &mut [Vec<Point>], obstacles: &[Rectangle], edge_separ
     // cross before, restore the original path. This guards against nudger
     // bugs collapsing detour paths into straight lines through obstacles.
     restore_if_crossing(paths, &original_paths, obstacles);
+
+    // Safety: if nudging reduced any path to fewer than 2 points,
+    // restore the original path. A valid path always has >= 2 points.
+    for (i, path) in paths.iter_mut().enumerate() {
+        if path.len() < 2 && original_paths[i].len() >= 2 {
+            *path = original_paths[i].clone();
+        }
+    }
 }
 
 /// Run one pass of nudging in the given direction.

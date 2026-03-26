@@ -285,11 +285,16 @@ impl ScanSegmentTree {
         self.segments.get(&key).map(Vec::as_slice).unwrap_or(&[])
     }
 
-    /// Merge adjacent touching segments at each perpendicular coordinate that share the same weight.
-    /// Two segments merge when one's high_coord equals the other's low_coord and weights match.
+    /// Merge overlapping or adjacent segments at each perpendicular coordinate.
+    ///
+    /// Faithful port of TS `ScanSegmentTree.MergeSegments()`.
+    /// Two segments merge when they share the same weight and either:
+    /// - They touch (one's high_coord == the other's low_coord)
+    /// - They overlap (one's low_coord < the other's high_coord)
+    /// - One is contained within the other
     pub fn merge_segments(&mut self) {
         for segs in self.segments.values_mut() {
-            // Sort by low_coord so adjacent segments are neighbours in the slice.
+            // Sort by low_coord so adjacent/overlapping segments are neighbours.
             segs.sort_by(|a, b| {
                 a.low_coord()
                     .partial_cmp(&b.low_coord())
@@ -298,13 +303,13 @@ impl ScanSegmentTree {
             let mut merged: Vec<ScanSegment> = Vec::with_capacity(segs.len());
             for seg in segs.drain(..) {
                 if let Some(last) = merged.last_mut() {
-                    let touching = (last.high_coord() - seg.low_coord()).abs()
-                        < GeomConstants::DISTANCE_EPSILON;
-                    if touching && last.weight == seg.weight {
-                        // Extend last segment to cover seg's range.
-                        let new_high = seg.high_coord();
+                    // Check if segments touch or overlap
+                    let overlaps_or_touches = seg.low_coord()
+                        <= last.high_coord() + GeomConstants::DISTANCE_EPSILON;
+                    if overlaps_or_touches && last.weight == seg.weight {
+                        // Extend last segment to cover seg's range (take max of high_coords).
+                        let new_high = seg.high_coord().max(last.high_coord());
                         if last.is_vertical {
-                            // Keep perp (x) the same; update the y extent.
                             let px = last.start.x();
                             let low_y = last.low_coord();
                             last.start = Point::new(px, low_y);
