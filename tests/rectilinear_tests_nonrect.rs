@@ -14,8 +14,8 @@
 #[path = "test_harness/mod.rs"]
 mod test_harness;
 
-use test_harness::{ScenarioBuilder, Verifier};
 use test_harness::verifier::RECTILINEAR_TOLERANCE;
+use test_harness::{ScenarioBuilder, Verifier};
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -32,21 +32,14 @@ fn bounding_box(points: &[(f64, f64)]) -> (f64, f64, f64, f64) {
 
 /// Add a bounding-box rectangle placeholder for a non-rectangular obstacle.
 /// Returns the obstacle index.
-fn add_nonrect_placeholder(
-    b: &mut ScenarioBuilder,
-    points: &[(f64, f64)],
-) -> usize {
+fn add_nonrect_placeholder(b: &mut ScenarioBuilder, points: &[(f64, f64)]) -> usize {
     let (x, y, w, h) = bounding_box(points);
     b.add_rectangle_bl(x, y, w, h)
 }
 
 /// Add a circle placeholder as a bounding-box square.
 /// C# `CreateCircle(radius, center)` → square centered at `center` with side `2*radius`.
-fn add_circle_placeholder(
-    b: &mut ScenarioBuilder,
-    center: (f64, f64),
-    radius: f64,
-) -> usize {
+fn add_circle_placeholder(b: &mut ScenarioBuilder, center: (f64, f64), radius: f64) -> usize {
     b.add_rectangle_bl(
         center.0 - radius,
         center.1 - radius,
@@ -62,9 +55,28 @@ fn add_circle_placeholder(
 /// Diamond 1: (40,420),(80,480),(120,420),(80,380) — bbox 40..120, 380..480
 /// Diamond 2: (160,440),(200,480),(240,440),(200,400) — bbox 160..240, 400..480
 fn add_diamond3(b: &mut ScenarioBuilder) -> Vec<usize> {
-    let d0 = add_nonrect_placeholder(b, &[(100.0,500.0),(140.0,540.0),(180.0,500.0),(140.0,460.0)]);
-    let d1 = add_nonrect_placeholder(b, &[(40.0,420.0),(80.0,480.0),(120.0,420.0),(80.0,380.0)]);
-    let d2 = add_nonrect_placeholder(b, &[(160.0,440.0),(200.0,480.0),(240.0,440.0),(200.0,400.0)]);
+    let d0 = add_nonrect_placeholder(
+        b,
+        &[
+            (100.0, 500.0),
+            (140.0, 540.0),
+            (180.0, 500.0),
+            (140.0, 460.0),
+        ],
+    );
+    let d1 = add_nonrect_placeholder(
+        b,
+        &[(40.0, 420.0), (80.0, 480.0), (120.0, 420.0), (80.0, 380.0)],
+    );
+    let d2 = add_nonrect_placeholder(
+        b,
+        &[
+            (160.0, 440.0),
+            (200.0, 480.0),
+            (240.0, 440.0),
+            (200.0, 400.0),
+        ],
+    );
     vec![d0, d1, d2]
 }
 
@@ -227,11 +239,26 @@ fn circle_test() {
     // Placeholder: bounding-box squares (side=100) centered at each point.
     let mut b = ScenarioBuilder::new();
     let centers: [(f64, f64); 20] = [
-        (1222.0, 881.0), (1296.0, 1181.0), (1105.0, 1197.0), (835.0, 1241.0),
-        (970.0, 1014.0), (965.0, 1259.0), (630.0, 1262.0), (500.0, 1262.0),
-        (1800.0, 1180.0), (1875.0, 1330.0), (1435.0, 1390.0), (1125.0, 1466.0),
-        (1415.0, 960.0), (2036.0, 1117.0), (1125.0, 1711.0), (1125.0, 1850.0),
-        (1186.0, 583.0), (874.0, 863.0), (2165.0, 1090.0), (1163.0, 450.0),
+        (1222.0, 881.0),
+        (1296.0, 1181.0),
+        (1105.0, 1197.0),
+        (835.0, 1241.0),
+        (970.0, 1014.0),
+        (965.0, 1259.0),
+        (630.0, 1262.0),
+        (500.0, 1262.0),
+        (1800.0, 1180.0),
+        (1875.0, 1330.0),
+        (1435.0, 1390.0),
+        (1125.0, 1466.0),
+        (1415.0, 960.0),
+        (2036.0, 1117.0),
+        (1125.0, 1711.0),
+        (1125.0, 1850.0),
+        (1186.0, 583.0),
+        (874.0, 863.0),
+        (2165.0, 1090.0),
+        (1163.0, 450.0),
     ];
     let radius = 50.0;
     let ids: Vec<usize> = centers
@@ -241,14 +268,24 @@ fn circle_test() {
 
     // C# routing pairs: (src_idx, tgt_idx)
     let pairs = [
-        (0, 16), (0, 4), (0, 1), (0, 12),
-        (1, 2), (1, 12), (1, 10), (1, 11), (1, 8),
-        (2, 1), (2, 3),
+        (0, 16),
+        (0, 4),
+        (0, 1),
+        (0, 12),
+        (1, 2),
+        (1, 12),
+        (1, 10),
+        (1, 11),
+        (1, 8),
+        (2, 1),
+        (2, 3),
         (3, 6),
-        (4, 5), (4, 17),
+        (4, 5),
+        (4, 17),
         (5, 11),
         (6, 7),
-        (8, 9), (8, 13),
+        (8, 9),
+        (8, 13),
         (11, 14),
         (13, 18),
         (14, 15),
@@ -275,19 +312,25 @@ fn flat_worker(b: &mut ScenarioBuilder, left_bottom_offset: f64, left_top_offset
     // bbox: (10, 10+min(0,lbo)) .. (20, 20+max(0,lto))
     let _min_y = 10.0 + left_bottom_offset.min(0.0);
     let _max_y = 20.0 + left_top_offset.max(0.0);
-    add_nonrect_placeholder(b, &[
-        (10.0, 10.0 + left_bottom_offset), (10.0, 20.0 + left_top_offset),
-        (20.0, 20.0), (20.0, 10.0),
-    ]);
+    add_nonrect_placeholder(
+        b,
+        &[
+            (10.0, 10.0 + left_bottom_offset),
+            (10.0, 20.0 + left_top_offset),
+            (20.0, 20.0),
+            (20.0, 10.0),
+        ],
+    );
 
     // Two crossing triangles at increments of 0.5
     let divisor = 2;
     for ii in 0..divisor {
         let inc = ii as f64 / divisor as f64;
         // Triangle: (18.5+inc, 15), (23.5+inc, 30), (28.5+inc, 15)
-        add_nonrect_placeholder(b, &[
-            (18.5 + inc, 15.0), (23.5 + inc, 30.0), (28.5 + inc, 15.0),
-        ]);
+        add_nonrect_placeholder(
+            b,
+            &[(18.5 + inc, 15.0), (23.5 + inc, 30.0), (28.5 + inc, 15.0)],
+        );
     }
 
     // Upper crossing triangle: (18, 25), (23, 40), (28, 25)
@@ -348,27 +391,39 @@ fn route_between_two_separately_disconnected_obstacles() {
 
     // Angled rectangles (non-rect): 4 groups, each with original + shifted copy.
     // Group 1: (100,10),(80,30),(210,160),(230,140)
-    let group1 = [(100.0,10.0),(80.0,30.0),(210.0,160.0),(230.0,140.0)];
+    let group1 = [(100.0, 10.0), (80.0, 30.0), (210.0, 160.0), (230.0, 140.0)];
     add_nonrect_placeholder(&mut b, &group1);
-    let shifted1: Vec<(f64,f64)> = group1.iter().map(|p| (p.0+shift_x, p.1+shift_y)).collect();
+    let shifted1: Vec<(f64, f64)> = group1
+        .iter()
+        .map(|p| (p.0 + shift_x, p.1 + shift_y))
+        .collect();
     add_nonrect_placeholder(&mut b, &shifted1);
 
     // Group 2: (30,80),(10,100),(140,230),(160,210)
-    let group2 = [(30.0,80.0),(10.0,100.0),(140.0,230.0),(160.0,210.0)];
+    let group2 = [(30.0, 80.0), (10.0, 100.0), (140.0, 230.0), (160.0, 210.0)];
     add_nonrect_placeholder(&mut b, &group2);
-    let shifted2: Vec<(f64,f64)> = group2.iter().map(|p| (p.0+shift_x, p.1+shift_y)).collect();
+    let shifted2: Vec<(f64, f64)> = group2
+        .iter()
+        .map(|p| (p.0 + shift_x, p.1 + shift_y))
+        .collect();
     add_nonrect_placeholder(&mut b, &shifted2);
 
     // Group 3: (140,10),(10,140),(30,160),(160,30)
-    let group3 = [(140.0,10.0),(10.0,140.0),(30.0,160.0),(160.0,30.0)];
+    let group3 = [(140.0, 10.0), (10.0, 140.0), (30.0, 160.0), (160.0, 30.0)];
     add_nonrect_placeholder(&mut b, &group3);
-    let shifted3: Vec<(f64,f64)> = group3.iter().map(|p| (p.0+shift_x, p.1+shift_y)).collect();
+    let shifted3: Vec<(f64, f64)> = group3
+        .iter()
+        .map(|p| (p.0 + shift_x, p.1 + shift_y))
+        .collect();
     add_nonrect_placeholder(&mut b, &shifted3);
 
     // Group 4: (210,80),(80,210),(100,230),(230,100)
-    let group4 = [(210.0,80.0),(80.0,210.0),(100.0,230.0),(230.0,100.0)];
+    let group4 = [(210.0, 80.0), (80.0, 210.0), (100.0, 230.0), (230.0, 100.0)];
     add_nonrect_placeholder(&mut b, &group4);
-    let shifted4: Vec<(f64,f64)> = group4.iter().map(|p| (p.0+shift_x, p.1+shift_y)).collect();
+    let shifted4: Vec<(f64, f64)> = group4
+        .iter()
+        .map(|p| (p.0 + shift_x, p.1 + shift_y))
+        .collect();
     add_nonrect_placeholder(&mut b, &shifted4);
 
     b.route_between(s0, s1);
@@ -405,28 +460,49 @@ fn nonorthogonally_disconnected_worker(
     // 4 groups of triangles around the first square, optionally shifted copies.
     // Group 1: apex=(100,120), vertices: apex, apex+(-off,-off), apex+(-off,+off)
     let apex1 = (100.0, 120.0);
-    let tri1 = [(apex1.0, apex1.1), (apex1.0 - offset, apex1.1 - offset), (apex1.0 - offset, apex1.1 + offset)];
+    let tri1 = [
+        (apex1.0, apex1.1),
+        (apex1.0 - offset, apex1.1 - offset),
+        (apex1.0 - offset, apex1.1 + offset),
+    ];
     add_nonrect_placeholder(b, &tri1);
     if add_shifted_obstacles {
-        let shifted: Vec<(f64,f64)> = tri1.iter().map(|p| (p.0+shift_x, p.1+shift_y)).collect();
+        let shifted: Vec<(f64, f64)> = tri1
+            .iter()
+            .map(|p| (p.0 + shift_x, p.1 + shift_y))
+            .collect();
         add_nonrect_placeholder(b, &shifted);
     }
 
     // Group 2: apex=(120,140), vertices: apex, apex+(-off,+off), apex+(+off,+off)
     let apex2 = (120.0, 140.0);
-    let tri2 = [(apex2.0, apex2.1), (apex2.0 - offset, apex2.1 + offset), (apex2.0 + offset, apex2.1 + offset)];
+    let tri2 = [
+        (apex2.0, apex2.1),
+        (apex2.0 - offset, apex2.1 + offset),
+        (apex2.0 + offset, apex2.1 + offset),
+    ];
     add_nonrect_placeholder(b, &tri2);
     if add_shifted_obstacles && num_shapes == 4 {
-        let shifted: Vec<(f64,f64)> = tri2.iter().map(|p| (p.0+shift_x, p.1+shift_y)).collect();
+        let shifted: Vec<(f64, f64)> = tri2
+            .iter()
+            .map(|p| (p.0 + shift_x, p.1 + shift_y))
+            .collect();
         add_nonrect_placeholder(b, &shifted);
     }
 
     // Group 3: apex=(140,120), vertices: apex, apex+(+off,+off), apex+(+off,-off)
     let apex3 = (140.0, 120.0);
-    let tri3 = [(apex3.0, apex3.1), (apex3.0 + offset, apex3.1 + offset), (apex3.0 + offset, apex3.1 - offset)];
+    let tri3 = [
+        (apex3.0, apex3.1),
+        (apex3.0 + offset, apex3.1 + offset),
+        (apex3.0 + offset, apex3.1 - offset),
+    ];
     add_nonrect_placeholder(b, &tri3);
     if add_shifted_obstacles {
-        let shifted: Vec<(f64,f64)> = tri3.iter().map(|p| (p.0+shift_x, p.1+shift_y)).collect();
+        let shifted: Vec<(f64, f64)> = tri3
+            .iter()
+            .map(|p| (p.0 + shift_x, p.1 + shift_y))
+            .collect();
         add_nonrect_placeholder(b, &shifted);
     }
 
@@ -434,13 +510,24 @@ fn nonorthogonally_disconnected_worker(
     // Only added if num_shapes == 4.
     if num_shapes == 4 {
         let apex4 = (120.0, 100.0);
-        let tri4 = [(apex4.0, apex4.1), (apex4.0 - offset, apex4.1 - offset), (apex4.0 + offset, apex4.1 - offset)];
+        let tri4 = [
+            (apex4.0, apex4.1),
+            (apex4.0 - offset, apex4.1 - offset),
+            (apex4.0 + offset, apex4.1 - offset),
+        ];
         add_nonrect_placeholder(b, &tri4);
     }
     if add_shifted_obstacles {
         let apex4 = (120.0, 100.0);
-        let tri4 = [(apex4.0, apex4.1), (apex4.0 - offset, apex4.1 - offset), (apex4.0 + offset, apex4.1 - offset)];
-        let shifted: Vec<(f64,f64)> = tri4.iter().map(|p| (p.0+shift_x, p.1+shift_y)).collect();
+        let tri4 = [
+            (apex4.0, apex4.1),
+            (apex4.0 - offset, apex4.1 - offset),
+            (apex4.0 + offset, apex4.1 - offset),
+        ];
+        let shifted: Vec<(f64, f64)> = tri4
+            .iter()
+            .map(|p| (p.0 + shift_x, p.1 + shift_y))
+            .collect();
         add_nonrect_placeholder(b, &shifted);
     }
 

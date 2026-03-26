@@ -15,8 +15,8 @@
 #[path = "test_harness/mod.rs"]
 mod test_harness;
 
-use test_harness::{ScenarioBuilder, Verifier};
 use test_harness::verifier::RECTILINEAR_TOLERANCE;
+use test_harness::{ScenarioBuilder, Verifier};
 
 // ── Helpers (shared with rectilinear_tests_nonrect.rs) ──────────────────────
 
@@ -30,10 +30,7 @@ fn bounding_box(points: &[(f64, f64)]) -> (f64, f64, f64, f64) {
 }
 
 /// Add a bounding-box rectangle as a placeholder for a non-rectangular obstacle.
-fn add_nonrect_placeholder(
-    b: &mut ScenarioBuilder,
-    points: &[(f64, f64)],
-) -> usize {
+fn add_nonrect_placeholder(b: &mut ScenarioBuilder, points: &[(f64, f64)]) -> usize {
     let (x, y, w, h) = bounding_box(points);
     b.add_rectangle_bl(x, y, w, h)
 }
@@ -54,9 +51,10 @@ fn one_obstacle_graph() {
     let mut b = ScenarioBuilder::new();
     // Diamond vertices: (55,40),(95,60),(135,40),(95,20)
     // Use bounding-box placeholder: left=55, bottom=20, width=80, height=40
-    add_nonrect_placeholder(&mut b, &[
-        (55.0, 40.0), (95.0, 60.0), (135.0, 40.0), (95.0, 20.0),
-    ]);
+    add_nonrect_placeholder(
+        &mut b,
+        &[(55.0, 40.0), (95.0, 60.0), (135.0, 40.0), (95.0, 20.0)],
+    );
     // No routes — just verify VG creation succeeds
     let result = b.run();
     Verifier::assert_edge_count(&result, 0);
@@ -67,24 +65,26 @@ fn one_obstacle_graph() {
 /// Worker for FlatTop/FlatBottom/AlmostFlatHigh/AlmostFlatLow tests.
 /// Creates a non-rect obstacle with almost-flat sides plus crossing triangles.
 /// C# `FlatWorker(leftBottomOffset, leftTopOffset)`.
-fn flat_worker(
-    b: &mut ScenarioBuilder,
-    left_bottom_offset: f64,
-    left_top_offset: f64,
-) {
+fn flat_worker(b: &mut ScenarioBuilder, left_bottom_offset: f64, left_top_offset: f64) {
     // Main obstacle: (10, 10+lbo), (10, 20+lto), (20, 20), (20, 10)
-    add_nonrect_placeholder(b, &[
-        (10.0, 10.0 + left_bottom_offset), (10.0, 20.0 + left_top_offset),
-        (20.0, 20.0), (20.0, 10.0),
-    ]);
+    add_nonrect_placeholder(
+        b,
+        &[
+            (10.0, 10.0 + left_bottom_offset),
+            (10.0, 20.0 + left_top_offset),
+            (20.0, 20.0),
+            (20.0, 10.0),
+        ],
+    );
 
     // Two crossing triangles at increments of 0.5
     let divisor = 2;
     for ii in 0..divisor {
         let inc = ii as f64 / divisor as f64;
-        add_nonrect_placeholder(b, &[
-            (18.5 + inc, 15.0), (23.5 + inc, 30.0), (28.5 + inc, 15.0),
-        ]);
+        add_nonrect_placeholder(
+            b,
+            &[(18.5 + inc, 15.0), (23.5 + inc, 30.0), (28.5 + inc, 15.0)],
+        );
     }
 
     // Upper crossing triangle
@@ -137,9 +137,10 @@ fn almost_flat_low_side_with_multiple_crosses() {
 fn dead_end_open_space_obstacles(b: &mut ScenarioBuilder) -> Vec<usize> {
     let mut ids = Vec::new();
     // Triangle obstacle (non-rect placeholder)
-    ids.push(add_nonrect_placeholder(b, &[
-        (70.0, 30.0), (30.0, 70.0), (110.0, 70.0),
-    ]));
+    ids.push(add_nonrect_placeholder(
+        b,
+        &[(70.0, 30.0), (30.0, 70.0), (110.0, 70.0)],
+    ));
     // Two rectangles
     ids.push(b.add_rectangle_corners(0.0, 60.0, 20.0, 80.0));
     ids.push(b.add_rectangle_corners(60.0, 0.0, 80.0, 20.0));
@@ -184,9 +185,7 @@ fn dead_end_open_space_obstacle_port0_eliminate_extra_bend() {
     // Obstacles in different order from the other DeadEnd tests:
     // rect (0,0)-(90,20), triangle (70,30)-(30,70)-(110,70), rect (0,60)-(20,80)
     let r0 = b.add_rectangle_corners(0.0, 0.0, 90.0, 20.0);
-    let tri = add_nonrect_placeholder(&mut b, &[
-        (70.0, 30.0), (30.0, 70.0), (110.0, 70.0),
-    ]);
+    let tri = add_nonrect_placeholder(&mut b, &[(70.0, 30.0), (30.0, 70.0), (110.0, 70.0)]);
     let _r2 = b.add_rectangle_corners(0.0, 60.0, 20.0, 80.0);
     b.route_between(r0, tri);
     let shapes = b.shapes().to_vec();
@@ -203,9 +202,7 @@ fn dead_end_open_space_obstacle_port0_eliminate_extra_bend() {
 #[test]
 fn dead_end_crossing() {
     let mut b = ScenarioBuilder::new();
-    let tri = add_nonrect_placeholder(&mut b, &[
-        (70.0, 30.0), (30.0, 70.0), (110.0, 70.0),
-    ]);
+    let tri = add_nonrect_placeholder(&mut b, &[(70.0, 30.0), (30.0, 70.0), (110.0, 70.0)]);
     let r1 = b.add_rectangle_corners(0.0, 40.0, 20.0, 80.0);
     let r2 = b.add_rectangle_corners(40.0, 0.0, 80.0, 20.0);
     b.route_between(tri, r1);
@@ -225,9 +222,7 @@ fn dead_end_crossing_edge_chains_intersect() {
     let mut b = ScenarioBuilder::new();
     let r0 = b.add_rectangle_corners(0.0, 10.0, 20.0, 90.0);
     let _r1 = b.add_rectangle_corners(30.0, 0.0, 110.0, 20.0);
-    let tri = add_nonrect_placeholder(&mut b, &[
-        (110.0, 30.0), (50.0, 90.0), (110.0, 90.0),
-    ]);
+    let tri = add_nonrect_placeholder(&mut b, &[(110.0, 30.0), (50.0, 90.0), (110.0, 90.0)]);
     b.route_between(r0, tri);
     let shapes = b.shapes().to_vec();
     let result = b.run();
@@ -258,12 +253,8 @@ fn nudger_smoothing_staircases_along_convex_hulls() {
     b.add_rectangle_corners(180.0, 60.0, 200.0, 80.0);
 
     // Two triangles that force convex hull creation rather than clumps
-    add_nonrect_placeholder(&mut b, &[
-        (110.0, 50.0), (80.0, 70.0), (110.0, 90.0),
-    ]);
-    add_nonrect_placeholder(&mut b, &[
-        (190.0, 70.0), (190.0, 110.0), (220.0, 90.0),
-    ]);
+    add_nonrect_placeholder(&mut b, &[(110.0, 50.0), (80.0, 70.0), (110.0, 90.0)]);
+    add_nonrect_placeholder(&mut b, &[(190.0, 70.0), (190.0, 110.0), (220.0, 90.0)]);
 
     b.route_between(src, tgt);
     let shapes = b.shapes().to_vec();
@@ -286,13 +277,15 @@ fn reflections_taken_and_skipped() {
         let src = b.add_rectangle_corners(120.0, 140.0, 130.0, 150.0);
         let tgt = b.add_rectangle_corners(170.0, 20.0, 180.0, 30.0);
         // Parallelogram 1: (160,60),(0,60),(-40,100),(120,100)
-        add_nonrect_placeholder(&mut b, &[
-            (160.0, 60.0), (0.0, 60.0), (-40.0, 100.0), (120.0, 100.0),
-        ]);
+        add_nonrect_placeholder(
+            &mut b,
+            &[(160.0, 60.0), (0.0, 60.0), (-40.0, 100.0), (120.0, 100.0)],
+        );
         // Parallelogram 2: (180,60),(140,100),(300,100),(340,60)
-        add_nonrect_placeholder(&mut b, &[
-            (180.0, 60.0), (140.0, 100.0), (300.0, 100.0), (340.0, 60.0),
-        ]);
+        add_nonrect_placeholder(
+            &mut b,
+            &[(180.0, 60.0), (140.0, 100.0), (300.0, 100.0), (340.0, 60.0)],
+        );
         b.route_between(src, tgt);
         let shapes = b.shapes().to_vec();
         let result = b.run();
@@ -304,12 +297,14 @@ fn reflections_taken_and_skipped() {
         let mut b = ScenarioBuilder::new();
         let src = b.add_rectangle_corners(120.0, 140.0, 130.0, 150.0);
         let tgt = b.add_rectangle_corners(170.0, 20.0, 180.0, 30.0);
-        add_nonrect_placeholder(&mut b, &[
-            (160.0, 60.0), (100.0, 60.0), (60.0, 100.0), (120.0, 100.0),
-        ]);
-        add_nonrect_placeholder(&mut b, &[
-            (180.0, 60.0), (140.0, 100.0), (200.0, 100.0), (240.0, 60.0),
-        ]);
+        add_nonrect_placeholder(
+            &mut b,
+            &[(160.0, 60.0), (100.0, 60.0), (60.0, 100.0), (120.0, 100.0)],
+        );
+        add_nonrect_placeholder(
+            &mut b,
+            &[(180.0, 60.0), (140.0, 100.0), (200.0, 100.0), (240.0, 60.0)],
+        );
         b.route_between(src, tgt);
         let shapes = b.shapes().to_vec();
         let result = b.run();
@@ -326,17 +321,17 @@ fn reflections_taken_and_skipped() {
 fn reflections_detected_by_already_loaded_side() {
     let mut b = ScenarioBuilder::new();
     // Large triangle
-    add_nonrect_placeholder(&mut b, &[
-        (0.0, 0.0), (0.0, 70.0), (70.0, 70.0),
-    ]);
+    add_nonrect_placeholder(&mut b, &[(0.0, 0.0), (0.0, 70.0), (70.0, 70.0)]);
     // Small parallelogram 1
-    add_nonrect_placeholder(&mut b, &[
-        (30.0, 10.0), (25.0, 15.0), (45.0, 35.0), (50.0, 30.0),
-    ]);
+    add_nonrect_placeholder(
+        &mut b,
+        &[(30.0, 10.0), (25.0, 15.0), (45.0, 35.0), (50.0, 30.0)],
+    );
     // Small parallelogram 2
-    add_nonrect_placeholder(&mut b, &[
-        (60.0, 20.0), (55.0, 25.0), (75.0, 45.0), (80.0, 40.0),
-    ]);
+    add_nonrect_placeholder(
+        &mut b,
+        &[(60.0, 20.0), (55.0, 25.0), (75.0, 45.0), (80.0, 40.0)],
+    );
     // VG-only (no routes in C# — just CreateRouter + RunAndShowGraph)
     let result = b.run();
     Verifier::assert_edge_count(&result, 0);
@@ -352,17 +347,17 @@ fn reflections_detected_by_already_loaded_side() {
 fn reflections_sited_by_low_side_are_not_loaded_by_high_side() {
     let mut b = ScenarioBuilder::new();
     // Parallelogram 1: (10,0),(0,10),(70,80),(80,70)
-    add_nonrect_placeholder(&mut b, &[
-        (10.0, 0.0), (0.0, 10.0), (70.0, 80.0), (80.0, 70.0),
-    ]);
+    add_nonrect_placeholder(
+        &mut b,
+        &[(10.0, 0.0), (0.0, 10.0), (70.0, 80.0), (80.0, 70.0)],
+    );
     // Triangle: (50,20),(75,45),(75,20)
-    add_nonrect_placeholder(&mut b, &[
-        (50.0, 20.0), (75.0, 45.0), (75.0, 20.0),
-    ]);
+    add_nonrect_placeholder(&mut b, &[(50.0, 20.0), (75.0, 45.0), (75.0, 20.0)]);
     // Parallelogram 2: (-15,25),(-25,35),(25,85),(35,75)
-    add_nonrect_placeholder(&mut b, &[
-        (-15.0, 25.0), (-25.0, 35.0), (25.0, 85.0), (35.0, 75.0),
-    ]);
+    add_nonrect_placeholder(
+        &mut b,
+        &[(-15.0, 25.0), (-25.0, 35.0), (25.0, 85.0), (35.0, 75.0)],
+    );
     // VG-only
     let result = b.run();
     Verifier::assert_edge_count(&result, 0);
@@ -378,17 +373,17 @@ fn reflections_sited_by_low_side_are_not_loaded_by_high_side() {
 fn reflections_remove_intercepted_site() {
     let mut b = ScenarioBuilder::new();
     // Parallelogram 1: (50,50),(40,60),(120,140),(130,130)
-    add_nonrect_placeholder(&mut b, &[
-        (50.0, 50.0), (40.0, 60.0), (120.0, 140.0), (130.0, 130.0),
-    ]);
+    add_nonrect_placeholder(
+        &mut b,
+        &[(50.0, 50.0), (40.0, 60.0), (120.0, 140.0), (130.0, 130.0)],
+    );
     // Triangle: (90,70),(105,85),(105,70)
-    add_nonrect_placeholder(&mut b, &[
-        (90.0, 70.0), (105.0, 85.0), (105.0, 70.0),
-    ]);
+    add_nonrect_placeholder(&mut b, &[(90.0, 70.0), (105.0, 85.0), (105.0, 70.0)]);
     // Parallelogram 2: (90,20),(80,30),(140,90),(150,80)
-    add_nonrect_placeholder(&mut b, &[
-        (90.0, 20.0), (80.0, 30.0), (140.0, 90.0), (150.0, 80.0),
-    ]);
+    add_nonrect_placeholder(
+        &mut b,
+        &[(90.0, 20.0), (80.0, 30.0), (140.0, 90.0), (150.0, 80.0)],
+    );
     // VG-only
     let result = b.run();
     Verifier::assert_edge_count(&result, 0);

@@ -1,6 +1,6 @@
-use msagl_rust::routing::scan_line::RectilinearScanLine;
 use msagl_rust::routing::obstacle_side::{ObstacleSide, SideType};
 use msagl_rust::routing::scan_direction::ScanDirection;
+use msagl_rust::routing::scan_line::RectilinearScanLine;
 use msagl_rust::Point;
 
 #[test]

@@ -16,7 +16,13 @@ pub struct Block {
 }
 
 impl Block {
-    pub fn new(index: BlockIndex, var: VarIndex, desired_pos: f64, weight: f64, scale: f64) -> Self {
+    pub fn new(
+        index: BlockIndex,
+        var: VarIndex,
+        desired_pos: f64,
+        weight: f64,
+        scale: f64,
+    ) -> Self {
         Self {
             index,
             variables: vec![var],
@@ -29,7 +35,14 @@ impl Block {
         }
     }
 
-    pub fn add_variable_with_offset(&mut self, var: VarIndex, offset: f64, weight: f64, var_scale: f64, desired_pos: f64) {
+    pub fn add_variable_with_offset(
+        &mut self,
+        var: VarIndex,
+        offset: f64,
+        weight: f64,
+        var_scale: f64,
+        desired_pos: f64,
+    ) {
         let a = self.scale / var_scale;
         let b = offset / var_scale;
         self.sum_a2 += a * a * weight;

@@ -1,8 +1,8 @@
+use msagl_rust::geometry::point::Point;
+use msagl_rust::routing::edge_geometry::EdgeGeometry;
+use msagl_rust::routing::port::FloatingPort;
 use msagl_rust::routing::rectilinear_edge_router::RectilinearEdgeRouter;
 use msagl_rust::routing::shape::Shape;
-use msagl_rust::routing::port::FloatingPort;
-use msagl_rust::routing::edge_geometry::EdgeGeometry;
-use msagl_rust::geometry::point::Point;
 
 #[test]
 fn smoke_route_one_edge_between_two_boxes() {
@@ -18,13 +18,20 @@ fn smoke_route_one_edge_between_two_boxes() {
     let result = router.padding(4.0).edge_separation(8.0).run();
     assert_eq!(result.edges.len(), 1, "should route exactly 1 edge");
     let path = &result.edges[0].points;
-    assert!(path.len() >= 2, "path should have at least 2 points, got {}", path.len());
+    assert!(
+        path.len() >= 2,
+        "path should have at least 2 points, got {}",
+        path.len()
+    );
     // Verify all segments are axis-aligned (rectilinear)
     for w in path.windows(2) {
         assert!(
             (w[0].x() - w[1].x()).abs() < 1e-6 || (w[0].y() - w[1].y()).abs() < 1e-6,
             "non-rectilinear segment: ({}, {}) -> ({}, {})",
-            w[0].x(), w[0].y(), w[1].x(), w[1].y()
+            w[0].x(),
+            w[0].y(),
+            w[1].x(),
+            w[1].y()
         );
     }
 }
@@ -57,7 +64,8 @@ fn smoke_route_three_edges_four_boxes() {
         for w in edge.points.windows(2) {
             assert!(
                 (w[0].x() - w[1].x()).abs() < 1e-6 || (w[0].y() - w[1].y()).abs() < 1e-6,
-                "edge {} has non-rectilinear segment", i
+                "edge {} has non-rectilinear segment",
+                i
             );
         }
     }

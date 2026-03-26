@@ -1,7 +1,7 @@
 use ordered_float::OrderedFloat;
 use std::fmt;
 use std::hash::{Hash, Hasher};
-use std::ops::{Add, Sub, Mul, Div, Neg};
+use std::ops::{Add, Div, Mul, Neg, Sub};
 
 use crate::geometry::point_comparer::GeomConstants;
 
@@ -26,10 +26,14 @@ impl Point {
     }
 
     #[inline]
-    pub fn x(&self) -> f64 { self.x.into_inner() }
+    pub fn x(&self) -> f64 {
+        self.x.into_inner()
+    }
 
     #[inline]
-    pub fn y(&self) -> f64 { self.y.into_inner() }
+    pub fn y(&self) -> f64 {
+        self.y.into_inner()
+    }
 
     #[inline]
     pub fn length(&self) -> f64 {
@@ -58,7 +62,10 @@ impl Point {
 
     pub fn normalize(&self) -> Point {
         let len = self.length();
-        debug_assert!(len > GeomConstants::DISTANCE_EPSILON, "cannot normalize zero-length vector");
+        debug_assert!(
+            len > GeomConstants::DISTANCE_EPSILON,
+            "cannot normalize zero-length vector"
+        );
         Point::new(self.x() / len, self.y() / len)
     }
 
@@ -159,35 +166,47 @@ impl fmt::Display for Point {
 impl Add for Point {
     type Output = Self;
     #[inline]
-    fn add(self, rhs: Self) -> Self { Self::new(self.x() + rhs.x(), self.y() + rhs.y()) }
+    fn add(self, rhs: Self) -> Self {
+        Self::new(self.x() + rhs.x(), self.y() + rhs.y())
+    }
 }
 
 impl Sub for Point {
     type Output = Self;
     #[inline]
-    fn sub(self, rhs: Self) -> Self { Self::new(self.x() - rhs.x(), self.y() - rhs.y()) }
+    fn sub(self, rhs: Self) -> Self {
+        Self::new(self.x() - rhs.x(), self.y() - rhs.y())
+    }
 }
 
 impl Mul<f64> for Point {
     type Output = Self;
     #[inline]
-    fn mul(self, rhs: f64) -> Self { Self::new(self.x() * rhs, self.y() * rhs) }
+    fn mul(self, rhs: f64) -> Self {
+        Self::new(self.x() * rhs, self.y() * rhs)
+    }
 }
 
 impl Mul<Point> for f64 {
     type Output = Point;
     #[inline]
-    fn mul(self, rhs: Point) -> Point { Point::new(self * rhs.x(), self * rhs.y()) }
+    fn mul(self, rhs: Point) -> Point {
+        Point::new(self * rhs.x(), self * rhs.y())
+    }
 }
 
 impl Div<f64> for Point {
     type Output = Self;
     #[inline]
-    fn div(self, rhs: f64) -> Self { Self::new(self.x() / rhs, self.y() / rhs) }
+    fn div(self, rhs: f64) -> Self {
+        Self::new(self.x() / rhs, self.y() / rhs)
+    }
 }
 
 impl Neg for Point {
     type Output = Self;
     #[inline]
-    fn neg(self) -> Self { Self::new(-self.x(), -self.y()) }
+    fn neg(self) -> Self {
+        Self::new(-self.x(), -self.y())
+    }
 }

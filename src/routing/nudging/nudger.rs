@@ -27,11 +27,7 @@ use super::staircase_remover;
 ///
 /// Modifies `paths` in-place so that overlapping parallel segments are
 /// spread apart by at least `edge_separation`.
-pub fn nudge_paths(
-    paths: &mut [Vec<Point>],
-    obstacles: &[Rectangle],
-    edge_separation: f64,
-) {
+pub fn nudge_paths(paths: &mut [Vec<Point>], obstacles: &[Rectangle], edge_separation: f64) {
     if paths.is_empty() {
         return;
     }
@@ -141,10 +137,7 @@ fn create_longest_segments(
                     sid
                 };
 
-                let (src, tgt) = edge_source_target(
-                    &path_edges[pe_id],
-                    ae,
-                );
+                let (src, tgt) = edge_source_target(&path_edges[pe_id], ae);
                 segments[seg_id].add_edge(pe_id, src, tgt);
                 path_edges[pe_id].longest_seg_id = Some(seg_id);
             } else {
@@ -218,11 +211,7 @@ fn solve_positions(
             if let Some(sid) = seg_id {
                 if let Some(prev_sid) = prev_seg {
                     if prev_sid != sid {
-                        solver.add_constraint(
-                            var_ids[prev_sid],
-                            var_ids[sid],
-                            edge_separation,
-                        );
+                        solver.add_constraint(var_ids[prev_sid], var_ids[sid], edge_separation);
                     }
                 }
                 prev_seg = Some(sid);
@@ -232,14 +221,11 @@ fn solve_positions(
 
     // Create constraints between segments on neighboring axis edges.
     for seg in segments {
-        let right_neighbor_segs = collect_right_neighbor_segs(seg, path_edges, axis_edges, segments);
+        let right_neighbor_segs =
+            collect_right_neighbor_segs(seg, path_edges, axis_edges, segments);
         for &rsid in &right_neighbor_segs {
             if rsid != seg.id {
-                solver.add_constraint(
-                    var_ids[seg.id],
-                    var_ids[rsid],
-                    edge_separation,
-                );
+                solver.add_constraint(var_ids[seg.id], var_ids[rsid], edge_separation);
             }
         }
     }
@@ -314,9 +300,9 @@ fn apply_positions(
 
             // Use the segment of the current edge, or the next edge if this
             // edge has no segment.
-            let seg_id = pe.longest_seg_id.or_else(|| {
-                pe.next.and_then(|nid| path_edges[nid].longest_seg_id)
-            });
+            let seg_id = pe
+                .longest_seg_id
+                .or_else(|| pe.next.and_then(|nid| path_edges[nid].longest_seg_id));
 
             let shifted = shift_point(tgt, seg_id, segments, positions, direction);
             new_points.push(shifted);
@@ -481,11 +467,7 @@ fn is_switchback(a: Point, b: Point, c: Point) -> bool {
 /// For each path, check if any interior segment midpoint (excluding
 /// source/target obstacle) now lies strictly inside an obstacle that
 /// the original path did not cross. If so, restore the original path.
-fn restore_if_crossing(
-    paths: &mut [Vec<Point>],
-    original: &[Vec<Point>],
-    obstacles: &[Rectangle],
-) {
+fn restore_if_crossing(paths: &mut [Vec<Point>], original: &[Vec<Point>], obstacles: &[Rectangle]) {
     for (i, path) in paths.iter_mut().enumerate() {
         if path_crosses_intermediate_obstacle(path, obstacles)
             && !path_crosses_intermediate_obstacle(&original[i], obstacles)

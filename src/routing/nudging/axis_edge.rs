@@ -64,7 +64,10 @@ fn direction_from_points(p0: Point, p1: Point) -> Direction {
         debug_assert!(dx > 0.0, "AxisEdge source must be west of target for East");
         Direction::East
     } else {
-        debug_assert!(dy > 0.0, "AxisEdge source must be south of target for North");
+        debug_assert!(
+            dy > 0.0,
+            "AxisEdge source must be south of target for North"
+        );
         Direction::North
     }
 }

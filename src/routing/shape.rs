@@ -21,7 +21,10 @@ impl Shape {
     ///
     /// Matches TS: `new Shape(boundaryCurve)`
     pub fn from_polyline(polyline: Polyline) -> Self {
-        debug_assert!(polyline.is_closed(), "Shape boundary must be a closed polyline");
+        debug_assert!(
+            polyline.is_closed(),
+            "Shape boundary must be a closed polyline"
+        );
         let bounding_box = polyline.bounding_box();
         Self {
             boundary: polyline,

@@ -51,7 +51,8 @@ impl ScenarioBuilder {
     /// Add a rectangle by center coordinates. Returns the obstacle index.
     pub fn add_rectangle(&mut self, cx: f64, cy: f64, width: f64, height: f64) -> usize {
         let idx = self.shapes.len();
-        self.shapes.push(Shape::rectangle_centered(cx, cy, width, height));
+        self.shapes
+            .push(Shape::rectangle_centered(cx, cy, width, height));
         idx
     }
 
@@ -70,7 +71,8 @@ impl ScenarioBuilder {
         let bottom = y0.min(y1);
         let width = (x1 - x0).abs();
         let height = (y1 - y0).abs();
-        self.shapes.push(Shape::rectangle(left, bottom, width, height));
+        self.shapes
+            .push(Shape::rectangle(left, bottom, width, height));
         idx
     }
 
@@ -129,8 +131,14 @@ impl ScenarioBuilder {
         for e in &self.edges {
             let src_center = obstacle_center(&self.shapes, e.src_obstacle);
             let tgt_center = obstacle_center(&self.shapes, e.tgt_obstacle);
-            let src_loc = Point::new(src_center.x() + e.src_offset.x(), src_center.y() + e.src_offset.y());
-            let tgt_loc = Point::new(tgt_center.x() + e.tgt_offset.x(), tgt_center.y() + e.tgt_offset.y());
+            let src_loc = Point::new(
+                src_center.x() + e.src_offset.x(),
+                src_center.y() + e.src_offset.y(),
+            );
+            let tgt_loc = Point::new(
+                tgt_center.x() + e.tgt_offset.x(),
+                tgt_center.y() + e.tgt_offset.y(),
+            );
             router.add_edge(EdgeGeometry::new(
                 FloatingPort::new(e.src_obstacle, src_loc),
                 FloatingPort::new(e.tgt_obstacle, tgt_loc),

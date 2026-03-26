@@ -1,5 +1,5 @@
-use crate::visibility::graph::VertexId;
 use super::compass_direction::CompassDirection;
+use crate::visibility::graph::VertexId;
 
 /// Index into the VertexEntry arena used during path search.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]

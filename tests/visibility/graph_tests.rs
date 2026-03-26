@@ -1,6 +1,6 @@
-use msagl_rust::visibility::graph::{VisibilityGraph, VertexId};
 use msagl_rust::routing::compass_direction::CompassDirection;
 use msagl_rust::routing::vertex_entry::VertexEntryIndex;
+use msagl_rust::visibility::graph::{VertexId, VisibilityGraph};
 use msagl_rust::Point;
 
 #[test]
@@ -73,7 +73,10 @@ fn set_and_get_vertex_entry() {
     let mut graph = VisibilityGraph::new();
     let v = graph.add_vertex(Point::new(10.0, 20.0));
     graph.set_vertex_entry(v, CompassDirection::East, Some(VertexEntryIndex(42)));
-    assert_eq!(graph.vertex_entry(v, CompassDirection::East), Some(VertexEntryIndex(42)));
+    assert_eq!(
+        graph.vertex_entry(v, CompassDirection::East),
+        Some(VertexEntryIndex(42))
+    );
     assert!(graph.vertex_entry(v, CompassDirection::North).is_none());
 }
 

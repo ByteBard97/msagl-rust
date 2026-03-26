@@ -14,8 +14,16 @@ pub struct ScanDirection {
 }
 
 impl ScanDirection {
-    pub fn horizontal() -> Self { Self { dir: Direction::East } }
-    pub fn vertical() -> Self { Self { dir: Direction::North } }
+    pub fn horizontal() -> Self {
+        Self {
+            dir: Direction::East,
+        }
+    }
+    pub fn vertical() -> Self {
+        Self {
+            dir: Direction::North,
+        }
+    }
 
     #[inline]
     pub fn coord(&self, p: Point) -> f64 {
@@ -35,7 +43,9 @@ impl ScanDirection {
 
     pub fn compare(&self, a: Point, b: Point) -> Ordering {
         let perp = GeomConstants::compare(self.perp_coord(a), self.perp_coord(b));
-        if perp != Ordering::Equal { return perp; }
+        if perp != Ordering::Equal {
+            return perp;
+        }
         GeomConstants::compare(self.coord(a), self.coord(b))
     }
 
@@ -78,10 +88,18 @@ impl ScanDirection {
     }
 
     pub fn min(&self, a: Point, b: Point) -> Point {
-        if self.compare(a, b).is_le() { a } else { b }
+        if self.compare(a, b).is_le() {
+            a
+        } else {
+            b
+        }
     }
 
     pub fn max(&self, a: Point, b: Point) -> Point {
-        if self.compare(a, b).is_ge() { a } else { b }
+        if self.compare(a, b).is_ge() {
+            a
+        } else {
+            b
+        }
     }
 }

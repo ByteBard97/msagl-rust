@@ -1,7 +1,7 @@
+use super::compass_direction::CompassDirection;
 use crate::geometry::point::Point;
 use crate::geometry::rectangle::Rectangle;
 use crate::visibility::graph::{VertexId, VisibilityGraph};
-use super::compass_direction::CompassDirection;
 
 /// Utility functions for static visibility-graph analysis.
 ///

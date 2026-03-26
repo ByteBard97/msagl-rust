@@ -1,7 +1,7 @@
-use msagl_rust::routing::shape::Shape;
 use msagl_rust::routing::obstacle::Obstacle;
 use msagl_rust::routing::obstacle_side::SideType;
 use msagl_rust::routing::scan_direction::ScanDirection;
+use msagl_rust::routing::shape::Shape;
 use msagl_rust::Point;
 
 #[test]

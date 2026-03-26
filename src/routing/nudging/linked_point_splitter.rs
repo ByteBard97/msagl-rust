@@ -5,14 +5,14 @@
 //! and inserts crossing points into both lists.
 
 use std::cmp::Reverse;
-use std::collections::BinaryHeap;
 use std::collections::BTreeMap;
+use std::collections::BinaryHeap;
 
 use ordered_float::OrderedFloat;
 
+use super::linked_point::{LinkedPointIndex, LinkedPointList};
 use crate::geometry::point::Point;
 use crate::geometry::point_comparer::GeomConstants;
-use super::linked_point::{LinkedPointIndex, LinkedPointList};
 
 // ---------------------------------------------------------------------------
 // Event types
@@ -176,12 +176,7 @@ impl LinkedPointSplitter {
                     tree.remove(&key);
                 }
                 EventKind::Horizontal => {
-                    Self::intersect_with_tree(
-                        h_list,
-                        event.start,
-                        v_list,
-                        &tree,
-                    );
+                    Self::intersect_with_tree(h_list, event.start, v_list, &tree);
                 }
             }
         }
@@ -262,11 +257,7 @@ impl LinkedPointSplitter {
 
     /// Insert `point` into the vertical segment after `v_start` if it lies
     /// strictly between the segment's low and high Y endpoints.
-    fn try_split_vertical(
-        v_list: &mut LinkedPointList,
-        v_start: LinkedPointIndex,
-        point: Point,
-    ) {
+    fn try_split_vertical(v_list: &mut LinkedPointList, v_start: LinkedPointIndex, point: Point) {
         let v_p = v_list.point(v_start);
         let v_next_idx = match v_list.next(v_start) {
             Some(idx) => idx,

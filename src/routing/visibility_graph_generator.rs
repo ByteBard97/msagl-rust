@@ -1,7 +1,3 @@
-use crate::arenas::PolylinePointKey;
-use crate::geometry::point::Point;
-use crate::geometry::point_comparer::GeomConstants;
-use crate::visibility::graph::VisibilityGraph;
 use super::event_queue::{EventQueue, SweepEvent};
 use super::obstacle::Obstacle;
 use super::obstacle_side::{ObstacleSide, SideType};
@@ -11,6 +7,10 @@ use super::scan_line::RectilinearScanLine;
 use super::scan_segment::{ScanSegment, ScanSegmentTree, SegmentWeight};
 use super::segment_intersector::build_graph_from_segments;
 use super::shape::Shape;
+use crate::arenas::PolylinePointKey;
+use crate::geometry::point::Point;
+use crate::geometry::point_comparer::GeomConstants;
+use crate::visibility::graph::VisibilityGraph;
 
 /// Sentinel offset margin applied beyond the graph bounding box.
 /// Matches C# VisibilityGraphGenerator.SentinelOffset = 1.0.
@@ -227,7 +227,12 @@ fn process_open_vertex(
     let high_coord = side_scan_coord(&high_side, scan_direction);
 
     create_scan_segments_at_event(
-        site, low_coord, high_coord, scan_line, seg_tree, scan_direction,
+        site,
+        low_coord,
+        high_coord,
+        scan_line,
+        seg_tree,
+        scan_direction,
     );
 
     // Enqueue CloseVertex event at the top of this obstacle
@@ -275,7 +280,12 @@ fn process_close_vertex(
 
     // Create segments with obstacle sides still present.
     create_scan_segments_at_event(
-        site, low_coord, high_coord, scan_line, seg_tree, scan_direction,
+        site,
+        low_coord,
+        high_coord,
+        scan_line,
+        seg_tree,
+        scan_direction,
     );
 
     // Remove sides from scanline
@@ -285,7 +295,12 @@ fn process_close_vertex(
     // Create segments again after removal — the gap where the obstacle was
     // is now open, creating new/larger segments.
     create_scan_segments_at_event(
-        site, low_coord, high_coord, scan_line, seg_tree, scan_direction,
+        site,
+        low_coord,
+        high_coord,
+        scan_line,
+        seg_tree,
+        scan_direction,
     );
 }
 
@@ -349,14 +364,20 @@ fn create_scan_segments_at_event(
         if depth <= 0 {
             // Open space: normal segment
             seg_tree.insert_unique(ScanSegment::new(
-                start, end, SegmentWeight::Normal, is_vertical,
+                start,
+                end,
+                SegmentWeight::Normal,
+                is_vertical,
             ));
         } else if depth >= 2 {
             // Overlap region (inside 2+ obstacles): overlapped segment.
             // This provides connectivity through overlap regions with a
             // high weight penalty (500x normal), matching C# behavior.
             seg_tree.insert_unique(ScanSegment::new(
-                start, end, SegmentWeight::Overlapped, is_vertical,
+                start,
+                end,
+                SegmentWeight::Overlapped,
+                is_vertical,
             ));
         }
         // depth == 1: inside exactly one obstacle. No segment created.
@@ -367,27 +388,6 @@ fn create_scan_segments_at_event(
 /// Check if an obstacle side belongs to a sentinel (boundary marker).
 fn is_sentinel_side(side: &ObstacleSide) -> bool {
     side.obstacle_ordinal() < Obstacle::FIRST_NON_SENTINEL_ORDINAL
-}
-
-/// Add a scan segment if start != end.
-fn add_segment_if_valid(
-    start_coord: f64,
-    end_coord: f64,
-    perp: f64,
-    scan_direction: ScanDirection,
-    seg_tree: &mut ScanSegmentTree,
-) {
-    if !GeomConstants::close(start_coord, end_coord) && end_coord > start_coord {
-        let start = scan_direction.make_point(start_coord, perp);
-        let end = scan_direction.make_point(end_coord, perp);
-        let is_vertical = scan_direction.is_vertical();
-        seg_tree.insert_unique(ScanSegment::new(
-            start,
-            end,
-            SegmentWeight::Normal,
-            is_vertical,
-        ));
-    }
 }
 
 /// Get the scan-parallel coordinate of an obstacle side.

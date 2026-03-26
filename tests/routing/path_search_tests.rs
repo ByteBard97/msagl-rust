@@ -1,8 +1,8 @@
-use msagl_rust::routing::path_search::{
-    PathSearch, DEFAULT_BEND_PENALTY_AS_PERCENTAGE_OF_DISTANCE,
-    manhattan_distance, estimated_bends_to_target,
-};
 use msagl_rust::routing::compass_direction::CompassDirection;
+use msagl_rust::routing::path_search::{
+    estimated_bends_to_target, manhattan_distance, PathSearch,
+    DEFAULT_BEND_PENALTY_AS_PERCENTAGE_OF_DISTANCE,
+};
 use msagl_rust::visibility::graph::VisibilityGraph;
 use msagl_rust::Point;
 
@@ -48,7 +48,9 @@ fn path_search_no_path() {
     graph.add_vertex(Point::new(10.0, 0.0));
     // No edges
     let search = PathSearch::new(4.0);
-    assert!(search.find_path(&graph, Point::new(0.0, 0.0), Point::new(10.0, 0.0)).is_none());
+    assert!(search
+        .find_path(&graph, Point::new(0.0, 0.0), Point::new(10.0, 0.0))
+        .is_none());
 }
 
 #[test]
@@ -108,15 +110,15 @@ fn path_search_prefers_fewer_bends() {
     // High bend penalty: should prefer a -> e -> d (1 bend, length 15)
     // over a -> b -> c -> d (2 bends, length 15)
     let search = PathSearch::new(4.0);
-    let path = search.find_path(
-        &graph,
-        Point::new(0.0, 0.0),
-        Point::new(10.0, 5.0),
-    );
+    let path = search.find_path(&graph, Point::new(0.0, 0.0), Point::new(10.0, 5.0));
     assert!(path.is_some());
     let pts = path.unwrap();
     // The a -> e -> d path has 1 bend: East then North
-    assert!(pts.len() <= 3, "Expected path with fewer bends, got {:?}", pts);
+    assert!(
+        pts.len() <= 3,
+        "Expected path with fewer bends, got {:?}",
+        pts
+    );
 }
 
 // -----------------------------------------------------------------------
@@ -130,8 +132,11 @@ fn bend_penalty_scales_with_distance() {
     // distance=100 -> bend_cost = 100 * 4/100 = 4 per bend
     // distance=1000 -> bend_cost = 1000 * 4/100 = 40 per bend
     let cost_near = search.compute_cost(50.0, 1, 100.0);
-    let cost_far  = search.compute_cost(50.0, 1, 1000.0);
-    assert!(cost_far > cost_near, "far bend cost {cost_far} should exceed near bend cost {cost_near}");
+    let cost_far = search.compute_cost(50.0, 1, 1000.0);
+    assert!(
+        cost_far > cost_near,
+        "far bend cost {cost_far} should exceed near bend cost {cost_near}"
+    );
 }
 
 #[test]
@@ -162,7 +167,10 @@ fn estimated_bends_already_aligned() {
     // Heading East, target is directly East -> 0 bends.
     let pt = Point::new(0.0, 0.0);
     let tgt = Point::new(10.0, 0.0);
-    assert_eq!(estimated_bends_to_target(CompassDirection::East, pt, tgt), 0);
+    assert_eq!(
+        estimated_bends_to_target(CompassDirection::East, pt, tgt),
+        0
+    );
 }
 
 #[test]
@@ -170,5 +178,8 @@ fn estimated_bends_needs_turn() {
     // Heading East but target is North-East -> 1 bend.
     let pt = Point::new(0.0, 0.0);
     let tgt = Point::new(5.0, 5.0);
-    assert_eq!(estimated_bends_to_target(CompassDirection::East, pt, tgt), 1);
+    assert_eq!(
+        estimated_bends_to_target(CompassDirection::East, pt, tgt),
+        1
+    );
 }

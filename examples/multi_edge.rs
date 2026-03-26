@@ -8,9 +8,9 @@ fn main() {
     // Four rectangles in a grid layout
     let shapes = vec![
         Shape::rectangle(0.0, 0.0, 100.0, 50.0),     // top-left
-        Shape::rectangle(300.0, 0.0, 100.0, 50.0),    // top-right
-        Shape::rectangle(0.0, 200.0, 100.0, 50.0),    // bottom-left
-        Shape::rectangle(300.0, 200.0, 100.0, 50.0),  // bottom-right
+        Shape::rectangle(300.0, 0.0, 100.0, 50.0),   // top-right
+        Shape::rectangle(0.0, 200.0, 100.0, 50.0),   // bottom-left
+        Shape::rectangle(300.0, 200.0, 100.0, 50.0), // bottom-right
     ];
 
     let mut router = RectilinearEdgeRouter::new(&shapes)

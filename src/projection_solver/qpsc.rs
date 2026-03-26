@@ -146,10 +146,7 @@ impl Qpsc {
             let ordinal = var.ordinal as usize;
 
             // Find diagonal entry
-            if let Some(diag) = self.matrix_q[ordinal]
-                .iter()
-                .find(|c| c.column == ordinal)
-            {
+            if let Some(diag) = self.matrix_q[ordinal].iter().find(|c| c.column == ordinal) {
                 if self.use_scaling {
                     var.scale = 1.0 / (diag.value.abs()).sqrt();
                     if !var.scale.is_finite() {
@@ -338,9 +335,7 @@ impl Qpsc {
                 quotient = (diff / divisor).abs();
             }
 
-            if diff.abs() < self.convergence_epsilon
-                || quotient.abs() < self.convergence_quotient
-            {
+            if diff.abs() < self.convergence_epsilon || quotient.abs() < self.convergence_quotient {
                 converged = true;
             }
         }

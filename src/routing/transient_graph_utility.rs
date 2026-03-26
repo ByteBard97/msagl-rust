@@ -1,8 +1,8 @@
+use super::compass_direction::CompassDirection;
+use super::static_graph_utility::StaticGraphUtility;
 use crate::geometry::point::Point;
 use crate::geometry::point_comparer::GeomConstants;
 use crate::visibility::graph::{VertexId, VisibilityGraph};
-use super::compass_direction::CompassDirection;
-use super::static_graph_utility::StaticGraphUtility;
 
 /// Manages transient (temporary) modifications to a visibility graph.
 ///
@@ -40,11 +40,7 @@ impl TransientGraphUtility {
     }
 
     /// Find an existing vertex at `location`, or add a transient one.
-    pub fn find_or_add_vertex(
-        &mut self,
-        graph: &mut VisibilityGraph,
-        location: Point,
-    ) -> VertexId {
+    pub fn find_or_add_vertex(&mut self, graph: &mut VisibilityGraph, location: Point) -> VertexId {
         if let Some(existing) = graph.find_vertex(location) {
             return existing;
         }
@@ -88,18 +84,28 @@ impl TransientGraphUtility {
         let mut bracket_target = target;
         let mut split_vertex = target;
 
-        let found_forward =
-            Self::find_bracketing_vertices(graph, source, target_point, dir_to_target,
-                &mut bracket_source, &mut bracket_target);
+        let found_forward = Self::find_bracketing_vertices(
+            graph,
+            source,
+            target_point,
+            dir_to_target,
+            &mut bracket_source,
+            &mut bracket_target,
+        );
 
         if !found_forward {
             // No bracketing from source side. Try from target side in reverse.
             let reverse_dir = dir_to_target.opposite();
             let mut rev_bracket_source = target;
             let mut rev_bracket_target = target; // placeholder
-            let found_reverse =
-                Self::find_bracketing_vertices(graph, target, source_point, reverse_dir,
-                    &mut rev_bracket_source, &mut rev_bracket_target);
+            let found_reverse = Self::find_bracketing_vertices(
+                graph,
+                target,
+                source_point,
+                reverse_dir,
+                &mut rev_bracket_source,
+                &mut rev_bracket_target,
+            );
 
             if found_reverse {
                 // Target side brackets source. Update bracket_source and split_vertex.
@@ -110,10 +116,8 @@ impl TransientGraphUtility {
         }
 
         // If there's an existing edge between bracket_source and bracket_target, split it.
-        let edge_info = graph.find_edge_pp(
-            graph.point(bracket_source),
-            graph.point(bracket_target),
-        );
+        let edge_info =
+            graph.find_edge_pp(graph.point(bracket_source), graph.point(bracket_target));
 
         if let Some((edge_src, edge_tgt, _edge_weight)) = edge_info {
             self.split_edge(graph, edge_src, edge_tgt, split_vertex);
@@ -143,9 +147,8 @@ impl TransientGraphUtility {
     ) -> bool {
         *bracket_source = source;
         loop {
-            let next = StaticGraphUtility::find_adjacent_vertex(
-                graph, *bracket_source, dir_to_target,
-            );
+            let next =
+                StaticGraphUtility::find_adjacent_vertex(graph, *bracket_source, dir_to_target);
             match next {
                 None => {
                     *bracket_target = *bracket_source;
@@ -191,14 +194,12 @@ impl TransientGraphUtility {
         weight: f64,
     ) {
         // All edges in the graph are stored in ascending order.
-        let (source, target) = if StaticGraphUtility::is_pure_lower(
-            graph.point(first),
-            graph.point(second),
-        ) {
-            (first, second)
-        } else {
-            (second, first)
-        };
+        let (source, target) =
+            if StaticGraphUtility::is_pure_lower(graph.point(first), graph.point(second)) {
+                (first, second)
+            } else {
+                (second, first)
+            };
 
         graph.add_toll_free_edge(source, target, weight);
         self.added_edges.push((source, target));
@@ -239,7 +240,8 @@ impl TransientGraphUtility {
 
         // Store original for restoration if it was not toll-free.
         if !orig_toll_free {
-            self.edges_to_restore.push((source, far, orig_weight, false));
+            self.edges_to_restore
+                .push((source, far, orig_weight, false));
         }
 
         // Remove the original edge.

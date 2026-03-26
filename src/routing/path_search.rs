@@ -1,9 +1,9 @@
 use std::cmp::Ordering;
 use std::collections::BinaryHeap;
 
+use super::compass_direction::CompassDirection;
 use crate::geometry::point::Point;
 use crate::visibility::graph::{VertexId, VisibilityGraph};
-use super::compass_direction::CompassDirection;
 
 /// Number of compass directions (used for the best-cost table).
 const NUM_DIRECTIONS: usize = 4;
@@ -50,7 +50,10 @@ impl PartialOrd for QueueItem {
 // Min-heap: reverse ordering so smallest f_score comes first.
 impl Ord for QueueItem {
     fn cmp(&self, other: &Self) -> Ordering {
-        other.f_score.partial_cmp(&self.f_score).unwrap_or(Ordering::Equal)
+        other
+            .f_score
+            .partial_cmp(&self.f_score)
+            .unwrap_or(Ordering::Equal)
     }
 }
 
@@ -75,7 +78,9 @@ pub struct PathSearch {
 impl PathSearch {
     /// Create a `PathSearch` with the given bend penalty percentage.
     pub fn new(bend_penalty_as_percentage: f64) -> Self {
-        Self { bend_penalty_as_percentage }
+        Self {
+            bend_penalty_as_percentage,
+        }
     }
 
     /// Create a `PathSearch` with the TS default bend penalty (4%).
@@ -126,7 +131,12 @@ impl PathSearch {
 
             let length = *edge_weight;
             let cost = self.compute_cost(length, 0, source_target_distance);
-            let h = self.heuristic(graph.point(*neighbor_id), target, dir, source_target_distance);
+            let h = self.heuristic(
+                graph.point(*neighbor_id),
+                target,
+                dir,
+                source_target_distance,
+            );
 
             if cost < best_cost[neighbor_id.0][dir.index()] {
                 best_cost[neighbor_id.0][dir.index()] = cost;
@@ -139,7 +149,10 @@ impl PathSearch {
                     bends: 0,
                     prev_entry: None,
                 });
-                heap.push(QueueItem { f_score: cost + h, arena_index: idx });
+                heap.push(QueueItem {
+                    f_score: cost + h,
+                    arena_index: idx,
+                });
             }
         }
 
@@ -171,7 +184,11 @@ impl PathSearch {
                     None => continue,
                 };
 
-                let new_bends = if dir != entry.direction { entry.bends + 1 } else { entry.bends };
+                let new_bends = if dir != entry.direction {
+                    entry.bends + 1
+                } else {
+                    entry.bends
+                };
                 let new_length = entry.length + edge_weight;
                 let new_cost = self.compute_cost(new_length, new_bends, source_target_distance);
 
@@ -187,7 +204,10 @@ impl PathSearch {
                         bends: new_bends,
                         prev_entry: Some(item.arena_index),
                     });
-                    heap.push(QueueItem { f_score: new_cost + h, arena_index: idx });
+                    heap.push(QueueItem {
+                        f_score: new_cost + h,
+                        arena_index: idx,
+                    });
                 }
             }
         }
@@ -196,11 +216,7 @@ impl PathSearch {
     }
 
     /// Collect all reachable neighbors from a vertex (out-edges + in-edges reversed).
-    fn collect_neighbors(
-        &self,
-        graph: &VisibilityGraph,
-        vertex: VertexId,
-    ) -> Vec<(VertexId, f64)> {
+    fn collect_neighbors(&self, graph: &VisibilityGraph, vertex: VertexId) -> Vec<(VertexId, f64)> {
         let mut neighbors = Vec::new();
 
         for edge in graph.out_edges(vertex) {
@@ -209,7 +225,8 @@ impl PathSearch {
 
         let in_sources: Vec<VertexId> = graph.vertex(vertex).in_edges.clone();
         for src in in_sources {
-            let weight = graph.out_edges(src)
+            let weight = graph
+                .out_edges(src)
                 .find(|e| e.target == vertex)
                 .map(|e| e.weight)
                 .unwrap_or_else(|| {
@@ -290,11 +307,7 @@ pub fn manhattan_distance(a: Point, b: Point) -> f64 {
 }
 
 /// Estimate the number of bends needed to reach `target` from `point` in `direction`.
-pub fn estimated_bends_to_target(
-    direction: CompassDirection,
-    point: Point,
-    target: Point,
-) -> u32 {
+pub fn estimated_bends_to_target(direction: CompassDirection, point: Point, target: Point) -> u32 {
     let dx = target.x() - point.x();
     let dy = target.y() - point.y();
 
@@ -303,19 +316,23 @@ pub fn estimated_bends_to_target(
     }
 
     let going_toward = match direction {
-        CompassDirection::East  => dx > 1e-9,
-        CompassDirection::West  => dx < -1e-9,
+        CompassDirection::East => dx > 1e-9,
+        CompassDirection::West => dx < -1e-9,
         CompassDirection::North => dy > 1e-9,
         CompassDirection::South => dy < -1e-9,
     };
 
     let need_horizontal = dx.abs() > 1e-9;
-    let need_vertical   = dy.abs() > 1e-9;
+    let need_vertical = dy.abs() > 1e-9;
 
     if !need_horizontal && !need_vertical {
         0
     } else if need_horizontal && need_vertical {
-        if going_toward { 1 } else { 2 }
+        if going_toward {
+            1
+        } else {
+            2
+        }
     } else if going_toward {
         0
     } else {

@@ -1,8 +1,8 @@
-use ordered_float::OrderedFloat;
-use std::collections::BTreeMap;
-use crate::geometry::point_comparer::GeomConstants;
 use super::obstacle_side::{ObstacleSide, SideType};
 use super::scan_direction::ScanDirection;
+use crate::geometry::point_comparer::GeomConstants;
+use ordered_float::OrderedFloat;
+use std::collections::BTreeMap;
 
 /// Key for ordering sides on the scan line.
 /// Ordered by: scan-perpendicular coordinate → side type (High before Low at same position) → obstacle ordinal.
@@ -143,7 +143,9 @@ impl RectilinearScanLine {
         // range is exclusive on the left for `(key..)` — we need to skip past the
         // key itself. Use a range that starts strictly after key.
         use std::ops::Bound;
-        self.sides.range((Bound::Excluded(key.clone()), Bound::Unbounded)).next()
+        self.sides
+            .range((Bound::Excluded(key.clone()), Bound::Unbounded))
+            .next()
     }
 
     /// Return all sides currently on the scanline, ordered by their scan coordinate.

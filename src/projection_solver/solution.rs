@@ -45,5 +45,7 @@ impl Solution {
 }
 
 impl Default for Solution {
-    fn default() -> Self { Self::new() }
+    fn default() -> Self {
+        Self::new()
+    }
 }

@@ -1,8 +1,8 @@
-use std::collections::{BTreeSet, HashMap};
+use super::edge::VisEdge;
 use crate::geometry::point::Point;
 use crate::routing::compass_direction::CompassDirection;
 use crate::routing::vertex_entry::VertexEntryIndex;
-use super::edge::VisEdge;
+use std::collections::{BTreeSet, HashMap};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct VertexId(pub usize);
@@ -24,7 +24,10 @@ pub struct VisibilityGraph {
 
 impl VisibilityGraph {
     pub fn new() -> Self {
-        Self { vertices: Vec::new(), point_to_vertex: HashMap::new() }
+        Self {
+            vertices: Vec::new(),
+            point_to_vertex: HashMap::new(),
+        }
     }
 
     pub fn add_vertex(&mut self, point: Point) -> VertexId {
@@ -54,7 +57,9 @@ impl VisibilityGraph {
     }
 
     pub fn add_edge(&mut self, source: VertexId, target: VertexId, weight: f64) {
-        self.vertices[source.0].out_edges.insert(VisEdge::new(target, weight));
+        self.vertices[source.0]
+            .out_edges
+            .insert(VisEdge::new(target, weight));
         self.vertices[target.0].in_edges.push(source);
     }
 
@@ -67,7 +72,9 @@ impl VisibilityGraph {
     }
 
     pub fn remove_edge(&mut self, source: VertexId, target: VertexId) {
-        self.vertices[source.0].out_edges.remove(&VisEdge::new(target, 0.0));
+        self.vertices[source.0]
+            .out_edges
+            .remove(&VisEdge::new(target, 0.0));
         self.vertices[target.0].in_edges.retain(|&v| v != source);
     }
 
@@ -101,7 +108,9 @@ impl VisibilityGraph {
 
     /// Find an edge from `source` to `target`, returning its weight if it exists.
     pub fn find_edge(&self, source: VertexId, target: VertexId) -> Option<&VisEdge> {
-        self.vertices[source.0].out_edges.get(&VisEdge::new(target, 0.0))
+        self.vertices[source.0]
+            .out_edges
+            .get(&VisEdge::new(target, 0.0))
     }
 
     /// Find an edge between two points (checks both directions since edges are ascending).
@@ -128,7 +137,12 @@ impl VisibilityGraph {
     }
 
     /// Set the entry index for a vertex from a specific direction.
-    pub fn set_vertex_entry(&mut self, v: VertexId, dir: CompassDirection, entry: Option<VertexEntryIndex>) {
+    pub fn set_vertex_entry(
+        &mut self,
+        v: VertexId,
+        dir: CompassDirection,
+        entry: Option<VertexEntryIndex>,
+    ) {
         self.vertices[v.0].vertex_entries[dir.index()] = entry;
     }
 
@@ -141,5 +155,7 @@ impl VisibilityGraph {
 }
 
 impl Default for VisibilityGraph {
-    fn default() -> Self { Self::new() }
+    fn default() -> Self {
+        Self::new()
+    }
 }

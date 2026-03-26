@@ -151,7 +151,6 @@ impl Solver {
         stack.push(first_node_idx);
 
         while let Some(&node_idx) = stack.last() {
-
             let prev_stack_len = stack.len();
 
             if !nodes[node_idx].children_have_been_pushed {
@@ -161,8 +160,7 @@ impl Solver {
                 let done_vi = nodes[node_idx].variable_done_eval;
 
                 // Left constraints: variable is on left, traverse to right
-                let left_cons: Vec<ConIndex> =
-                    self.variables[vi.0].left_constraints.clone();
+                let left_cons: Vec<ConIndex> = self.variables[vi.0].left_constraints.clone();
                 for ci in left_cons {
                     if self.constraints[ci.0].is_active {
                         let right = self.constraints[ci.0].right;
@@ -181,8 +179,11 @@ impl Solver {
                             // Leaf optimization: process directly if only 1 active constraint
                             if self.variables[right.0].active_constraint_count == 1 {
                                 self.process_dfdv_node(
-                                    &nodes, child_idx, target_var,
-                                    &mut constraint_path, &mut path_found,
+                                    &nodes,
+                                    child_idx,
+                                    target_var,
+                                    &mut constraint_path,
+                                    &mut path_found,
                                 );
                             } else {
                                 stack.push(child_idx);
@@ -192,8 +193,7 @@ impl Solver {
                 }
 
                 // Right constraints: variable is on right, traverse to left
-                let right_cons: Vec<ConIndex> =
-                    self.variables[vi.0].right_constraints.clone();
+                let right_cons: Vec<ConIndex> = self.variables[vi.0].right_constraints.clone();
                 for ci in right_cons {
                     if self.constraints[ci.0].is_active {
                         let left = self.constraints[ci.0].left;
@@ -211,8 +211,11 @@ impl Solver {
 
                             if self.variables[left.0].active_constraint_count == 1 {
                                 self.process_dfdv_node(
-                                    &nodes, child_idx, target_var,
-                                    &mut constraint_path, &mut path_found,
+                                    &nodes,
+                                    child_idx,
+                                    target_var,
+                                    &mut constraint_path,
+                                    &mut path_found,
                                 );
                             } else {
                                 stack.push(child_idx);
@@ -230,8 +233,11 @@ impl Solver {
             // All children processed. Pop and compute this node's Lagrangian.
             stack.pop();
             self.process_dfdv_node(
-                &nodes, node_idx, target_var,
-                &mut constraint_path, &mut path_found,
+                &nodes,
+                node_idx,
+                target_var,
+                &mut constraint_path,
+                &mut path_found,
             );
 
             if node_idx == first_node_idx {
@@ -273,19 +279,16 @@ impl Solver {
                 let parent = &nodes[parent_idx];
                 if !parent.is_dummy_constraint {
                     let parent_ci = parent.constraint_to_eval;
-                    self.constraints[parent_ci.0].lagrangian +=
-                        self.constraints[ci.0].lagrangian;
+                    self.constraints[parent_ci.0].lagrangian += self.constraints[ci.0].lagrangian;
                 }
             }
         } else {
-            self.constraints[ci.0].lagrangian =
-                -(self.constraints[ci.0].lagrangian + dfdv);
+            self.constraints[ci.0].lagrangian = -(self.constraints[ci.0].lagrangian + dfdv);
             if parent_idx != DUMMY_PARENT_IDX {
                 let parent = &nodes[parent_idx];
                 if !parent.is_dummy_constraint {
                     let parent_ci = parent.constraint_to_eval;
-                    self.constraints[parent_ci.0].lagrangian -=
-                        self.constraints[ci.0].lagrangian;
+                    self.constraints[parent_ci.0].lagrangian -= self.constraints[ci.0].lagrangian;
                 }
             }
         }

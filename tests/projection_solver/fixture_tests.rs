@@ -3,7 +3,6 @@
 /// Each test loads a C# fixture file, feeds the variables/constraints/neighbors
 /// into `SolverShell`, solves, and compares variable positions and goal value
 /// against the expected results.
-
 use super::fixture_parser::{parse_fixture, Fixture};
 use msagl_rust::projection_solver::solver_shell::SolverShell;
 
@@ -74,9 +73,11 @@ fn run_fixture_inner(name: &str, fixture: &Fixture) {
         panic!(
             "Fixture {name}: Variable {worst_var} expected {:.5} but got {:.5} \
              (error={:.6}, tolerance={:.6}, range={:.1})",
-            worst_result.expected_pos, actual,
+            worst_result.expected_pos,
+            actual,
             (actual - worst_result.expected_pos).abs(),
-            tolerance, pos_range,
+            tolerance,
+            pos_range,
         );
     }
 
@@ -131,115 +132,361 @@ macro_rules! fixture_test_ignored {
 // significantly from C#, likely due to iteration-order sensitivity in cycle
 // detection/handling. Re-enable when QPSC cycle handling is refined.
 fixture_test!(cycles_vars100_constraintsmax10_equalityconstraints_posmax1m_gapmax100k_weightmax10k_cycles10, "Cycles_Vars100_ConstraintsMax10_EqualityConstraints_PosMax1M_GapMax100K_WeightMax10K_Cycles10.txt");
-fixture_test!(cycles_vars100_constraintsmax10_posmax1m_gapmax100k_weightmax10k_cycles10, "Cycles_Vars100_ConstraintsMax10_PosMax1M_GapMax100K_WeightMax10K_Cycles10.txt");
+fixture_test!(
+    cycles_vars100_constraintsmax10_posmax1m_gapmax100k_weightmax10k_cycles10,
+    "Cycles_Vars100_ConstraintsMax10_PosMax1M_GapMax100K_WeightMax10K_Cycles10.txt"
+);
 fixture_test!(cycles_vars500_constraintsmax10_equalityconstraints_posmax1m_gapmax100k_weightmax10k_cycles10, "Cycles_Vars500_ConstraintsMax10_EqualityConstraints_PosMax1M_GapMax100K_WeightMax10K_Cycles10.txt");
-fixture_test!(cycles_vars500_constraintsmax10_posmax1m_gapmax100k_weightmax10k_cycles10, "Cycles_Vars500_ConstraintsMax10_PosMax1M_GapMax100K_WeightMax10K_Cycles10.txt");
+fixture_test!(
+    cycles_vars500_constraintsmax10_posmax1m_gapmax100k_weightmax10k_cycles10,
+    "Cycles_Vars500_ConstraintsMax10_PosMax1M_GapMax100K_WeightMax10K_Cycles10.txt"
+);
 
 // ---------------------------------------------------------------------------
 // Neighbors (16 fixtures)
 // ---------------------------------------------------------------------------
 
-fixture_test!(neighbors_vars10_constraintsmax10_neighborsmax10_weightmax100, "Neighbors_Vars10_ConstraintsMax10_NeighborsMax10_WeightMax100.txt");
-fixture_test!(neighbors_vars10_constraintsmax3_neighborsmax3_weightmax100, "Neighbors_Vars10_ConstraintsMax3_NeighborsMax3_WeightMax100.txt");
-fixture_test!(neighbors_vars100_constraintsmax10_neighborsmax10_weightmax100, "Neighbors_Vars100_ConstraintsMax10_NeighborsMax10_WeightMax100.txt");
-fixture_test!(neighbors_vars100_constraintsmax3_neighborsmax3_weightmax100, "Neighbors_Vars100_ConstraintsMax3_NeighborsMax3_WeightMax100.txt");
+fixture_test!(
+    neighbors_vars10_constraintsmax10_neighborsmax10_weightmax100,
+    "Neighbors_Vars10_ConstraintsMax10_NeighborsMax10_WeightMax100.txt"
+);
+fixture_test!(
+    neighbors_vars10_constraintsmax3_neighborsmax3_weightmax100,
+    "Neighbors_Vars10_ConstraintsMax3_NeighborsMax3_WeightMax100.txt"
+);
+fixture_test!(
+    neighbors_vars100_constraintsmax10_neighborsmax10_weightmax100,
+    "Neighbors_Vars100_ConstraintsMax10_NeighborsMax10_WeightMax100.txt"
+);
+fixture_test!(
+    neighbors_vars100_constraintsmax3_neighborsmax3_weightmax100,
+    "Neighbors_Vars100_ConstraintsMax3_NeighborsMax3_WeightMax100.txt"
+);
 // Variable weights spanning 6 orders of magnitude (1 to 1e6) cause QPSC
 // convergence to a slightly different local minimum. Error ~24 on range ~144.
 // The diagonal scaling computation accumulates floating-point errors at
 // these extreme weight ratios. Needs deeper QPSC precision investigation.
 fixture_test_ignored!(neighbors_vars1000_constraintsmax10_neighborsmax10_neighborweightmax100_varweights_1_to_1e6_at_10_percent, "Neighbors_Vars1000_ConstraintsMax10_NeighborsMax10_NeighborWeightMax100_VarWeights_1_To_1E6_At_10_Percent.txt", "extreme weight ratio convergence");
-fixture_test!(neighbors_vars1000_constraintsmax10_neighborsmax10_weightmax100, "Neighbors_Vars1000_ConstraintsMax10_NeighborsMax10_WeightMax100.txt");
-fixture_test!(neighbors_vars1000_constraintsmax3_neighborsmax3_weightmax100, "Neighbors_Vars1000_ConstraintsMax3_NeighborsMax3_WeightMax100.txt");
-fixture_test!(neighbors_vars200_constraintsmax10_neighborsmax10_weightmax100, "Neighbors_Vars200_ConstraintsMax10_NeighborsMax10_WeightMax100.txt");
-fixture_test!(neighbors_vars200_constraintsmax3_neighborsmax3_weightmax100, "Neighbors_Vars200_ConstraintsMax3_NeighborsMax3_WeightMax100.txt");
-fixture_test!(neighbors_vars2500_constraintsmax10_neighborsmax10_weightmax100, "Neighbors_Vars2500_ConstraintsMax10_NeighborsMax10_WeightMax100.txt");
-fixture_test!(neighbors_vars300_constraintsmax10_neighborsmax10_weightmax100, "Neighbors_Vars300_ConstraintsMax10_NeighborsMax10_WeightMax100.txt");
-fixture_test!(neighbors_vars300_constraintsmax3_neighborsmax3_weightmax100, "Neighbors_Vars300_ConstraintsMax3_NeighborsMax3_WeightMax100.txt");
-fixture_test!(neighbors_vars400_constraintsmax10_neighborsmax10_weightmax100, "Neighbors_Vars400_ConstraintsMax10_NeighborsMax10_WeightMax100.txt");
-fixture_test!(neighbors_vars400_constraintsmax3_neighborsmax3_weightmax100, "Neighbors_Vars400_ConstraintsMax3_NeighborsMax3_WeightMax100.txt");
-fixture_test!(neighbors_vars500_constraintsmax10_neighborsmax10_weightmax100, "Neighbors_Vars500_ConstraintsMax10_NeighborsMax10_WeightMax100.txt");
-fixture_test!(neighbors_vars500_constraintsmax3_neighborsmax3_weightmax100, "Neighbors_Vars500_ConstraintsMax3_NeighborsMax3_WeightMax100.txt");
+fixture_test!(
+    neighbors_vars1000_constraintsmax10_neighborsmax10_weightmax100,
+    "Neighbors_Vars1000_ConstraintsMax10_NeighborsMax10_WeightMax100.txt"
+);
+fixture_test!(
+    neighbors_vars1000_constraintsmax3_neighborsmax3_weightmax100,
+    "Neighbors_Vars1000_ConstraintsMax3_NeighborsMax3_WeightMax100.txt"
+);
+fixture_test!(
+    neighbors_vars200_constraintsmax10_neighborsmax10_weightmax100,
+    "Neighbors_Vars200_ConstraintsMax10_NeighborsMax10_WeightMax100.txt"
+);
+fixture_test!(
+    neighbors_vars200_constraintsmax3_neighborsmax3_weightmax100,
+    "Neighbors_Vars200_ConstraintsMax3_NeighborsMax3_WeightMax100.txt"
+);
+fixture_test!(
+    neighbors_vars2500_constraintsmax10_neighborsmax10_weightmax100,
+    "Neighbors_Vars2500_ConstraintsMax10_NeighborsMax10_WeightMax100.txt"
+);
+fixture_test!(
+    neighbors_vars300_constraintsmax10_neighborsmax10_weightmax100,
+    "Neighbors_Vars300_ConstraintsMax10_NeighborsMax10_WeightMax100.txt"
+);
+fixture_test!(
+    neighbors_vars300_constraintsmax3_neighborsmax3_weightmax100,
+    "Neighbors_Vars300_ConstraintsMax3_NeighborsMax3_WeightMax100.txt"
+);
+fixture_test!(
+    neighbors_vars400_constraintsmax10_neighborsmax10_weightmax100,
+    "Neighbors_Vars400_ConstraintsMax10_NeighborsMax10_WeightMax100.txt"
+);
+fixture_test!(
+    neighbors_vars400_constraintsmax3_neighborsmax3_weightmax100,
+    "Neighbors_Vars400_ConstraintsMax3_NeighborsMax3_WeightMax100.txt"
+);
+fixture_test!(
+    neighbors_vars500_constraintsmax10_neighborsmax10_weightmax100,
+    "Neighbors_Vars500_ConstraintsMax10_NeighborsMax10_WeightMax100.txt"
+);
+fixture_test!(
+    neighbors_vars500_constraintsmax3_neighborsmax3_weightmax100,
+    "Neighbors_Vars500_ConstraintsMax3_NeighborsMax3_WeightMax100.txt"
+);
 
 // ---------------------------------------------------------------------------
 // Solver (40 fixtures)
 // ---------------------------------------------------------------------------
 
-fixture_test!(solver_vars100_constraintsmax10_neighborsmax3_posmax1m_gapmax100k_weightmax10k, "Solver_Vars100_ConstraintsMax10_NeighborsMax3_PosMax1M_GapMax100K_WeightMax10K.txt");
-fixture_test!(solver_vars100_constraintsmax10_posmax1m_gapmax100k_weightmax10k_scale01, "Solver_Vars100_ConstraintsMax10_PosMax1M_GapMax100K_WeightMax10K_Scale01.txt");
-fixture_test!(solver_vars100_constraintsmax10_posmax1m_gapmax100k_weightmax10k_scale1m, "Solver_Vars100_ConstraintsMax10_PosMax1M_GapMax100K_WeightMax10K_Scale1m.txt");
-fixture_test!(solver_vars100_constraintsmax10_startatzero, "Solver_Vars100_ConstraintsMax10_StartAtZero.txt");
-fixture_test!(solver_vars100_constraintsmax10_weightmax1k, "Solver_Vars100_ConstraintsMax10_WeightMax1K.txt");
-fixture_test!(solver_vars100_constraintsmax3_weightmax1k, "Solver_Vars100_ConstraintsMax3_WeightMax1K.txt");
-fixture_test!(solver_vars1000_constraintsmax10_equalityconstraints_posmax1m_gapmax100k_weightmax10k, "Solver_Vars1000_ConstraintsMax10_EqualityConstraints_PosMax1M_GapMax100K_WeightMax10K.txt");
+fixture_test!(
+    solver_vars100_constraintsmax10_neighborsmax3_posmax1m_gapmax100k_weightmax10k,
+    "Solver_Vars100_ConstraintsMax10_NeighborsMax3_PosMax1M_GapMax100K_WeightMax10K.txt"
+);
+fixture_test!(
+    solver_vars100_constraintsmax10_posmax1m_gapmax100k_weightmax10k_scale01,
+    "Solver_Vars100_ConstraintsMax10_PosMax1M_GapMax100K_WeightMax10K_Scale01.txt"
+);
+fixture_test!(
+    solver_vars100_constraintsmax10_posmax1m_gapmax100k_weightmax10k_scale1m,
+    "Solver_Vars100_ConstraintsMax10_PosMax1M_GapMax100K_WeightMax10K_Scale1m.txt"
+);
+fixture_test!(
+    solver_vars100_constraintsmax10_startatzero,
+    "Solver_Vars100_ConstraintsMax10_StartAtZero.txt"
+);
+fixture_test!(
+    solver_vars100_constraintsmax10_weightmax1k,
+    "Solver_Vars100_ConstraintsMax10_WeightMax1K.txt"
+);
+fixture_test!(
+    solver_vars100_constraintsmax3_weightmax1k,
+    "Solver_Vars100_ConstraintsMax3_WeightMax1K.txt"
+);
+fixture_test!(
+    solver_vars1000_constraintsmax10_equalityconstraints_posmax1m_gapmax100k_weightmax10k,
+    "Solver_Vars1000_ConstraintsMax10_EqualityConstraints_PosMax1M_GapMax100K_WeightMax10K.txt"
+);
 fixture_test!(solver_vars1000_constraintsmax10_neighborsmax3_equalityconstraints_posmax1m_gapmax100k_weightmax10k, "Solver_Vars1000_ConstraintsMax10_NeighborsMax3_EqualityConstraints_PosMax1M_GapMax100K_WeightMax10K.txt");
-fixture_test!(solver_vars1000_constraintsmax10_neighborsmax3_posmax1m_gapmax100k_weightmax10k, "Solver_Vars1000_ConstraintsMax10_NeighborsMax3_PosMax1M_GapMax100K_WeightMax10K.txt");
-fixture_test!(solver_vars1000_constraintsmax10_posmax1m_gapmax100k_weightmax10k, "Solver_Vars1000_ConstraintsMax10_PosMax1M_GapMax100K_WeightMax10K.txt");
-fixture_test!(solver_vars1000_constraintsmax10_startatzero, "Solver_Vars1000_ConstraintsMax10_StartAtZero.txt");
-fixture_test!(solver_vars1000_constraintsmax10_varweights_1_to_1e6_at_10_percent, "Solver_Vars1000_ConstraintsMax10_VarWeights_1_To_1E6_At_10_Percent.txt");
-fixture_test!(solver_vars1000_constraintsmax10_varweights_1_to_1e6_at_25_percent, "Solver_Vars1000_ConstraintsMax10_VarWeights_1_To_1E6_At_25_Percent.txt");
-fixture_test!(solver_vars1000_constraintsmax10_weightmax1k, "Solver_Vars1000_ConstraintsMax10_WeightMax1K.txt");
-fixture_test!(solver_vars1000_constraintsmax10, "Solver_Vars1000_ConstraintsMax10.txt");
-fixture_test!(solver_vars1000_constraintsmax50, "Solver_Vars1000_ConstraintsMax50.txt");
-fixture_test!(solver_vars10000_constraintsmax3_startatzero, "Solver_Vars10000_ConstraintsMax3_StartAtZero.txt");
-fixture_test!(solver_vars10000_constraintsmax3, "Solver_Vars10000_ConstraintsMax3.txt");
-fixture_test!(solver_vars20_constraintsmax7, "Solver_Vars20_ConstraintsMax7.txt");
-fixture_test!(solver_vars200_constraintsmax10_weightmax1k, "Solver_Vars200_ConstraintsMax10_WeightMax1K.txt");
-fixture_test!(solver_vars200_constraintsmax3_weightmax1k, "Solver_Vars200_ConstraintsMax3_WeightMax1K.txt");
-fixture_test!(solver_vars2500_constraintsmax10, "Solver_Vars2500_ConstraintsMax10.txt");
-fixture_test!(solver_vars300_constraintsmax10_weightmax1k, "Solver_Vars300_ConstraintsMax10_WeightMax1K.txt");
-fixture_test!(solver_vars300_constraintsmax3_weightmax1k, "Solver_Vars300_ConstraintsMax3_WeightMax1K.txt");
-fixture_test!(solver_vars40_constraintsmax7, "Solver_Vars40_ConstraintsMax7.txt");
-fixture_test!(solver_vars400_constraintsmax10_weightmax1k, "Solver_Vars400_ConstraintsMax10_WeightMax1K.txt");
-fixture_test!(solver_vars400_constraintsmax3_weightmax1k, "Solver_Vars400_ConstraintsMax3_WeightMax1K.txt");
-fixture_test!(solver_vars500_constraintsmax10_startatzero, "Solver_Vars500_ConstraintsMax10_StartAtZero.txt");
-fixture_test!(solver_vars500_constraintsmax10_weightmax1k, "Solver_Vars500_ConstraintsMax10_WeightMax1K.txt");
-fixture_test!(solver_vars500_constraintsmax3_weightmax1k, "Solver_Vars500_ConstraintsMax3_WeightMax1K.txt");
-fixture_test!(solver_vars5000_constraintsmax10, "Solver_Vars5000_ConstraintsMax10.txt");
-fixture_test!(solver_vars600_constraintsmax10_weightmax1k, "Solver_Vars600_ConstraintsMax10_WeightMax1K.txt");
-fixture_test!(solver_vars600_constraintsmax3_weightmax1k, "Solver_Vars600_ConstraintsMax3_WeightMax1K.txt");
-fixture_test!(solver_vars700_constraintsmax10_weightmax1k, "Solver_Vars700_ConstraintsMax10_WeightMax1K.txt");
-fixture_test!(solver_vars700_constraintsmax3_weightmax1k, "Solver_Vars700_ConstraintsMax3_WeightMax1K.txt");
-fixture_test!(solver_vars800_constraintsmax10_weightmax1k, "Solver_Vars800_ConstraintsMax10_WeightMax1K.txt");
-fixture_test!(solver_vars800_constraintsmax3_weightmax1k, "Solver_Vars800_ConstraintsMax3_WeightMax1K.txt");
-fixture_test!(solver_vars900_constraintsmax10_weightmax1k, "Solver_Vars900_ConstraintsMax10_WeightMax1K.txt");
-fixture_test!(solver_vars900_constraintsmax3_weightmax1k, "Solver_Vars900_ConstraintsMax3_WeightMax1K.txt");
+fixture_test!(
+    solver_vars1000_constraintsmax10_neighborsmax3_posmax1m_gapmax100k_weightmax10k,
+    "Solver_Vars1000_ConstraintsMax10_NeighborsMax3_PosMax1M_GapMax100K_WeightMax10K.txt"
+);
+fixture_test!(
+    solver_vars1000_constraintsmax10_posmax1m_gapmax100k_weightmax10k,
+    "Solver_Vars1000_ConstraintsMax10_PosMax1M_GapMax100K_WeightMax10K.txt"
+);
+fixture_test!(
+    solver_vars1000_constraintsmax10_startatzero,
+    "Solver_Vars1000_ConstraintsMax10_StartAtZero.txt"
+);
+fixture_test!(
+    solver_vars1000_constraintsmax10_varweights_1_to_1e6_at_10_percent,
+    "Solver_Vars1000_ConstraintsMax10_VarWeights_1_To_1E6_At_10_Percent.txt"
+);
+fixture_test!(
+    solver_vars1000_constraintsmax10_varweights_1_to_1e6_at_25_percent,
+    "Solver_Vars1000_ConstraintsMax10_VarWeights_1_To_1E6_At_25_Percent.txt"
+);
+fixture_test!(
+    solver_vars1000_constraintsmax10_weightmax1k,
+    "Solver_Vars1000_ConstraintsMax10_WeightMax1K.txt"
+);
+fixture_test!(
+    solver_vars1000_constraintsmax10,
+    "Solver_Vars1000_ConstraintsMax10.txt"
+);
+fixture_test!(
+    solver_vars1000_constraintsmax50,
+    "Solver_Vars1000_ConstraintsMax50.txt"
+);
+fixture_test!(
+    solver_vars10000_constraintsmax3_startatzero,
+    "Solver_Vars10000_ConstraintsMax3_StartAtZero.txt"
+);
+fixture_test!(
+    solver_vars10000_constraintsmax3,
+    "Solver_Vars10000_ConstraintsMax3.txt"
+);
+fixture_test!(
+    solver_vars20_constraintsmax7,
+    "Solver_Vars20_ConstraintsMax7.txt"
+);
+fixture_test!(
+    solver_vars200_constraintsmax10_weightmax1k,
+    "Solver_Vars200_ConstraintsMax10_WeightMax1K.txt"
+);
+fixture_test!(
+    solver_vars200_constraintsmax3_weightmax1k,
+    "Solver_Vars200_ConstraintsMax3_WeightMax1K.txt"
+);
+fixture_test!(
+    solver_vars2500_constraintsmax10,
+    "Solver_Vars2500_ConstraintsMax10.txt"
+);
+fixture_test!(
+    solver_vars300_constraintsmax10_weightmax1k,
+    "Solver_Vars300_ConstraintsMax10_WeightMax1K.txt"
+);
+fixture_test!(
+    solver_vars300_constraintsmax3_weightmax1k,
+    "Solver_Vars300_ConstraintsMax3_WeightMax1K.txt"
+);
+fixture_test!(
+    solver_vars40_constraintsmax7,
+    "Solver_Vars40_ConstraintsMax7.txt"
+);
+fixture_test!(
+    solver_vars400_constraintsmax10_weightmax1k,
+    "Solver_Vars400_ConstraintsMax10_WeightMax1K.txt"
+);
+fixture_test!(
+    solver_vars400_constraintsmax3_weightmax1k,
+    "Solver_Vars400_ConstraintsMax3_WeightMax1K.txt"
+);
+fixture_test!(
+    solver_vars500_constraintsmax10_startatzero,
+    "Solver_Vars500_ConstraintsMax10_StartAtZero.txt"
+);
+fixture_test!(
+    solver_vars500_constraintsmax10_weightmax1k,
+    "Solver_Vars500_ConstraintsMax10_WeightMax1K.txt"
+);
+fixture_test!(
+    solver_vars500_constraintsmax3_weightmax1k,
+    "Solver_Vars500_ConstraintsMax3_WeightMax1K.txt"
+);
+fixture_test!(
+    solver_vars5000_constraintsmax10,
+    "Solver_Vars5000_ConstraintsMax10.txt"
+);
+fixture_test!(
+    solver_vars600_constraintsmax10_weightmax1k,
+    "Solver_Vars600_ConstraintsMax10_WeightMax1K.txt"
+);
+fixture_test!(
+    solver_vars600_constraintsmax3_weightmax1k,
+    "Solver_Vars600_ConstraintsMax3_WeightMax1K.txt"
+);
+fixture_test!(
+    solver_vars700_constraintsmax10_weightmax1k,
+    "Solver_Vars700_ConstraintsMax10_WeightMax1K.txt"
+);
+fixture_test!(
+    solver_vars700_constraintsmax3_weightmax1k,
+    "Solver_Vars700_ConstraintsMax3_WeightMax1K.txt"
+);
+fixture_test!(
+    solver_vars800_constraintsmax10_weightmax1k,
+    "Solver_Vars800_ConstraintsMax10_WeightMax1K.txt"
+);
+fixture_test!(
+    solver_vars800_constraintsmax3_weightmax1k,
+    "Solver_Vars800_ConstraintsMax3_WeightMax1K.txt"
+);
+fixture_test!(
+    solver_vars900_constraintsmax10_weightmax1k,
+    "Solver_Vars900_ConstraintsMax10_WeightMax1K.txt"
+);
+fixture_test!(
+    solver_vars900_constraintsmax3_weightmax1k,
+    "Solver_Vars900_ConstraintsMax3_WeightMax1K.txt"
+);
 
 // ---------------------------------------------------------------------------
 // Solver1 (18 fixtures)
 // ---------------------------------------------------------------------------
 
-fixture_test!(solver1_vars100_constraintsmax10, "Solver1_Vars100_ConstraintsMax10.txt");
-fixture_test!(solver1_vars100_constraintsmax3, "Solver1_Vars100_ConstraintsMax3.txt");
-fixture_test!(solver1_vars1000_constraintsmax10, "Solver1_Vars1000_ConstraintsMax10.txt");
-fixture_test!(solver1_vars200_constraintsmax10, "Solver1_Vars200_ConstraintsMax10.txt");
-fixture_test!(solver1_vars200_constraintsmax3, "Solver1_Vars200_ConstraintsMax3.txt");
-fixture_test!(solver1_vars300_constraintsmax10, "Solver1_Vars300_ConstraintsMax10.txt");
-fixture_test!(solver1_vars300_constraintsmax3, "Solver1_Vars300_ConstraintsMax3.txt");
-fixture_test!(solver1_vars400_constraintsmax10, "Solver1_Vars400_ConstraintsMax10.txt");
-fixture_test!(solver1_vars400_constraintsmax3, "Solver1_Vars400_ConstraintsMax3.txt");
-fixture_test!(solver1_vars500_constraintsmax10, "Solver1_Vars500_ConstraintsMax10.txt");
-fixture_test!(solver1_vars500_constraintsmax3, "Solver1_Vars500_ConstraintsMax3.txt");
-fixture_test!(solver1_vars600_constraintsmax10, "Solver1_Vars600_ConstraintsMax10.txt");
-fixture_test!(solver1_vars600_constraintsmax3, "Solver1_Vars600_ConstraintsMax3.txt");
-fixture_test!(solver1_vars700_constraintsmax10, "Solver1_Vars700_ConstraintsMax10.txt");
-fixture_test!(solver1_vars700_constraintsmax3, "Solver1_Vars700_ConstraintsMax3.txt");
-fixture_test!(solver1_vars800_constraintsmax10, "Solver1_Vars800_ConstraintsMax10.txt");
-fixture_test!(solver1_vars800_constraintsmax3, "Solver1_Vars800_ConstraintsMax3.txt");
-fixture_test!(solver1_vars900_constraintsmax10, "Solver1_Vars900_ConstraintsMax10.txt");
-fixture_test!(solver1_vars900_constraintsmax3, "Solver1_Vars900_ConstraintsMax3.txt");
+fixture_test!(
+    solver1_vars100_constraintsmax10,
+    "Solver1_Vars100_ConstraintsMax10.txt"
+);
+fixture_test!(
+    solver1_vars100_constraintsmax3,
+    "Solver1_Vars100_ConstraintsMax3.txt"
+);
+fixture_test!(
+    solver1_vars1000_constraintsmax10,
+    "Solver1_Vars1000_ConstraintsMax10.txt"
+);
+fixture_test!(
+    solver1_vars200_constraintsmax10,
+    "Solver1_Vars200_ConstraintsMax10.txt"
+);
+fixture_test!(
+    solver1_vars200_constraintsmax3,
+    "Solver1_Vars200_ConstraintsMax3.txt"
+);
+fixture_test!(
+    solver1_vars300_constraintsmax10,
+    "Solver1_Vars300_ConstraintsMax10.txt"
+);
+fixture_test!(
+    solver1_vars300_constraintsmax3,
+    "Solver1_Vars300_ConstraintsMax3.txt"
+);
+fixture_test!(
+    solver1_vars400_constraintsmax10,
+    "Solver1_Vars400_ConstraintsMax10.txt"
+);
+fixture_test!(
+    solver1_vars400_constraintsmax3,
+    "Solver1_Vars400_ConstraintsMax3.txt"
+);
+fixture_test!(
+    solver1_vars500_constraintsmax10,
+    "Solver1_Vars500_ConstraintsMax10.txt"
+);
+fixture_test!(
+    solver1_vars500_constraintsmax3,
+    "Solver1_Vars500_ConstraintsMax3.txt"
+);
+fixture_test!(
+    solver1_vars600_constraintsmax10,
+    "Solver1_Vars600_ConstraintsMax10.txt"
+);
+fixture_test!(
+    solver1_vars600_constraintsmax3,
+    "Solver1_Vars600_ConstraintsMax3.txt"
+);
+fixture_test!(
+    solver1_vars700_constraintsmax10,
+    "Solver1_Vars700_ConstraintsMax10.txt"
+);
+fixture_test!(
+    solver1_vars700_constraintsmax3,
+    "Solver1_Vars700_ConstraintsMax3.txt"
+);
+fixture_test!(
+    solver1_vars800_constraintsmax10,
+    "Solver1_Vars800_ConstraintsMax10.txt"
+);
+fixture_test!(
+    solver1_vars800_constraintsmax3,
+    "Solver1_Vars800_ConstraintsMax3.txt"
+);
+fixture_test!(
+    solver1_vars900_constraintsmax10,
+    "Solver1_Vars900_ConstraintsMax10.txt"
+);
+fixture_test!(
+    solver1_vars900_constraintsmax3,
+    "Solver1_Vars900_ConstraintsMax3.txt"
+);
 
 // ---------------------------------------------------------------------------
 // Solver2–9 (8 fixtures)
 // ---------------------------------------------------------------------------
 
-fixture_test!(solver2_vars100_constraintsmax3, "Solver2_Vars100_ConstraintsMax3.txt");
-fixture_test!(solver3_vars100_constraintsmax3, "Solver3_Vars100_ConstraintsMax3.txt");
-fixture_test!(solver4_vars100_constraintsmax3, "Solver4_Vars100_ConstraintsMax3.txt");
-fixture_test!(solver5_vars100_constraintsmax3, "Solver5_Vars100_ConstraintsMax3.txt");
-fixture_test!(solver6_vars100_constraintsmax3, "Solver6_Vars100_ConstraintsMax3.txt");
-fixture_test!(solver7_vars100_constraintsmax3, "Solver7_Vars100_ConstraintsMax3.txt");
-fixture_test!(solver8_vars100_constraintsmax3, "Solver8_Vars100_ConstraintsMax3.txt");
-fixture_test!(solver9_vars100_constraintsmax3, "Solver9_Vars100_ConstraintsMax3.txt");
+fixture_test!(
+    solver2_vars100_constraintsmax3,
+    "Solver2_Vars100_ConstraintsMax3.txt"
+);
+fixture_test!(
+    solver3_vars100_constraintsmax3,
+    "Solver3_Vars100_ConstraintsMax3.txt"
+);
+fixture_test!(
+    solver4_vars100_constraintsmax3,
+    "Solver4_Vars100_ConstraintsMax3.txt"
+);
+fixture_test!(
+    solver5_vars100_constraintsmax3,
+    "Solver5_Vars100_ConstraintsMax3.txt"
+);
+fixture_test!(
+    solver6_vars100_constraintsmax3,
+    "Solver6_Vars100_ConstraintsMax3.txt"
+);
+fixture_test!(
+    solver7_vars100_constraintsmax3,
+    "Solver7_Vars100_ConstraintsMax3.txt"
+);
+fixture_test!(
+    solver8_vars100_constraintsmax3,
+    "Solver8_Vars100_ConstraintsMax3.txt"
+);
+fixture_test!(
+    solver9_vars100_constraintsmax3,
+    "Solver9_Vars100_ConstraintsMax3.txt"
+);
 
 // ---------------------------------------------------------------------------
 // Manual cycle test

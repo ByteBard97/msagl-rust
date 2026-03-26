@@ -1,5 +1,5 @@
-use msagl_rust::routing::vertex_entry::{VertexEntry, VertexEntryIndex};
 use msagl_rust::routing::compass_direction::CompassDirection;
+use msagl_rust::routing::vertex_entry::{VertexEntry, VertexEntryIndex};
 use msagl_rust::visibility::graph::VertexId;
 
 #[test]

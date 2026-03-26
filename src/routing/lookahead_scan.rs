@@ -29,12 +29,7 @@ impl LookaheadScan {
         }
     }
 
-    pub fn add_site(
-        &mut self,
-        site: Point,
-        initial_obstacle: usize,
-        reflecting_obstacle: usize,
-    ) {
+    pub fn add_site(&mut self, site: Point, initial_obstacle: usize, reflecting_obstacle: usize) {
         let key = OrderedFloat(GeomConstants::round(self.scan_direction.coord(site)));
         self.sites.insert(
             key,
@@ -55,10 +50,7 @@ impl LookaheadScan {
     pub fn find_first_in_range(&self, low: f64, high: f64) -> Option<&ReflectionSite> {
         let low_key = OrderedFloat(GeomConstants::round(low));
         let high_key = OrderedFloat(GeomConstants::round(high));
-        self.sites
-            .range(low_key..=high_key)
-            .next()
-            .map(|(_, v)| v)
+        self.sites.range(low_key..=high_key).next().map(|(_, v)| v)
     }
 
     /// Find all reflection sites whose scan-parallel coordinate is in `[low, high]`.

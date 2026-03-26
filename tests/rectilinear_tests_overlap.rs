@@ -2,8 +2,8 @@
 /// Ported from C# RectilinearTests.cs.
 #[path = "test_harness/mod.rs"]
 mod test_harness;
-use test_harness::{ScenarioBuilder, Verifier};
 use test_harness::verifier::RECTILINEAR_TOLERANCE;
+use test_harness::{ScenarioBuilder, Verifier};
 
 // ── Helper: run a standard "all-from-source" routing scenario ───────────────
 
@@ -395,7 +395,7 @@ fn overlap_obstacle_between_worker(target_at_top: bool) {
     b.add_rectangle_corners(-25.0, 5.0, 25.0, 55.0);
     b.add_rectangle_corners(15.0, 7.0, 45.0, 53.0);
 
-    run_route_pair(b,obs0, obs1);
+    run_route_pair(b, obs0, obs1);
 }
 
 /// Port: Overlap_Obstacle_Between_PreviousPoint_And_StartVertex_TargetAtTop
@@ -436,7 +436,7 @@ fn overlap_gaps_on_all_boundaries_worker(
     b.add_rectangle_corners(60.0, 20.0, 80.0, 40.0);
     b.add_rectangle_corners(70.0, 10.0, 90.0, 50.0);
 
-    run_route_pair(b,obs0, obs1);
+    run_route_pair(b, obs0, obs1);
 }
 
 /// Port: Overlap_Gaps_On_All_Boundaries_TargetUpperLeft
@@ -463,7 +463,7 @@ fn overlap_splice_across_obstacle() {
     b.add_rectangle_corners(15.58, 25.64, 20.28, 30.30);
     b.add_rectangle_corners(22.36, 24.83, 32.14, 33.06);
     b.add_rectangle_corners(15.0, 35.0, 20.0, 40.0);
-    run_route_pair(b,0, 1);
+    run_route_pair(b, 0, 1);
 }
 
 // ── Overlap_ReflectionToken ─────────────────────────────────────────────────
@@ -484,5 +484,5 @@ fn overlap_reflection_token() {
     b.add_rectangle_corners(94.320, 70.993, 103.280, 80.288);
     // obs[3]: triangle → bounding box approximation
     b.add_rectangle_corners(89.320, 69.0, 92.320, 72.5);
-    run_route_pair(b,0, 1);
+    run_route_pair(b, 0, 1);
 }

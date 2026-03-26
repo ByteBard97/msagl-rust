@@ -1,17 +1,17 @@
-use ordered_float::OrderedFloat;
-use std::collections::BTreeMap;
+use super::scan_direction::ScanDirection;
+use super::static_graph_utility::StaticGraphUtility;
 use crate::geometry::point::Point;
 use crate::geometry::point_comparer::GeomConstants;
 use crate::visibility::graph::{VertexId, VisibilityGraph};
-use super::scan_direction::ScanDirection;
-use super::static_graph_utility::StaticGraphUtility;
+use ordered_float::OrderedFloat;
+use std::collections::BTreeMap;
 
 /// Weight of a scan segment (affects routing preference).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum SegmentWeight {
-    Normal,      // Weight = 1 (preferred)
-    Reflection,  // Weight = 5 (less preferred)
-    Overlapped,  // Weight = 500 (avoid if possible)
+    Normal,     // Weight = 1 (preferred)
+    Reflection, // Weight = 5 (less preferred)
+    Overlapped, // Weight = 500 (avoid if possible)
 }
 
 impl SegmentWeight {
@@ -194,22 +194,24 @@ impl ScanSegmentTree {
     /// Insert a segment. Keyed by its perpendicular coordinate.
     pub fn insert(&mut self, seg: ScanSegment) {
         let key = OrderedFloat(GeomConstants::round(
-            self.scan_direction.perp_coord(seg.start)
+            self.scan_direction.perp_coord(seg.start),
         ));
         self.segments.entry(key).or_default().push(seg);
     }
 
     /// Find a segment that contains the given point.
     pub fn find_containing_point(&self, p: Point) -> Option<&ScanSegment> {
-        let key = OrderedFloat(GeomConstants::round(
-            self.scan_direction.perp_coord(p)
-        ));
+        let key = OrderedFloat(GeomConstants::round(self.scan_direction.perp_coord(p)));
         let segs = self.segments.get(&key)?;
         let coord = self.scan_direction.coord(p);
         segs.iter().find(|s| {
             let s_low = self.scan_direction.coord(s.start);
             let s_high = self.scan_direction.coord(s.end);
-            let (lo, hi) = if s_low <= s_high { (s_low, s_high) } else { (s_high, s_low) };
+            let (lo, hi) = if s_low <= s_high {
+                (s_low, s_high)
+            } else {
+                (s_high, s_low)
+            };
             coord >= lo - GeomConstants::DISTANCE_EPSILON
                 && coord <= hi + GeomConstants::DISTANCE_EPSILON
         })
@@ -259,7 +261,7 @@ impl ScanSegmentTree {
     /// Returns `true` if the segment was inserted, `false` if a duplicate was found.
     pub fn insert_unique(&mut self, seg: ScanSegment) -> bool {
         let key = OrderedFloat(GeomConstants::round(
-            self.scan_direction.perp_coord(seg.start)
+            self.scan_direction.perp_coord(seg.start),
         ));
         let entry = self.segments.entry(key).or_default();
         let is_duplicate = entry.iter().any(|existing| {

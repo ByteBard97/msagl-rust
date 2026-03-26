@@ -1,8 +1,8 @@
+use super::compass_direction::CompassDirection;
+use super::transient_graph_utility::TransientGraphUtility;
 use crate::geometry::point::Point;
 use crate::geometry::point_comparer::GeomConstants;
 use crate::visibility::graph::{VertexId, VisibilityGraph};
-use super::compass_direction::CompassDirection;
-use super::transient_graph_utility::TransientGraphUtility;
 
 /// Result of splicing a port into the visibility graph.
 ///
@@ -45,12 +45,15 @@ impl PortManager {
         // If ray-casting finds nothing (port is already on a VG edge), fall back
         // to aligned-vertex search.
         for &direction in &CompassDirection::all() {
-            if let Some(intersection) =
-                Self::find_nearest_crossing_edge(graph, location, direction)
+            if let Some(intersection) = Self::find_nearest_crossing_edge(graph, location, direction)
             {
                 let (edge_source, edge_target, intersect_point) = intersection;
                 let split_vertex = tgu.add_edge_to_target_edge(
-                    graph, port_vertex, edge_source, edge_target, intersect_point,
+                    graph,
+                    port_vertex,
+                    edge_source,
+                    edge_target,
+                    intersect_point,
                 );
                 let dist = ((intersect_point.x() - location.x()).powi(2)
                     + (intersect_point.y() - location.y()).powi(2))
@@ -158,9 +161,15 @@ impl PortManager {
             }
         }
 
-        if best.is_none() && (location.x() - 70.0).abs() < 0.1 && (location.y() - 70.0).abs() < 0.1 {
-            eprintln!("  find_crossing({:?}) from ({},{}) found NOTHING in {} verts",
-                direction, location.x(), location.y(), graph.vertex_count());
+        if best.is_none() && (location.x() - 70.0).abs() < 0.1 && (location.y() - 70.0).abs() < 0.1
+        {
+            eprintln!(
+                "  find_crossing({:?}) from ({},{}) found NOTHING in {} verts",
+                direction,
+                location.x(),
+                location.y(),
+                graph.vertex_count()
+            );
         }
         best.map(|(s, t, p, _)| (s, t, p))
     }
@@ -202,9 +211,8 @@ impl PortManager {
             };
 
             if is_aligned {
-                let dist = ((pt.x() - location.x()).powi(2)
-                    + (pt.y() - location.y()).powi(2))
-                .sqrt();
+                let dist =
+                    ((pt.x() - location.x()).powi(2) + (pt.y() - location.y()).powi(2)).sqrt();
                 if best.is_none_or(|(_, d)| dist < d) {
                     best = Some((vid, dist));
                 }
@@ -217,5 +225,9 @@ impl PortManager {
 
 /// Return (min, max) of two f64 values.
 fn ordered_pair(a: f64, b: f64) -> (f64, f64) {
-    if a <= b { (a, b) } else { (b, a) }
+    if a <= b {
+        (a, b)
+    } else {
+        (b, a)
+    }
 }

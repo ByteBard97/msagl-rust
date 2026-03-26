@@ -7,14 +7,10 @@ fn finds_hv_crossing() {
     // H segment: (0,50) -> (100,50)
     // V segment: (50,0) -> (50,100)
     // Crossing at (50, 50)
-    let (mut h_list, h_start) = LinkedPointList::from_points(&[
-        Point::new(0.0, 50.0),
-        Point::new(100.0, 50.0),
-    ]);
-    let (mut v_list, v_start) = LinkedPointList::from_points(&[
-        Point::new(50.0, 0.0),
-        Point::new(50.0, 100.0),
-    ]);
+    let (mut h_list, h_start) =
+        LinkedPointList::from_points(&[Point::new(0.0, 50.0), Point::new(100.0, 50.0)]);
+    let (mut v_list, v_start) =
+        LinkedPointList::from_points(&[Point::new(50.0, 0.0), Point::new(50.0, 100.0)]);
 
     LinkedPointSplitter::split(
         &mut h_list,
@@ -24,10 +20,18 @@ fn finds_hv_crossing() {
     );
 
     let h_points = h_list.collect_points(h_start.unwrap());
-    assert_eq!(h_points.len(), 3, "crossing should be inserted into h segment");
+    assert_eq!(
+        h_points.len(),
+        3,
+        "crossing should be inserted into h segment"
+    );
 
     let v_points = v_list.collect_points(v_start.unwrap());
-    assert_eq!(v_points.len(), 3, "crossing should be inserted into v segment");
+    assert_eq!(
+        v_points.len(),
+        3,
+        "crossing should be inserted into v segment"
+    );
 
     // Crossing point should be at (50, 50)
     assert!((h_points[1].x() - 50.0).abs() < 1e-6);
@@ -39,14 +43,10 @@ fn finds_hv_crossing() {
 #[test]
 fn no_crossing_when_segments_dont_intersect() {
     // H segment ends at x=40, V segment starts at x=50 — no crossing
-    let (mut h_list, h_start) = LinkedPointList::from_points(&[
-        Point::new(0.0, 50.0),
-        Point::new(40.0, 50.0),
-    ]);
-    let (mut v_list, v_start) = LinkedPointList::from_points(&[
-        Point::new(50.0, 0.0),
-        Point::new(50.0, 100.0),
-    ]);
+    let (mut h_list, h_start) =
+        LinkedPointList::from_points(&[Point::new(0.0, 50.0), Point::new(40.0, 50.0)]);
+    let (mut v_list, v_start) =
+        LinkedPointList::from_points(&[Point::new(50.0, 0.0), Point::new(50.0, 100.0)]);
 
     LinkedPointSplitter::split(
         &mut h_list,
@@ -65,14 +65,10 @@ fn no_crossing_when_segments_dont_intersect() {
 #[test]
 fn no_crossing_when_endpoint_touching_only() {
     // H ends exactly at x=50, V starts at x=50 — endpoint touch, not interior crossing
-    let (mut h_list, h_start) = LinkedPointList::from_points(&[
-        Point::new(0.0, 50.0),
-        Point::new(50.0, 50.0),
-    ]);
-    let (mut v_list, v_start) = LinkedPointList::from_points(&[
-        Point::new(50.0, 0.0),
-        Point::new(50.0, 100.0),
-    ]);
+    let (mut h_list, h_start) =
+        LinkedPointList::from_points(&[Point::new(0.0, 50.0), Point::new(50.0, 50.0)]);
+    let (mut v_list, v_start) =
+        LinkedPointList::from_points(&[Point::new(50.0, 0.0), Point::new(50.0, 100.0)]);
 
     LinkedPointSplitter::split(
         &mut h_list,
@@ -88,10 +84,8 @@ fn no_crossing_when_endpoint_touching_only() {
 
 #[test]
 fn empty_vertical_list_is_noop() {
-    let (mut h_list, h_start) = LinkedPointList::from_points(&[
-        Point::new(0.0, 50.0),
-        Point::new(100.0, 50.0),
-    ]);
+    let (mut h_list, h_start) =
+        LinkedPointList::from_points(&[Point::new(0.0, 50.0), Point::new(100.0, 50.0)]);
     let (mut v_list, _) = LinkedPointList::from_points(&[]);
 
     LinkedPointSplitter::split(&mut h_list, &[h_start.unwrap()], &mut v_list, &[]);
@@ -109,10 +103,8 @@ fn multiple_verticals_crossed_by_one_horizontal() {
 
     // V1 at x=25
     let (mut h_list1, h_start1) = LinkedPointList::from_points(&h_pts);
-    let (mut v_list1, v1_start) = LinkedPointList::from_points(&[
-        Point::new(25.0, 0.0),
-        Point::new(25.0, 100.0),
-    ]);
+    let (mut v_list1, v1_start) =
+        LinkedPointList::from_points(&[Point::new(25.0, 0.0), Point::new(25.0, 100.0)]);
     LinkedPointSplitter::split(
         &mut h_list1,
         &[h_start1.unwrap()],
@@ -125,10 +117,8 @@ fn multiple_verticals_crossed_by_one_horizontal() {
 
     // V2 at x=75
     let (mut h_list2, h_start2) = LinkedPointList::from_points(&h_pts);
-    let (mut v_list2, v2_start) = LinkedPointList::from_points(&[
-        Point::new(75.0, 0.0),
-        Point::new(75.0, 100.0),
-    ]);
+    let (mut v_list2, v2_start) =
+        LinkedPointList::from_points(&[Point::new(75.0, 0.0), Point::new(75.0, 100.0)]);
     LinkedPointSplitter::split(
         &mut h_list2,
         &[h_start2.unwrap()],
@@ -144,14 +134,10 @@ fn multiple_verticals_crossed_by_one_horizontal() {
 fn right_to_left_horizontal_also_split() {
     // H goes right-to-left: (100,50) -> (0,50)
     // V: (50,0) -> (50,100)
-    let (mut h_list, h_start) = LinkedPointList::from_points(&[
-        Point::new(100.0, 50.0),
-        Point::new(0.0, 50.0),
-    ]);
-    let (mut v_list, v_start) = LinkedPointList::from_points(&[
-        Point::new(50.0, 0.0),
-        Point::new(50.0, 100.0),
-    ]);
+    let (mut h_list, h_start) =
+        LinkedPointList::from_points(&[Point::new(100.0, 50.0), Point::new(0.0, 50.0)]);
+    let (mut v_list, v_start) =
+        LinkedPointList::from_points(&[Point::new(50.0, 0.0), Point::new(50.0, 100.0)]);
 
     LinkedPointSplitter::split(
         &mut h_list,

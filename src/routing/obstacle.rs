@@ -1,11 +1,11 @@
+use super::obstacle_side::{ObstacleSide, SideType};
+use super::scan_direction::ScanDirection;
+use super::shape::Shape;
 use crate::arenas::PolylinePointKey;
 use crate::geometry::point::Point;
 use crate::geometry::point_comparer::GeomConstants;
 use crate::geometry::polyline::Polyline;
 use crate::geometry::rectangle::Rectangle;
-use super::obstacle_side::{ObstacleSide, SideType};
-use super::scan_direction::ScanDirection;
-use super::shape::Shape;
 
 /// Internal obstacle representation with padded boundary.
 ///
@@ -266,10 +266,7 @@ impl Obstacle {
 /// Rounds each vertex to `Point::round()`, then removes close and collinear vertices.
 fn round_vertices_and_simplify(polyline: &mut Polyline) {
     // Round each vertex
-    let keys: Vec<PolylinePointKey> = polyline
-        .polyline_points()
-        .map(|pp| pp.key)
-        .collect();
+    let keys: Vec<PolylinePointKey> = polyline.polyline_points().map(|pp| pp.key).collect();
 
     for key in &keys {
         let p = polyline.point_at(*key);
@@ -288,10 +285,7 @@ fn round_vertices_and_simplify(polyline: &mut Polyline) {
 /// Remove vertices that are very close to their predecessor.
 fn remove_close_vertices(polyline: &mut Polyline, epsilon: f64) {
     // Collect all keys first to avoid mutating while iterating
-    let keys: Vec<PolylinePointKey> = polyline
-        .polyline_points()
-        .map(|pp| pp.key)
-        .collect();
+    let keys: Vec<PolylinePointKey> = polyline.polyline_points().map(|pp| pp.key).collect();
 
     if keys.len() < 3 {
         return; // Don't simplify to fewer than 2 points
@@ -383,11 +377,19 @@ fn compass_direction(a: Point, b: Point) -> Option<CompassDir> {
     }
     if ax < eps {
         // Pure vertical
-        return if dy > 0.0 { Some(CompassDir::North) } else { Some(CompassDir::South) };
+        return if dy > 0.0 {
+            Some(CompassDir::North)
+        } else {
+            Some(CompassDir::South)
+        };
     }
     if ay < eps {
         // Pure horizontal
-        return if dx > 0.0 { Some(CompassDir::East) } else { Some(CompassDir::West) };
+        return if dx > 0.0 {
+            Some(CompassDir::East)
+        } else {
+            Some(CompassDir::West)
+        };
     }
     None // Diagonal -- not a pure compass direction
 }
@@ -408,18 +410,13 @@ fn rotate_right(dir: CompassDir) -> CompassDir {
 /// Matches TS `VisibilityGraphGenerator.PointCompare` which compares
 /// by perpendicular coordinate first, then by scan-parallel coordinate.
 fn point_compare(a: Point, b: Point, scan_direction: ScanDirection) -> i32 {
-    let perp_cmp = GeomConstants::compare(
-        scan_direction.perp_coord(a),
-        scan_direction.perp_coord(b),
-    );
+    let perp_cmp =
+        GeomConstants::compare(scan_direction.perp_coord(a), scan_direction.perp_coord(b));
     match perp_cmp {
         std::cmp::Ordering::Less => -1,
         std::cmp::Ordering::Greater => 1,
         std::cmp::Ordering::Equal => {
-            let scan_cmp = GeomConstants::compare(
-                scan_direction.coord(a),
-                scan_direction.coord(b),
-            );
+            let scan_cmp = GeomConstants::compare(scan_direction.coord(a), scan_direction.coord(b));
             match scan_cmp {
                 std::cmp::Ordering::Less => -1,
                 std::cmp::Ordering::Greater => 1,

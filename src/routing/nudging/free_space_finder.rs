@@ -17,11 +17,7 @@ use super::axis_edge::{AxisEdge, AxisEdgeId};
 /// Also discovers right-neighbor relationships between axis edges:
 /// two axis edges are neighbors if they are parallel, adjacent perpendicular
 /// to the direction, and their projections along the direction overlap.
-pub fn find_free_space(
-    axis_edges: &mut [AxisEdge],
-    obstacles: &[Rectangle],
-    direction: Direction,
-) {
+pub fn find_free_space(axis_edges: &mut [AxisEdge], obstacles: &[Rectangle], direction: Direction) {
     // Process edges parallel to the given direction.
     let parallel_ids: Vec<AxisEdgeId> = axis_edges
         .iter()
@@ -104,11 +100,7 @@ fn find_right_neighbors(
                 continue; // Same position, skip.
             }
 
-            if projections_overlap(
-                &axis_edges[left_id],
-                &axis_edges[right_id],
-                direction,
-            ) {
+            if projections_overlap(&axis_edges[left_id], &axis_edges[right_id], direction) {
                 axis_edges[left_id].right_neighbors.push(right_id);
             }
 

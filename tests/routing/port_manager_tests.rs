@@ -69,9 +69,9 @@ fn splice_and_route_between_obstacles() {
 fn full_pipeline_shapes_to_path() {
     // Full integration: shapes -> visibility graph -> splice ports -> find path
     let shapes = vec![
-        Shape::rectangle(0.0, 0.0, 10.0, 10.0),   // obstacle at (0,0)-(10,10)
-        Shape::rectangle(20.0, 0.0, 10.0, 10.0),   // obstacle at (20,0)-(30,10)
-        Shape::rectangle(10.0, 20.0, 10.0, 10.0),  // obstacle at (10,20)-(20,30)
+        Shape::rectangle(0.0, 0.0, 10.0, 10.0), // obstacle at (0,0)-(10,10)
+        Shape::rectangle(20.0, 0.0, 10.0, 10.0), // obstacle at (20,0)-(30,10)
+        Shape::rectangle(10.0, 20.0, 10.0, 10.0), // obstacle at (10,20)-(20,30)
     ];
     let padding = 2.0;
     let mut graph = generate_visibility_graph(&shapes, padding);

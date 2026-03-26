@@ -1,5 +1,5 @@
-use msagl_rust::{Point, Rectangle};
 use approx::assert_abs_diff_eq;
+use msagl_rust::{Point, Rectangle};
 
 #[test]
 fn new_from_left_bottom_right_top() {

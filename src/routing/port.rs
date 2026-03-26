@@ -14,6 +14,9 @@ pub struct FloatingPort {
 
 impl FloatingPort {
     pub fn new(obstacle_index: usize, location: Point) -> Self {
-        Self { obstacle_index, location }
+        Self {
+            obstacle_index,
+            location,
+        }
     }
 }

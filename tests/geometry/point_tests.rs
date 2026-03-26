@@ -1,5 +1,5 @@
-use msagl_rust::Point;
 use approx::assert_abs_diff_eq;
+use msagl_rust::Point;
 
 #[test]
 fn construction_rounds_to_six_decimals() {
@@ -140,8 +140,10 @@ fn middle_of_two_points() {
 #[test]
 fn line_line_intersection() {
     let result = Point::line_line_intersection(
-        Point::new(0.0, 1.0), Point::new(4.0, 1.0),
-        Point::new(2.0, 0.0), Point::new(2.0, 4.0),
+        Point::new(0.0, 1.0),
+        Point::new(4.0, 1.0),
+        Point::new(2.0, 0.0),
+        Point::new(2.0, 4.0),
     );
     assert!(result.is_some());
     let p = result.unwrap();
@@ -152,8 +154,10 @@ fn line_line_intersection() {
 #[test]
 fn parallel_lines_no_intersection() {
     let result = Point::line_line_intersection(
-        Point::new(0.0, 0.0), Point::new(1.0, 0.0),
-        Point::new(0.0, 1.0), Point::new(1.0, 1.0),
+        Point::new(0.0, 0.0),
+        Point::new(1.0, 0.0),
+        Point::new(0.0, 1.0),
+        Point::new(1.0, 1.0),
     );
     assert!(result.is_none());
 }

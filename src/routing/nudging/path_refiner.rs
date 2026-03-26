@@ -20,7 +20,7 @@ pub fn refine_paths(paths: &mut [Vec<Point>]) {
     for path in paths.iter_mut() {
         deduplicate(path);
     }
-    refine_in_direction(paths, true);  // horizontal segments (same y)
+    refine_in_direction(paths, true); // horizontal segments (same y)
     refine_in_direction(paths, false); // vertical segments (same x)
     cross_vertical_and_horizontal(paths);
 }
@@ -41,10 +41,18 @@ fn refine_in_direction(paths: &mut [Vec<Point>], horizontal: bool) {
     // For horizontal segments (same y), group by y; subdivide along x.
     // For vertical segments (same x), group by x; subdivide along y.
     let perp = |p: &Point| -> OrderedFloat<f64> {
-        if horizontal { OrderedFloat(p.y()) } else { OrderedFloat(p.x()) }
+        if horizontal {
+            OrderedFloat(p.y())
+        } else {
+            OrderedFloat(p.x())
+        }
     };
     let along = |p: &Point| -> f64 {
-        if horizontal { p.x() } else { p.y() }
+        if horizontal {
+            p.x()
+        } else {
+            p.y()
+        }
     };
 
     // Collect: for each perp-coordinate bucket, the set of along-coordinates.
@@ -70,10 +78,7 @@ fn refine_in_direction(paths: &mut [Vec<Point>], horizontal: bool) {
             new_points.push(path[i]);
             if i + 1 < path.len() {
                 let (p0, p1) = (path[i], path[i + 1]);
-                if !GeomConstants::close(
-                    perp(&p0).into_inner(),
-                    perp(&p1).into_inner(),
-                ) {
+                if !GeomConstants::close(perp(&p0).into_inner(), perp(&p1).into_inner()) {
                     continue;
                 }
                 let key = perp(&p0);
@@ -88,9 +93,7 @@ fn refine_in_direction(paths: &mut [Vec<Point>], horizontal: bool) {
                     let mut intermediates: Vec<f64> = bucket
                         .range(OrderedFloat(lo)..=OrderedFloat(hi))
                         .map(|v| v.into_inner())
-                        .filter(|&v| {
-                            !GeomConstants::close(v, a0) && !GeomConstants::close(v, a1)
-                        })
+                        .filter(|&v| !GeomConstants::close(v, a0) && !GeomConstants::close(v, a1))
                         .collect();
                     if reversed {
                         intermediates.reverse();
@@ -127,9 +130,19 @@ fn cross_vertical_and_horizontal(paths: &mut [Vec<Point>]) {
         for si in 0..path.len().saturating_sub(1) {
             let (p0, p1) = (path[si], path[si + 1]);
             if GeomConstants::close(p0.y(), p1.y()) {
-                horizontals.push(Seg { path_idx: pi, seg_idx: si, p0, p1 });
+                horizontals.push(Seg {
+                    path_idx: pi,
+                    seg_idx: si,
+                    p0,
+                    p1,
+                });
             } else if GeomConstants::close(p0.x(), p1.x()) {
-                verticals.push(Seg { path_idx: pi, seg_idx: si, p0, p1 });
+                verticals.push(Seg {
+                    path_idx: pi,
+                    seg_idx: si,
+                    p0,
+                    p1,
+                });
             }
         }
     }
@@ -152,9 +165,7 @@ fn cross_vertical_and_horizontal(paths: &mut [Vec<Point>]) {
             let vy_max = v.p0.y().max(v.p1.y());
 
             let eps = GeomConstants::DISTANCE_EPSILON;
-            if vx > hx_min + eps && vx < hx_max - eps
-                && hy > vy_min + eps && hy < vy_max - eps
-            {
+            if vx > hx_min + eps && vx < hx_max - eps && hy > vy_min + eps && hy < vy_max - eps {
                 let cross = Point::new(vx, hy);
                 insertions[h.path_idx].push((h.seg_idx, cross));
                 insertions[v.path_idx].push((v.seg_idx, cross));

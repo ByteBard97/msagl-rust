@@ -1,9 +1,9 @@
-use msagl_rust::projection_solver::variable::{Variable, VarIndex};
-use msagl_rust::projection_solver::constraint::{Constraint, ConIndex};
 use msagl_rust::projection_solver::block::{Block, BlockIndex};
+use msagl_rust::projection_solver::constraint::{ConIndex, Constraint};
+use msagl_rust::projection_solver::constraint_vector::ConstraintVector;
 use msagl_rust::projection_solver::parameters::Parameters;
 use msagl_rust::projection_solver::solution::Solution;
-use msagl_rust::projection_solver::constraint_vector::ConstraintVector;
+use msagl_rust::projection_solver::variable::{VarIndex, Variable};
 use msagl_rust::projection_solver::violation_cache::ViolationCache;
 
 #[test]
@@ -168,8 +168,7 @@ fn violation_cache_filter() {
     cache.insert(ConIndex(1), 20.0, &test_vio(&vios));
     cache.insert(ConIndex(2), 30.0, &test_vio(&vios));
     // Filter out ConIndex 1
-    let remaining =
-        cache.filter_block(|ci| ci == ConIndex(1), test_vio(&vios));
+    let remaining = cache.filter_block(|ci| ci == ConIndex(1), test_vio(&vios));
     assert!(remaining);
     assert_eq!(
         cache.find_if_greater(0.0, &test_vio(&vios)).unwrap(),
@@ -351,7 +350,10 @@ fn solver_shell_with_explicit_ids() {
     let _v5 = shell.add_variable(Some(5), 10.0, 1.0, 1.0);
     shell.add_left_right_constraint(0, 5, 3.0);
     shell.solve();
-    assert!(shell.get_variable_resolved_position(5) - shell.get_variable_resolved_position(0) >= 3.0 - 1e-4);
+    assert!(
+        shell.get_variable_resolved_position(5) - shell.get_variable_resolved_position(0)
+            >= 3.0 - 1e-4
+    );
 }
 
 #[test]

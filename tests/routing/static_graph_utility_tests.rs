@@ -1,7 +1,7 @@
-use msagl_rust::routing::static_graph_utility::StaticGraphUtility;
-use msagl_rust::routing::compass_direction::CompassDirection;
-use msagl_rust::visibility::graph::VisibilityGraph;
 use msagl_rust::geometry::rectangle::Rectangle;
+use msagl_rust::routing::compass_direction::CompassDirection;
+use msagl_rust::routing::static_graph_utility::StaticGraphUtility;
+use msagl_rust::visibility::graph::VisibilityGraph;
 use msagl_rust::Point;
 
 // -----------------------------------------------------------------------

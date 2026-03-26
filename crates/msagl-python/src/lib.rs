@@ -5,9 +5,7 @@
 
 use pyo3::prelude::*;
 
-use msagl_rust::{
-    EdgeGeometry, FloatingPort, Point, RectilinearEdgeRouter, Shape,
-};
+use msagl_rust::{EdgeGeometry, FloatingPort, Point, RectilinearEdgeRouter, Shape};
 
 /// A rectangular obstacle on the canvas.
 #[pyclass]
@@ -199,11 +197,7 @@ impl Router {
             .edges
             .iter()
             .map(|edge| {
-                let points = edge
-                    .points
-                    .iter()
-                    .map(|p| (p.x(), p.y()))
-                    .collect();
+                let points = edge.points.iter().map(|p| (p.x(), p.y())).collect();
                 Path { points }
             })
             .collect();
@@ -224,10 +218,7 @@ impl Router {
 
 /// Format a list of point tuples for display.
 fn format_points(points: &[(f64, f64)]) -> String {
-    let inner: Vec<String> = points
-        .iter()
-        .map(|(x, y)| format!("({x}, {y})"))
-        .collect();
+    let inner: Vec<String> = points.iter().map(|(x, y)| format!("({x}, {y})")).collect();
     format!("[{}]", inner.join(", "))
 }
 

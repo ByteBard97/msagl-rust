@@ -27,11 +27,7 @@ impl Verifier {
     /// Every edge in the result must carry at least one path.
     fn verify_all_edges_present(result: &RoutingResult) {
         for (i, edge) in result.edges.iter().enumerate() {
-            assert!(
-                !edge.points.is_empty(),
-                "edge[{}] has no waypoints",
-                i
-            );
+            assert!(!edge.points.is_empty(), "edge[{}] has no waypoints", i);
         }
     }
 
@@ -167,8 +163,15 @@ impl Verifier {
                 panic!(
                     "edge[{}] point[{}] ({:.3},{:.3}) is inside obstacle[{}] \
                      bbox ({:.3},{:.3})-({:.3},{:.3})",
-                    ei, pi, pt.x(), pt.y(), crossed,
-                    bb.left(), bb.bottom(), bb.right(), bb.top()
+                    ei,
+                    pi,
+                    pt.x(),
+                    pt.y(),
+                    crossed,
+                    bb.left(),
+                    bb.bottom(),
+                    bb.right(),
+                    bb.top()
                 );
             }
         }
@@ -184,16 +187,13 @@ impl Verifier {
             if edge.points.len() == 2 {
                 let src = &edge.points[0];
                 let tgt = &edge.points[1];
-                if (src.x() - tgt.x()).abs() < tolerance
-                    && (src.y() - tgt.y()).abs() < tolerance
-                {
+                if (src.x() - tgt.x()).abs() < tolerance && (src.y() - tgt.y()).abs() < tolerance {
                     continue;
                 }
             }
             for (si, seg) in edge.points.windows(2).enumerate() {
-                let dist = ((seg[1].x() - seg[0].x()).powi(2)
-                    + (seg[1].y() - seg[0].y()).powi(2))
-                .sqrt();
+                let dist =
+                    ((seg[1].x() - seg[0].x()).powi(2) + (seg[1].y() - seg[0].y()).powi(2)).sqrt();
                 assert!(
                     dist >= tolerance,
                     "edge[{}] segment[{}] has near-zero length {:.6}",

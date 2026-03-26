@@ -4,13 +4,11 @@
 //! `serde-wasm-bindgen`. Input and output are native JS objects — no JSON
 //! string serialization required.
 
-use wasm_bindgen::prelude::*;
 use serde::{Deserialize, Serialize};
 use tsify_next::Tsify;
+use wasm_bindgen::prelude::*;
 
-use msagl_rust::{
-    EdgeGeometry, FloatingPort, Point, RectilinearEdgeRouter, Shape,
-};
+use msagl_rust::{EdgeGeometry, FloatingPort, Point, RectilinearEdgeRouter, Shape};
 
 // ---------------------------------------------------------------------------
 // Default values for optional RoutingInput fields
@@ -186,10 +184,7 @@ pub fn route_edges(input: RoutingInput) -> Result<RoutingOutput, JsError> {
             points: routed
                 .points
                 .iter()
-                .map(|p| PointOutput {
-                    x: p.x(),
-                    y: p.y(),
-                })
+                .map(|p| PointOutput { x: p.x(), y: p.y() })
                 .collect(),
         })
         .collect();

@@ -14,8 +14,8 @@
 #[path = "test_harness/mod.rs"]
 mod test_harness;
 
-use test_harness::{ScenarioBuilder, Verifier};
 use test_harness::verifier::RECTILINEAR_TOLERANCE;
+use test_harness::{ScenarioBuilder, Verifier};
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -54,9 +54,18 @@ fn reflection_block1_big() {
     // Shape 1: parallelogram (70,10),(190,130),(200,120),(80,0)
     // Shape 2: diamond (65,40),(80,55),(95,40),(80,25)
     let mut b = ScenarioBuilder::new();
-    let s0 = add_nonrect_placeholder(&mut b, &[(30.0,30.0),(130.0,130.0),(140.0,120.0),(40.0,20.0)]);
-    let s1 = add_nonrect_placeholder(&mut b, &[(70.0,10.0),(190.0,130.0),(200.0,120.0),(80.0,0.0)]);
-    let s2 = add_nonrect_placeholder(&mut b, &[(65.0,40.0),(80.0,55.0),(95.0,40.0),(80.0,25.0)]);
+    let s0 = add_nonrect_placeholder(
+        &mut b,
+        &[(30.0, 30.0), (130.0, 130.0), (140.0, 120.0), (40.0, 20.0)],
+    );
+    let s1 = add_nonrect_placeholder(
+        &mut b,
+        &[(70.0, 10.0), (190.0, 130.0), (200.0, 120.0), (80.0, 0.0)],
+    );
+    let s2 = add_nonrect_placeholder(
+        &mut b,
+        &[(65.0, 40.0), (80.0, 55.0), (95.0, 40.0), (80.0, 25.0)],
+    );
     let ids = [s0, s1, s2];
     route_all_pairs(&mut b, &ids);
     let shapes = b.shapes().to_vec();
@@ -71,9 +80,18 @@ fn reflection_block1_big() {
 fn reflection_block1_big_use_rect() {
     // Same geometry as reflection_block1_big; C# sets UseObstacleRectangles = true.
     let mut b = ScenarioBuilder::new();
-    let s0 = add_nonrect_placeholder(&mut b, &[(30.0,30.0),(130.0,130.0),(140.0,120.0),(40.0,20.0)]);
-    let s1 = add_nonrect_placeholder(&mut b, &[(70.0,10.0),(190.0,130.0),(200.0,120.0),(80.0,0.0)]);
-    let s2 = add_nonrect_placeholder(&mut b, &[(65.0,40.0),(80.0,55.0),(95.0,40.0),(80.0,25.0)]);
+    let s0 = add_nonrect_placeholder(
+        &mut b,
+        &[(30.0, 30.0), (130.0, 130.0), (140.0, 120.0), (40.0, 20.0)],
+    );
+    let s1 = add_nonrect_placeholder(
+        &mut b,
+        &[(70.0, 10.0), (190.0, 130.0), (200.0, 120.0), (80.0, 0.0)],
+    );
+    let s2 = add_nonrect_placeholder(
+        &mut b,
+        &[(65.0, 40.0), (80.0, 55.0), (95.0, 40.0), (80.0, 25.0)],
+    );
     let ids = [s0, s1, s2];
     route_all_pairs(&mut b, &ids);
     let shapes = b.shapes().to_vec();
@@ -86,9 +104,18 @@ fn reflection_block1_big_use_rect() {
 #[test]
 fn reflection_block1_small() {
     let mut b = ScenarioBuilder::new();
-    let s0 = add_nonrect_placeholder(&mut b, &[(30.0,30.0),(130.0,130.0),(140.0,120.0),(40.0,20.0)]);
-    let s1 = add_nonrect_placeholder(&mut b, &[(70.0,10.0),(190.0,130.0),(200.0,120.0),(80.0,0.0)]);
-    let s2 = add_nonrect_placeholder(&mut b, &[(75.0,40.0),(80.0,45.0),(85.0,40.0),(80.0,35.0)]);
+    let s0 = add_nonrect_placeholder(
+        &mut b,
+        &[(30.0, 30.0), (130.0, 130.0), (140.0, 120.0), (40.0, 20.0)],
+    );
+    let s1 = add_nonrect_placeholder(
+        &mut b,
+        &[(70.0, 10.0), (190.0, 130.0), (200.0, 120.0), (80.0, 0.0)],
+    );
+    let s2 = add_nonrect_placeholder(
+        &mut b,
+        &[(75.0, 40.0), (80.0, 45.0), (85.0, 40.0), (80.0, 35.0)],
+    );
     let ids = [s0, s1, s2];
     route_all_pairs(&mut b, &ids);
     let shapes = b.shapes().to_vec();
@@ -101,10 +128,21 @@ fn reflection_block1_small() {
 #[test]
 fn reflection_block2() {
     let mut b = ScenarioBuilder::new();
-    let s0 = add_nonrect_placeholder(&mut b, &[(30.0,310.0),(100.0,380.0),(110.0,370.0),(40.0,300.0)]);
-    let s1 = add_nonrect_placeholder(&mut b, &[(90.0,290.0),(170.0,370.0),(180.0,360.0),(100.0,280.0)]);
-    let s2 = add_nonrect_placeholder(&mut b, &[(70.0,320.0),(80.0,330.0),(80.0,320.0)]);
-    let s3 = add_nonrect_placeholder(&mut b, &[(90.0,320.0),(110.0,340.0),(110.0,320.0)]);
+    let s0 = add_nonrect_placeholder(
+        &mut b,
+        &[(30.0, 310.0), (100.0, 380.0), (110.0, 370.0), (40.0, 300.0)],
+    );
+    let s1 = add_nonrect_placeholder(
+        &mut b,
+        &[
+            (90.0, 290.0),
+            (170.0, 370.0),
+            (180.0, 360.0),
+            (100.0, 280.0),
+        ],
+    );
+    let s2 = add_nonrect_placeholder(&mut b, &[(70.0, 320.0), (80.0, 330.0), (80.0, 320.0)]);
+    let s3 = add_nonrect_placeholder(&mut b, &[(90.0, 320.0), (110.0, 340.0), (110.0, 320.0)]);
     let ids = [s0, s1, s2, s3];
     route_all_pairs(&mut b, &ids);
     let shapes = b.shapes().to_vec();
@@ -119,9 +157,9 @@ fn reflection_block2() {
 #[test]
 fn reflection_triangle1() {
     let mut b = ScenarioBuilder::new();
-    let s0 = add_nonrect_placeholder(&mut b, &[(50.0,10.0),(80.0,80.0),(110.0,10.0)]);
-    let s1 = add_nonrect_placeholder(&mut b, &[(40.0,10.0),(10.0,80.0),(70.0,80.0)]);
-    let s2 = add_nonrect_placeholder(&mut b, &[(120.0,10.0),(90.0,80.0),(150.0,80.0)]);
+    let s0 = add_nonrect_placeholder(&mut b, &[(50.0, 10.0), (80.0, 80.0), (110.0, 10.0)]);
+    let s1 = add_nonrect_placeholder(&mut b, &[(40.0, 10.0), (10.0, 80.0), (70.0, 80.0)]);
+    let s2 = add_nonrect_placeholder(&mut b, &[(120.0, 10.0), (90.0, 80.0), (150.0, 80.0)]);
     let ids = [s0, s1, s2];
     route_all_pairs(&mut b, &ids);
     let shapes = b.shapes().to_vec();
@@ -134,9 +172,9 @@ fn reflection_triangle1() {
 #[test]
 fn reflection_triangle1_overlap() {
     let mut b = ScenarioBuilder::new();
-    let s0 = add_nonrect_placeholder(&mut b, &[(50.0,10.0),(80.0,80.0),(110.0,10.0)]);
-    let s1 = add_nonrect_placeholder(&mut b, &[(40.0,10.0),(-5.0,110.0),(85.0,110.0)]);
-    let s2 = add_nonrect_placeholder(&mut b, &[(120.0,10.0),(75.0,110.0),(165.0,110.0)]);
+    let s0 = add_nonrect_placeholder(&mut b, &[(50.0, 10.0), (80.0, 80.0), (110.0, 10.0)]);
+    let s1 = add_nonrect_placeholder(&mut b, &[(40.0, 10.0), (-5.0, 110.0), (85.0, 110.0)]);
+    let s2 = add_nonrect_placeholder(&mut b, &[(120.0, 10.0), (75.0, 110.0), (165.0, 110.0)]);
     let ids = [s0, s1, s2];
     route_all_pairs(&mut b, &ids);
     let shapes = b.shapes().to_vec();
@@ -149,9 +187,9 @@ fn reflection_triangle1_overlap() {
 #[test]
 fn reflection_triangle1_no_overlap() {
     let mut b = ScenarioBuilder::new();
-    let s0 = add_nonrect_placeholder(&mut b, &[(47.0,10.0),(80.0,80.0),(110.0,10.0)]);
-    let s1 = add_nonrect_placeholder(&mut b, &[(40.0,10.0),(4.0,90.0),(76.0,90.0)]);
-    let s2 = add_nonrect_placeholder(&mut b, &[(120.0,10.0),(84.0,90.0),(156.0,90.0)]);
+    let s0 = add_nonrect_placeholder(&mut b, &[(47.0, 10.0), (80.0, 80.0), (110.0, 10.0)]);
+    let s1 = add_nonrect_placeholder(&mut b, &[(40.0, 10.0), (4.0, 90.0), (76.0, 90.0)]);
+    let s2 = add_nonrect_placeholder(&mut b, &[(120.0, 10.0), (84.0, 90.0), (156.0, 90.0)]);
     let ids = [s0, s1, s2];
     route_all_pairs(&mut b, &ids);
     let shapes = b.shapes().to_vec();
@@ -166,9 +204,18 @@ fn reflection_triangle1_no_overlap() {
 #[test]
 fn reflection_long_angle() {
     let mut b = ScenarioBuilder::new();
-    let s0 = add_nonrect_placeholder(&mut b, &[(20.0,30.0),(20.0,40.0),(40.0,40.0),(40.0,30.0)]);
-    let s1 = add_nonrect_placeholder(&mut b, &[(30.0,50.0),(20.0,60.0),(70.0,110.0),(80.0,100.0)]);
-    let s2 = add_nonrect_placeholder(&mut b, &[(50.0,10.0),(40.0,20.0),(100.0,110.0),(110.0,100.0)]);
+    let s0 = add_nonrect_placeholder(
+        &mut b,
+        &[(20.0, 30.0), (20.0, 40.0), (40.0, 40.0), (40.0, 30.0)],
+    );
+    let s1 = add_nonrect_placeholder(
+        &mut b,
+        &[(30.0, 50.0), (20.0, 60.0), (70.0, 110.0), (80.0, 100.0)],
+    );
+    let s2 = add_nonrect_placeholder(
+        &mut b,
+        &[(50.0, 10.0), (40.0, 20.0), (100.0, 110.0), (110.0, 100.0)],
+    );
     let ids = [s0, s1, s2];
     route_all_pairs(&mut b, &ids);
     let shapes = b.shapes().to_vec();
@@ -178,23 +225,34 @@ fn reflection_long_angle() {
 
 /// Worker for Reflection_LongAngle_Overlap variants.
 /// C#: multiplies X coords by invertX, Y coords by invertY.
-fn reflection_long_angle_overlap_worker(
-    b: &mut ScenarioBuilder,
-    invert_x: f64,
-    invert_y: f64,
-) {
-    let s0 = add_nonrect_placeholder(b, &[
-        (20.0*invert_x, 30.0*invert_y), (20.0*invert_x, 40.0*invert_y),
-        (40.0*invert_x, 40.0*invert_y), (40.0*invert_x, 30.0*invert_y),
-    ]);
-    let s1 = add_nonrect_placeholder(b, &[
-        (30.0*invert_x, 50.0*invert_y), (20.0*invert_x, 60.0*invert_y),
-        (100.0*invert_x, 120.0*invert_y), (110.0*invert_x, 110.0*invert_y),
-    ]);
-    let s2 = add_nonrect_placeholder(b, &[
-        (50.0*invert_x, 10.0*invert_y), (40.0*invert_x, 20.0*invert_y),
-        (100.0*invert_x, 110.0*invert_y), (110.0*invert_x, 100.0*invert_y),
-    ]);
+fn reflection_long_angle_overlap_worker(b: &mut ScenarioBuilder, invert_x: f64, invert_y: f64) {
+    let s0 = add_nonrect_placeholder(
+        b,
+        &[
+            (20.0 * invert_x, 30.0 * invert_y),
+            (20.0 * invert_x, 40.0 * invert_y),
+            (40.0 * invert_x, 40.0 * invert_y),
+            (40.0 * invert_x, 30.0 * invert_y),
+        ],
+    );
+    let s1 = add_nonrect_placeholder(
+        b,
+        &[
+            (30.0 * invert_x, 50.0 * invert_y),
+            (20.0 * invert_x, 60.0 * invert_y),
+            (100.0 * invert_x, 120.0 * invert_y),
+            (110.0 * invert_x, 110.0 * invert_y),
+        ],
+    );
+    let s2 = add_nonrect_placeholder(
+        b,
+        &[
+            (50.0 * invert_x, 10.0 * invert_y),
+            (40.0 * invert_x, 20.0 * invert_y),
+            (100.0 * invert_x, 110.0 * invert_y),
+            (110.0 * invert_x, 100.0 * invert_y),
+        ],
+    );
     // C# calls DoRouting(obstacles) — no explicit routing pairs, routes all.
     let ids = [s0, s1, s2];
     route_all_pairs(b, &ids);
@@ -249,13 +307,13 @@ fn reflection_staircase_worker(b: &mut ScenarioBuilder, rotation: f64) {
     let x_offset = 2.5 * std::f64::consts::SQRT_2; // 2.5 * 1.414214
 
     // Diamond 0: (100,100),(0,200),(100,300),(200,200) — centered at (100,200)
-    let mut pts0 = vec![
-        (100.0, 100.0), (0.0, 200.0), (100.0, 300.0), (200.0, 200.0),
-    ];
+    let mut pts0 = vec![(100.0, 100.0), (0.0, 200.0), (100.0, 300.0), (200.0, 200.0)];
     // Diamond 1: shifted by x_offset
     let mut pts1 = vec![
-        (50.0 + x_offset, 0.0), (300.0 + x_offset, 250.0),
-        (450.0 + x_offset, 100.0), (200.0 + x_offset, -150.0),
+        (50.0 + x_offset, 0.0),
+        (300.0 + x_offset, 250.0),
+        (450.0 + x_offset, 100.0),
+        (200.0 + x_offset, -150.0),
     ];
 
     if rotation > 0.0 {
@@ -334,9 +392,15 @@ fn almost_flat_low_side_worker(
     // Almost-flat quad: LowSide is almost flat.
     // C#: (40, 10+eps_open), (40, 20), (50, 20+eps_close), (50, 10)
     // Use bounding box: x=40..50, y=10..20+eps
-    add_nonrect_placeholder(b, &[
-        (40.0, 10.0 + eps), (40.0, 20.0), (50.0, 20.0 + eps_close), (50.0, 10.0),
-    ]);
+    add_nonrect_placeholder(
+        b,
+        &[
+            (40.0, 10.0 + eps),
+            (40.0, 20.0),
+            (50.0, 20.0 + eps_close),
+            (50.0, 10.0),
+        ],
+    );
 
     // Interior overlap obstacle.
     let ov_x = if want_interior_overlap { 49.5 } else { 54.0 };
@@ -364,9 +428,15 @@ fn almost_flat_high_side_worker(
 
     // Almost-flat quad: HighSide is almost flat.
     // C#: (40, 10), (40, 20+eps_close), (50, 20), (50, 10+eps_open)
-    add_nonrect_placeholder(b, &[
-        (40.0, 10.0), (40.0, 20.0 + eps_close), (50.0, 20.0), (50.0, 10.0 + eps_open),
-    ]);
+    add_nonrect_placeholder(
+        b,
+        &[
+            (40.0, 10.0),
+            (40.0, 20.0 + eps_close),
+            (50.0, 20.0),
+            (50.0, 10.0 + eps_open),
+        ],
+    );
 
     // Interior overlap obstacle.
     let ov_right = if want_interior_overlap { 40.5 } else { 36.0 };
@@ -411,27 +481,87 @@ macro_rules! almost_flat_high_side_test {
 
 // --- Open LowSide variants ---
 almost_flat_low_side_test!(almost_flat_open_low_side_no_overlap, true, false, false);
-almost_flat_low_side_test!(almost_flat_open_low_side_interior_low_overlap, true, true, false);
-almost_flat_low_side_test!(almost_flat_open_low_side_interior_low_neighbor, true, false, true);
-almost_flat_low_side_test!(almost_flat_open_low_side_interior_low_overlap_low_neighbor, true, true, true);
+almost_flat_low_side_test!(
+    almost_flat_open_low_side_interior_low_overlap,
+    true,
+    true,
+    false
+);
+almost_flat_low_side_test!(
+    almost_flat_open_low_side_interior_low_neighbor,
+    true,
+    false,
+    true
+);
+almost_flat_low_side_test!(
+    almost_flat_open_low_side_interior_low_overlap_low_neighbor,
+    true,
+    true,
+    true
+);
 
 // --- Open HighSide variants ---
 almost_flat_high_side_test!(almost_flat_open_high_side_no_overlap, true, false, false);
-almost_flat_high_side_test!(almost_flat_open_high_side_interior_high_overlap, true, true, false);
-almost_flat_high_side_test!(almost_flat_open_high_side_interior_high_neighbor, true, false, true);
-almost_flat_high_side_test!(almost_flat_open_high_side_interior_high_overlap_high_neighbor, true, true, true);
+almost_flat_high_side_test!(
+    almost_flat_open_high_side_interior_high_overlap,
+    true,
+    true,
+    false
+);
+almost_flat_high_side_test!(
+    almost_flat_open_high_side_interior_high_neighbor,
+    true,
+    false,
+    true
+);
+almost_flat_high_side_test!(
+    almost_flat_open_high_side_interior_high_overlap_high_neighbor,
+    true,
+    true,
+    true
+);
 
 // --- Close LowSide variants ---
 almost_flat_low_side_test!(almost_flat_close_low_side_no_overlap, false, false, false);
-almost_flat_low_side_test!(almost_flat_close_low_side_interior_low_overlap, false, true, false);
-almost_flat_low_side_test!(almost_flat_close_low_side_interior_low_neighbor, false, false, true);
-almost_flat_low_side_test!(almost_flat_close_low_side_interior_low_overlap_low_neighbor, false, true, true);
+almost_flat_low_side_test!(
+    almost_flat_close_low_side_interior_low_overlap,
+    false,
+    true,
+    false
+);
+almost_flat_low_side_test!(
+    almost_flat_close_low_side_interior_low_neighbor,
+    false,
+    false,
+    true
+);
+almost_flat_low_side_test!(
+    almost_flat_close_low_side_interior_low_overlap_low_neighbor,
+    false,
+    true,
+    true
+);
 
 // --- Close HighSide variants ---
 almost_flat_high_side_test!(almost_flat_close_high_side_no_overlap, false, false, false);
-almost_flat_high_side_test!(almost_flat_close_high_side_interior_high_overlap, false, true, false);
-almost_flat_high_side_test!(almost_flat_close_high_side_interior_high_neighbor, false, false, true);
-almost_flat_high_side_test!(almost_flat_close_high_side_interior_high_overlap_high_neighbor, false, true, true);
+almost_flat_high_side_test!(
+    almost_flat_close_high_side_interior_high_overlap,
+    false,
+    true,
+    false
+);
+almost_flat_high_side_test!(
+    almost_flat_close_high_side_interior_high_neighbor,
+    false,
+    false,
+    true
+);
+almost_flat_high_side_test!(
+    almost_flat_close_high_side_interior_high_overlap_high_neighbor,
+    false,
+    true,
+    true
+);
 
 // ── Category: AlmostFlat — MultipleInversion tests ───────────────────────────
 
@@ -461,17 +591,33 @@ fn almost_flat_multiple_inversion_worker(
 
     if (mask & 1) != 0 {
         // Left and right upper inner intersecting triangles.
-        let tri_l = [(-6.0, -6.0 * y_sign), (-4.0, 6.0 * y_sign), (-8.0, 6.0 * y_sign)];
+        let tri_l = [
+            (-6.0, -6.0 * y_sign),
+            (-4.0, 6.0 * y_sign),
+            (-8.0, 6.0 * y_sign),
+        ];
         all_ids.push(add_nonrect_placeholder(b, &tri_l));
-        let tri_r = [(6.0, -6.0 * y_sign), (8.0, 6.0 * y_sign), (4.0, 6.0 * y_sign)];
+        let tri_r = [
+            (6.0, -6.0 * y_sign),
+            (8.0, 6.0 * y_sign),
+            (4.0, 6.0 * y_sign),
+        ];
         all_ids.push(add_nonrect_placeholder(b, &tri_r));
     }
 
     if (mask & 2) != 0 {
         // Left and right lower inner intersecting triangles.
-        let tri_l = [(-4.0, -3.0 * y_sign), (-1.0, -3.0 * y_sign), (-2.5, 3.0 * y_sign)];
+        let tri_l = [
+            (-4.0, -3.0 * y_sign),
+            (-1.0, -3.0 * y_sign),
+            (-2.5, 3.0 * y_sign),
+        ];
         all_ids.push(add_nonrect_placeholder(b, &tri_l));
-        let tri_r = [(1.0, -3.0 * y_sign), (4.0, -3.0 * y_sign), (2.5, 3.0 * y_sign)];
+        let tri_r = [
+            (1.0, -3.0 * y_sign),
+            (4.0, -3.0 * y_sign),
+            (2.5, 3.0 * y_sign),
+        ];
         all_ids.push(add_nonrect_placeholder(b, &tri_r));
     }
 

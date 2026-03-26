@@ -112,12 +112,14 @@ impl Solver {
 
     /// Add a neighbor pair for QPSC goal functions.
     pub fn add_neighbor_pair(&mut self, v1: VarIndex, v2: VarIndex, weight: f64) {
-        self.variables[v1.0]
-            .neighbors
-            .push(NeighborAndWeight { neighbor: v2, weight });
-        self.variables[v2.0]
-            .neighbors
-            .push(NeighborAndWeight { neighbor: v1, weight });
+        self.variables[v1.0].neighbors.push(NeighborAndWeight {
+            neighbor: v2,
+            weight,
+        });
+        self.variables[v2.0].neighbors.push(NeighborAndWeight {
+            neighbor: v1,
+            weight,
+        });
         self.is_qpsc = true;
     }
 
@@ -141,9 +143,8 @@ impl Solver {
                 100 * ((num_vars as f64).log2().floor() as i32 + 1);
         }
         if self.solver_params.inner_project_iterations_limit < 0 {
-            self.solver_params.inner_project_iterations_limit =
-                num_cons as i32 * 2
-                    + 100 * (std::cmp::max(0, (num_cons as f64).log2().floor() as i32) + 1);
+            self.solver_params.inner_project_iterations_limit = num_cons as i32 * 2
+                + 100 * (std::cmp::max(0, (num_cons as f64).log2().floor() as i32) + 1);
         }
 
         self.solver_solution = Solution::new();
@@ -166,11 +167,18 @@ impl Solver {
 
         // Setup violation cache cutoff
         if self.solver_params.advanced.use_violation_cache
-            && self.solver_params.advanced.violation_cache_min_blocks_divisor > 0
+            && self
+                .solver_params
+                .advanced
+                .violation_cache_min_blocks_divisor
+                > 0
         {
             self.violation_cache_min_block_cutoff = std::cmp::min(
                 self.blocks_order.len()
-                    / self.solver_params.advanced.violation_cache_min_blocks_divisor,
+                    / self
+                        .solver_params
+                        .advanced
+                        .violation_cache_min_blocks_divisor,
                 self.solver_params.advanced.violation_cache_min_blocks_count,
             );
         }
@@ -206,13 +214,7 @@ impl Solver {
 
         for i in 0..num_cons {
             let lc = &self.loaded_constraints[i];
-            let c = Constraint::new(
-                ConIndex(i),
-                lc.left,
-                lc.right,
-                lc.gap,
-                lc.is_equality,
-            );
+            let c = Constraint::new(ConIndex(i), lc.left, lc.right, lc.gap, lc.is_equality);
             self.constraints.push(c);
         }
 
@@ -224,12 +226,8 @@ impl Solver {
         for ci in 0..num_cons {
             let left = self.constraints[ci].left;
             let right = self.constraints[ci].right;
-            self.variables[left.0]
-                .left_constraints
-                .push(ConIndex(ci));
-            self.variables[right.0]
-                .right_constraints
-                .push(ConIndex(ci));
+            self.variables[left.0].left_constraints.push(ConIndex(ci));
+            self.variables[right.0].right_constraints.push(ConIndex(ci));
         }
 
         self.constraint_vector = ConstraintVector::new(num_cons);
@@ -279,8 +277,7 @@ impl Solver {
     // Block vector helpers (swap-remove pattern)
     fn add_block_to_vector(&mut self, bi: BlockIndex) {
         if bi.0 >= self.block_vector_indices.len() {
-            self.block_vector_indices
-                .resize(bi.0 + 1, usize::MAX);
+            self.block_vector_indices.resize(bi.0 + 1, usize::MAX);
         }
         self.block_vector_indices[bi.0] = self.blocks_order.len();
         self.blocks_order.push(bi);

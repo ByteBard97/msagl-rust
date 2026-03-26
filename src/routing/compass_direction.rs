@@ -55,14 +55,26 @@ impl CompassDirection {
         let dy = to.y() - from.y();
 
         if dx.abs() > dy.abs() {
-            if dx > 0.0 { Some(Self::East) } else { Some(Self::West) }
+            if dx > 0.0 {
+                Some(Self::East)
+            } else {
+                Some(Self::West)
+            }
         } else if dy.abs() > dx.abs() {
-            if dy > 0.0 { Some(Self::North) } else { Some(Self::South) }
+            if dy > 0.0 {
+                Some(Self::North)
+            } else {
+                Some(Self::South)
+            }
         } else if dx.abs() < 1e-12 && dy.abs() < 1e-12 {
             None
         } else {
             // Diagonal tie-break: prefer horizontal
-            if dx > 0.0 { Some(Self::East) } else { Some(Self::West) }
+            if dx > 0.0 {
+                Some(Self::East)
+            } else {
+                Some(Self::West)
+            }
         }
     }
 }

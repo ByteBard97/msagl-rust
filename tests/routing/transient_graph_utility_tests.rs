@@ -1,5 +1,5 @@
-use msagl_rust::routing::transient_graph_utility::TransientGraphUtility;
 use msagl_rust::routing::compass_direction::CompassDirection;
+use msagl_rust::routing::transient_graph_utility::TransientGraphUtility;
 use msagl_rust::visibility::graph::VisibilityGraph;
 use msagl_rust::Point;
 
@@ -192,7 +192,11 @@ fn connect_with_bend_vertex() {
 
     let bend = graph.find_vertex(Point::new(0.0, 50.0));
     assert!(bend.is_some(), "should have created bend vertex at (0, 50)");
-    assert_eq!(tgu.added_vertices().len(), 1, "bend vertex should be tracked");
+    assert_eq!(
+        tgu.added_vertices().len(),
+        1,
+        "bend vertex should be tracked"
+    );
 }
 
 #[test]

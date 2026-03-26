@@ -32,10 +32,22 @@ fn compass_direction_left_right_turns() {
 #[test]
 fn from_points_axis_aligned() {
     let origin = Point::new(0.0, 0.0);
-    assert_eq!(CompassDirection::from_points(origin, Point::new(10.0, 0.0)), Some(CompassDirection::East));
-    assert_eq!(CompassDirection::from_points(origin, Point::new(-10.0, 0.0)), Some(CompassDirection::West));
-    assert_eq!(CompassDirection::from_points(origin, Point::new(0.0, 10.0)), Some(CompassDirection::North));
-    assert_eq!(CompassDirection::from_points(origin, Point::new(0.0, -10.0)), Some(CompassDirection::South));
+    assert_eq!(
+        CompassDirection::from_points(origin, Point::new(10.0, 0.0)),
+        Some(CompassDirection::East)
+    );
+    assert_eq!(
+        CompassDirection::from_points(origin, Point::new(-10.0, 0.0)),
+        Some(CompassDirection::West)
+    );
+    assert_eq!(
+        CompassDirection::from_points(origin, Point::new(0.0, 10.0)),
+        Some(CompassDirection::North)
+    );
+    assert_eq!(
+        CompassDirection::from_points(origin, Point::new(0.0, -10.0)),
+        Some(CompassDirection::South)
+    );
 }
 
 #[test]
@@ -48,6 +60,12 @@ fn from_points_identical_returns_none() {
 fn from_points_diagonal_prefers_horizontal() {
     let origin = Point::new(0.0, 0.0);
     // Equal dx and dy -- horizontal wins
-    assert_eq!(CompassDirection::from_points(origin, Point::new(5.0, 5.0)), Some(CompassDirection::East));
-    assert_eq!(CompassDirection::from_points(origin, Point::new(-5.0, -5.0)), Some(CompassDirection::West));
+    assert_eq!(
+        CompassDirection::from_points(origin, Point::new(5.0, 5.0)),
+        Some(CompassDirection::East)
+    );
+    assert_eq!(
+        CompassDirection::from_points(origin, Point::new(-5.0, -5.0)),
+        Some(CompassDirection::West)
+    );
 }

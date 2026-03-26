@@ -6,12 +6,12 @@
 //! of active vertical segments. At each horizontal segment event, scans the
 //! BTreeMap for verticals in range and creates intersection vertices.
 
-use std::cmp::Ordering;
-use std::collections::BTreeMap;
+use super::scan_segment::ScanSegment;
 use crate::geometry::point::Point;
 use crate::geometry::point_comparer::GeomConstants;
 use crate::visibility::graph::VisibilityGraph;
-use super::scan_segment::ScanSegment;
+use std::cmp::Ordering;
+use std::collections::BTreeMap;
 
 // ---------------------------------------------------------------------------
 // Event types
@@ -79,8 +79,16 @@ fn compare_events(first: &SegEvent, second: &SegEvent, segments: &[ScanSegment])
     if first.is_vertical() && second.is_vertical() {
         // Two vertical events at same Y: VOpen before VClose
         // TS: (VClose === first.EventType ? 1 : 0) - (VClose === second.EventType ? 1 : 0)
-        let first_close = if first.event_type == SegEventType::VClose { 1i32 } else { 0 };
-        let second_close = if second.event_type == SegEventType::VClose { 1i32 } else { 0 };
+        let first_close = if first.event_type == SegEventType::VClose {
+            1i32
+        } else {
+            0
+        };
+        let second_close = if second.event_type == SegEventType::VClose {
+            1i32
+        } else {
+            0
+        };
         return (first_close - second_close).cmp(&0);
     }
 
@@ -91,7 +99,11 @@ fn compare_events(first: &SegEvent, second: &SegEvent, segments: &[ScanSegment])
 
     // One V, one H: V events need correct ordering relative to H
     let v_event_is_first = first.is_vertical();
-    let v_event_type = if v_event_is_first { first.event_type } else { second.event_type };
+    let v_event_type = if v_event_is_first {
+        first.event_type
+    } else {
+        second.event_type
+    };
 
     // Start assuming v_event is 'first' and it's VOpen → comes before HOpen
     let mut cmp: i32 = -1;
@@ -195,11 +207,20 @@ pub fn build_graph_from_segments(
     // Create events: VOpen + VClose for each vertical, HOpen for each horizontal
     let mut events: Vec<SegEvent> = Vec::with_capacity(2 * v_len + h_len);
     for i in 0..v_len {
-        events.push(SegEvent { event_type: SegEventType::VOpen, seg_index: i });
-        events.push(SegEvent { event_type: SegEventType::VClose, seg_index: i });
+        events.push(SegEvent {
+            event_type: SegEventType::VOpen,
+            seg_index: i,
+        });
+        events.push(SegEvent {
+            event_type: SegEventType::VClose,
+            seg_index: i,
+        });
     }
     for i in 0..h_len {
-        events.push(SegEvent { event_type: SegEventType::HOpen, seg_index: v_len + i });
+        events.push(SegEvent {
+            event_type: SegEventType::HOpen,
+            seg_index: v_len + i,
+        });
     }
 
     // Build combined segment array: v_segments first [0..v_len), then h_segments [v_len..)
@@ -248,9 +269,7 @@ pub fn build_graph_from_segments(
                 // Then iterate until v.Start.x > hSeg.End.x
                 let matching_v_indices: Vec<usize> = scanline
                     .iter()
-                    .filter(|(key, _)| {
-                        GeomConstants::compare(key.x, h_x_lo) != Ordering::Less
-                    })
+                    .filter(|(key, _)| GeomConstants::compare(key.x, h_x_lo) != Ordering::Less)
                     .take_while(|(key, _)| {
                         GeomConstants::compare(key.x, h_x_hi) != Ordering::Greater
                     })
@@ -303,12 +322,16 @@ mod tests {
     #[test]
     fn two_crossing_segments_create_correct_vertices() {
         let mut h = vec![ScanSegment::new(
-            Point::new(0.0, 5.0), Point::new(10.0, 5.0),
-            SegmentWeight::Normal, false,
+            Point::new(0.0, 5.0),
+            Point::new(10.0, 5.0),
+            SegmentWeight::Normal,
+            false,
         )];
         let mut v = vec![ScanSegment::new(
-            Point::new(5.0, 0.0), Point::new(5.0, 10.0),
-            SegmentWeight::Normal, true,
+            Point::new(5.0, 0.0),
+            Point::new(5.0, 10.0),
+            SegmentWeight::Normal,
+            true,
         )];
 
         let graph = build_graph_from_segments(&mut h, &mut v);
@@ -326,12 +349,32 @@ mod tests {
     fn multiple_crossings_correct_vertex_count() {
         // 2 H segments crossing 2 V segments
         let mut h = vec![
-            ScanSegment::new(Point::new(0.0, 3.0), Point::new(10.0, 3.0), SegmentWeight::Normal, false),
-            ScanSegment::new(Point::new(0.0, 7.0), Point::new(10.0, 7.0), SegmentWeight::Normal, false),
+            ScanSegment::new(
+                Point::new(0.0, 3.0),
+                Point::new(10.0, 3.0),
+                SegmentWeight::Normal,
+                false,
+            ),
+            ScanSegment::new(
+                Point::new(0.0, 7.0),
+                Point::new(10.0, 7.0),
+                SegmentWeight::Normal,
+                false,
+            ),
         ];
         let mut v = vec![
-            ScanSegment::new(Point::new(3.0, 0.0), Point::new(3.0, 10.0), SegmentWeight::Normal, true),
-            ScanSegment::new(Point::new(7.0, 0.0), Point::new(7.0, 10.0), SegmentWeight::Normal, true),
+            ScanSegment::new(
+                Point::new(3.0, 0.0),
+                Point::new(3.0, 10.0),
+                SegmentWeight::Normal,
+                true,
+            ),
+            ScanSegment::new(
+                Point::new(7.0, 0.0),
+                Point::new(7.0, 10.0),
+                SegmentWeight::Normal,
+                true,
+            ),
         ];
 
         let graph = build_graph_from_segments(&mut h, &mut v);
@@ -348,36 +391,90 @@ mod tests {
     #[test]
     fn event_ordering_vopen_before_hopen_before_vclose() {
         let segments = vec![
-            ScanSegment::new(Point::new(5.0, 0.0), Point::new(5.0, 10.0), SegmentWeight::Normal, true),
-            ScanSegment::new(Point::new(0.0, 5.0), Point::new(10.0, 5.0), SegmentWeight::Normal, false),
+            ScanSegment::new(
+                Point::new(5.0, 0.0),
+                Point::new(5.0, 10.0),
+                SegmentWeight::Normal,
+                true,
+            ),
+            ScanSegment::new(
+                Point::new(0.0, 5.0),
+                Point::new(10.0, 5.0),
+                SegmentWeight::Normal,
+                false,
+            ),
         ];
 
-        let v_open = SegEvent { event_type: SegEventType::VOpen, seg_index: 0 };
-        let h_open = SegEvent { event_type: SegEventType::HOpen, seg_index: 1 };
-        let v_close = SegEvent { event_type: SegEventType::VClose, seg_index: 0 };
+        let v_open = SegEvent {
+            event_type: SegEventType::VOpen,
+            seg_index: 0,
+        };
+        let h_open = SegEvent {
+            event_type: SegEventType::HOpen,
+            seg_index: 1,
+        };
+        let v_close = SegEvent {
+            event_type: SegEventType::VClose,
+            seg_index: 0,
+        };
 
         assert_eq!(compare_events(&v_open, &h_open, &segments), Ordering::Less);
         assert_eq!(compare_events(&h_open, &v_close, &segments), Ordering::Less);
 
         // Test at same Y: VOpen before HOpen, HOpen before VClose
         let segments_same_y = vec![
-            ScanSegment::new(Point::new(5.0, 5.0), Point::new(5.0, 5.0), SegmentWeight::Normal, true),
-            ScanSegment::new(Point::new(0.0, 5.0), Point::new(10.0, 5.0), SegmentWeight::Normal, false),
+            ScanSegment::new(
+                Point::new(5.0, 5.0),
+                Point::new(5.0, 5.0),
+                SegmentWeight::Normal,
+                true,
+            ),
+            ScanSegment::new(
+                Point::new(0.0, 5.0),
+                Point::new(10.0, 5.0),
+                SegmentWeight::Normal,
+                false,
+            ),
         ];
 
-        let v_open_s = SegEvent { event_type: SegEventType::VOpen, seg_index: 0 };
-        let h_open_s = SegEvent { event_type: SegEventType::HOpen, seg_index: 1 };
-        let v_close_s = SegEvent { event_type: SegEventType::VClose, seg_index: 0 };
+        let v_open_s = SegEvent {
+            event_type: SegEventType::VOpen,
+            seg_index: 0,
+        };
+        let h_open_s = SegEvent {
+            event_type: SegEventType::HOpen,
+            seg_index: 1,
+        };
+        let v_close_s = SegEvent {
+            event_type: SegEventType::VClose,
+            seg_index: 0,
+        };
 
-        assert_eq!(compare_events(&v_open_s, &h_open_s, &segments_same_y), Ordering::Less);
-        assert_eq!(compare_events(&h_open_s, &v_close_s, &segments_same_y), Ordering::Less);
+        assert_eq!(
+            compare_events(&v_open_s, &h_open_s, &segments_same_y),
+            Ordering::Less
+        );
+        assert_eq!(
+            compare_events(&h_open_s, &v_close_s, &segments_same_y),
+            Ordering::Less
+        );
     }
 
     #[test]
     fn parallel_segments_no_intersection() {
         let mut h = vec![
-            ScanSegment::new(Point::new(0.0, 0.0), Point::new(10.0, 0.0), SegmentWeight::Normal, false),
-            ScanSegment::new(Point::new(0.0, 5.0), Point::new(10.0, 5.0), SegmentWeight::Normal, false),
+            ScanSegment::new(
+                Point::new(0.0, 0.0),
+                Point::new(10.0, 0.0),
+                SegmentWeight::Normal,
+                false,
+            ),
+            ScanSegment::new(
+                Point::new(0.0, 5.0),
+                Point::new(10.0, 5.0),
+                SegmentWeight::Normal,
+                false,
+            ),
         ];
 
         let graph = build_graph_from_segments(&mut h, &mut []);
@@ -388,12 +485,16 @@ mod tests {
     #[test]
     fn vertex_tracking_state_written_back() {
         let mut h = vec![ScanSegment::new(
-            Point::new(0.0, 5.0), Point::new(10.0, 5.0),
-            SegmentWeight::Normal, false,
+            Point::new(0.0, 5.0),
+            Point::new(10.0, 5.0),
+            SegmentWeight::Normal,
+            false,
         )];
         let mut v = vec![ScanSegment::new(
-            Point::new(5.0, 0.0), Point::new(5.0, 10.0),
-            SegmentWeight::Normal, true,
+            Point::new(5.0, 0.0),
+            Point::new(5.0, 10.0),
+            SegmentWeight::Normal,
+            true,
         )];
 
         let _graph = build_graph_from_segments(&mut h, &mut v);
@@ -407,12 +508,24 @@ mod tests {
     #[test]
     fn edges_created_between_consecutive_vertices_on_segment() {
         let mut h = vec![
-            ScanSegment::new(Point::new(0.0, 3.0), Point::new(10.0, 3.0), SegmentWeight::Normal, false),
-            ScanSegment::new(Point::new(0.0, 7.0), Point::new(10.0, 7.0), SegmentWeight::Normal, false),
+            ScanSegment::new(
+                Point::new(0.0, 3.0),
+                Point::new(10.0, 3.0),
+                SegmentWeight::Normal,
+                false,
+            ),
+            ScanSegment::new(
+                Point::new(0.0, 7.0),
+                Point::new(10.0, 7.0),
+                SegmentWeight::Normal,
+                false,
+            ),
         ];
         let mut v = vec![ScanSegment::new(
-            Point::new(5.0, 0.0), Point::new(5.0, 10.0),
-            SegmentWeight::Normal, true,
+            Point::new(5.0, 0.0),
+            Point::new(5.0, 10.0),
+            SegmentWeight::Normal,
+            true,
         )];
 
         let graph = build_graph_from_segments(&mut h, &mut v);
@@ -426,12 +539,32 @@ mod tests {
     #[test]
     fn sweep_matches_brute_force_for_small_inputs() {
         let mut h = vec![
-            ScanSegment::new(Point::new(0.0, 2.0), Point::new(8.0, 2.0), SegmentWeight::Normal, false),
-            ScanSegment::new(Point::new(1.0, 6.0), Point::new(9.0, 6.0), SegmentWeight::Normal, false),
+            ScanSegment::new(
+                Point::new(0.0, 2.0),
+                Point::new(8.0, 2.0),
+                SegmentWeight::Normal,
+                false,
+            ),
+            ScanSegment::new(
+                Point::new(1.0, 6.0),
+                Point::new(9.0, 6.0),
+                SegmentWeight::Normal,
+                false,
+            ),
         ];
         let mut v = vec![
-            ScanSegment::new(Point::new(3.0, 0.0), Point::new(3.0, 10.0), SegmentWeight::Normal, true),
-            ScanSegment::new(Point::new(7.0, 1.0), Point::new(7.0, 8.0), SegmentWeight::Normal, true),
+            ScanSegment::new(
+                Point::new(3.0, 0.0),
+                Point::new(3.0, 10.0),
+                SegmentWeight::Normal,
+                true,
+            ),
+            ScanSegment::new(
+                Point::new(7.0, 1.0),
+                Point::new(7.0, 8.0),
+                SegmentWeight::Normal,
+                true,
+            ),
         ];
 
         let graph = build_graph_from_segments(&mut h, &mut v);
@@ -453,9 +586,12 @@ mod tests {
 
     #[test]
     fn h_only_no_crossings() {
-        let mut h = vec![
-            ScanSegment::new(Point::new(0.0, 0.0), Point::new(10.0, 0.0), SegmentWeight::Normal, false),
-        ];
+        let mut h = vec![ScanSegment::new(
+            Point::new(0.0, 0.0),
+            Point::new(10.0, 0.0),
+            SegmentWeight::Normal,
+            false,
+        )];
         let graph = build_graph_from_segments(&mut h, &mut []);
         // Start + end vertices
         assert_eq!(graph.vertex_count(), 2);
@@ -463,9 +599,12 @@ mod tests {
 
     #[test]
     fn v_only_no_crossings() {
-        let mut v = vec![
-            ScanSegment::new(Point::new(0.0, 0.0), Point::new(0.0, 10.0), SegmentWeight::Normal, true),
-        ];
+        let mut v = vec![ScanSegment::new(
+            Point::new(0.0, 0.0),
+            Point::new(0.0, 10.0),
+            SegmentWeight::Normal,
+            true,
+        )];
         let graph = build_graph_from_segments(&mut [], &mut v);
         // Start + end vertices
         assert_eq!(graph.vertex_count(), 2);

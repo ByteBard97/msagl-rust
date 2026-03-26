@@ -10,8 +10,8 @@
 #[path = "test_harness/mod.rs"]
 mod test_harness;
 
-use test_harness::{ScenarioBuilder, Verifier};
 use test_harness::verifier::RECTILINEAR_TOLERANCE;
+use test_harness::{ScenarioBuilder, Verifier};
 
 // ── Free port tests ─────────────────────────────────────────────────────────
 

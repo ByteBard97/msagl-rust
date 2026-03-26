@@ -55,11 +55,11 @@ fn handles_single_point_path() {
 fn removes_self_cycle_at_start() {
     // Path: A → B → C → A → D (cycle returns to first point)
     let mut paths = vec![vec![
-        Point::new(0.0, 0.0),  // A
-        Point::new(10.0, 0.0), // B
-        Point::new(10.0, 10.0),// C
-        Point::new(0.0, 0.0),  // A again
-        Point::new(20.0, 0.0), // D
+        Point::new(0.0, 0.0),   // A
+        Point::new(10.0, 0.0),  // B
+        Point::new(10.0, 10.0), // C
+        Point::new(0.0, 0.0),   // A again
+        Point::new(20.0, 0.0),  // D
     ]];
     PathMerger::merge_paths(&mut paths);
     // Should become A → D
@@ -95,10 +95,7 @@ fn multiple_paths_each_cleaned_independently() {
 
 #[test]
 fn two_point_path_no_cycle_unchanged() {
-    let mut paths = vec![vec![
-        Point::new(0.0, 0.0),
-        Point::new(10.0, 0.0),
-    ]];
+    let mut paths = vec![vec![Point::new(0.0, 0.0), Point::new(10.0, 0.0)]];
     PathMerger::merge_paths(&mut paths);
     assert_eq!(paths[0].len(), 2);
 }

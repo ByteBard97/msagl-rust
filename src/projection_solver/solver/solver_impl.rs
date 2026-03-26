@@ -71,8 +71,7 @@ impl Solver {
             }
 
             iterations += 1;
-            max_violated =
-                self.get_max_violated_constraint(last_modified_block, use_cache);
+            max_violated = self.get_max_violated_constraint(last_modified_block, use_cache);
         }
 
         self.solver_solution.inner_project_iterations_total += iterations as u64;
@@ -173,10 +172,7 @@ impl Solver {
             let right_cons: Vec<ConIndex> = self.variables[vi.0].right_constraints.clone();
             for ci in right_cons {
                 let c = &self.constraints[ci.0];
-                if !c.is_active
-                    && !c.is_unsatisfiable
-                    && self.variables[c.left.0].block != lmb
-                {
+                if !c.is_active && !c.is_unsatisfiable && self.variables[c.left.0].block != lmb {
                     let violation = self.constraint_violation(ci);
                     if violation - max_violation >= Self::DISTANCE_EPSILON {
                         if let Some(prev_ci) = max_ci {
@@ -207,12 +203,14 @@ impl Solver {
             let r = &variables[c.right.0];
             l.actual_pos * l.scale + c.gap - r.actual_pos * r.scale
         };
-        if let Some(cached_ci) =
-            self.violation_cache.find_if_greater(max_violation, &get_vio)
+        if let Some(cached_ci) = self
+            .violation_cache
+            .find_if_greater(max_violation, &get_vio)
         {
             if let Some(prev_ci) = max_ci {
                 if max_violation > self.violation_cache.low_violation() {
-                    self.violation_cache.insert(prev_ci, max_violation, &get_vio);
+                    self.violation_cache
+                        .insert(prev_ci, max_violation, &get_vio);
                 }
             }
             max_ci = Some(cached_ci);

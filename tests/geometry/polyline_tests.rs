@@ -1,5 +1,5 @@
-use msagl_rust::{Point, Polyline};
 use approx::assert_abs_diff_eq;
+use msagl_rust::{Point, Polyline};
 
 #[test]
 fn empty_polyline() {
@@ -124,10 +124,7 @@ fn polyline_length() {
 
 #[test]
 fn translate_all_points() {
-    let mut poly = Polyline::from_points(&[
-        Point::new(0.0, 0.0),
-        Point::new(1.0, 1.0),
-    ]);
+    let mut poly = Polyline::from_points(&[Point::new(0.0, 0.0), Point::new(1.0, 1.0)]);
     poly.translate(Point::new(10.0, 20.0));
     assert_eq!(poly.start(), Point::new(10.0, 20.0));
     assert_eq!(poly.end(), Point::new(11.0, 21.0));

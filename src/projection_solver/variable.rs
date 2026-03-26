@@ -1,5 +1,5 @@
-use super::constraint::ConIndex;
 use super::block::BlockIndex;
+use super::constraint::ConIndex;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct VarIndex(pub usize);

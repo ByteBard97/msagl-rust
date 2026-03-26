@@ -1,9 +1,9 @@
-use std::collections::BinaryHeap;
-use std::cmp::Ordering;
+use super::scan_direction::ScanDirection;
 use crate::arenas::PolylinePointKey;
 use crate::geometry::point::Point;
 use crate::geometry::point_comparer::GeomConstants;
-use super::scan_direction::ScanDirection;
+use std::cmp::Ordering;
+use std::collections::BinaryHeap;
 
 /// Full sweep event hierarchy for the rectilinear visibility sweep line.
 ///
@@ -18,13 +18,29 @@ use super::scan_direction::ScanDirection;
 #[derive(Clone, Debug)]
 pub enum SweepEvent {
     /// Obstacle corner entering sweep range (low side of obstacle).
-    OpenVertex { site: Point, obstacle_index: usize, vertex_key: PolylinePointKey },
+    OpenVertex {
+        site: Point,
+        obstacle_index: usize,
+        vertex_key: PolylinePointKey,
+    },
     /// Obstacle corner leaving sweep range (high side of obstacle).
-    CloseVertex { site: Point, obstacle_index: usize, vertex_key: PolylinePointKey },
+    CloseVertex {
+        site: Point,
+        obstacle_index: usize,
+        vertex_key: PolylinePointKey,
+    },
     /// Low bend at obstacle corner (between open and close).
-    LowBend { site: Point, obstacle_index: usize, vertex_key: PolylinePointKey },
+    LowBend {
+        site: Point,
+        obstacle_index: usize,
+        vertex_key: PolylinePointKey,
+    },
     /// High bend at obstacle corner (between open and close).
-    HighBend { site: Point, obstacle_index: usize, vertex_key: PolylinePointKey },
+    HighBend {
+        site: Point,
+        obstacle_index: usize,
+        vertex_key: PolylinePointKey,
+    },
     /// Reflection event off a low obstacle side.
     LowReflection {
         site: Point,
@@ -78,7 +94,10 @@ impl SweepEvent {
 
     /// Returns `true` if this is a reflection event.
     pub fn is_reflection(&self) -> bool {
-        matches!(self, Self::LowReflection { .. } | Self::HighReflection { .. })
+        matches!(
+            self,
+            Self::LowReflection { .. } | Self::HighReflection { .. }
+        )
     }
 
     /// Event type priority (lower = processed first at the same coordinate).

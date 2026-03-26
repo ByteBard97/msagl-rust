@@ -1,7 +1,7 @@
+use super::scan_direction::ScanDirection;
 use crate::arenas::PolylinePointKey;
 use crate::geometry::point::Point;
 use crate::geometry::polyline::Polyline;
-use super::scan_direction::ScanDirection;
 
 /// Whether this is a low (bottom/left) or high (top/right) side of an obstacle.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -58,10 +58,12 @@ impl ObstacleSide {
         };
 
         let end_key = if traverse_clockwise {
-            polyline.next_key(start_key)
+            polyline
+                .next_key(start_key)
                 .expect("polyline must be closed or have a next point")
         } else {
-            polyline.prev_key(start_key)
+            polyline
+                .prev_key(start_key)
                 .expect("polyline must be closed or have a prev point")
         };
 
@@ -114,17 +116,35 @@ impl ObstacleSide {
         }
     }
 
-    pub fn side_type(&self) -> SideType { self.side_type }
-    pub fn start(&self) -> Point { self.start }
-    pub fn end(&self) -> Point { self.end }
-    pub fn obstacle_index(&self) -> usize { self.obstacle_index }
-    pub fn start_vertex_key(&self) -> PolylinePointKey { self.start_key }
-    pub fn end_vertex_key(&self) -> PolylinePointKey { self.end_key }
-    pub fn slope(&self) -> f64 { self.slope }
-    pub fn slope_inverse(&self) -> f64 { self.slope_inverse }
+    pub fn side_type(&self) -> SideType {
+        self.side_type
+    }
+    pub fn start(&self) -> Point {
+        self.start
+    }
+    pub fn end(&self) -> Point {
+        self.end
+    }
+    pub fn obstacle_index(&self) -> usize {
+        self.obstacle_index
+    }
+    pub fn start_vertex_key(&self) -> PolylinePointKey {
+        self.start_key
+    }
+    pub fn end_vertex_key(&self) -> PolylinePointKey {
+        self.end_key
+    }
+    pub fn slope(&self) -> f64 {
+        self.slope
+    }
+    pub fn slope_inverse(&self) -> f64 {
+        self.slope_inverse
+    }
 
     /// Backward-compatibility alias for obstacle_index.
-    pub fn obstacle_ordinal(&self) -> usize { self.obstacle_index }
+    pub fn obstacle_ordinal(&self) -> usize {
+        self.obstacle_index
+    }
 
     /// The direction vector from start to end.
     /// Matches TS: `side.Direction` used in `ScanLineIntersectSidePBS`.

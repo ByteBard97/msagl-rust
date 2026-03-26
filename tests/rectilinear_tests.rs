@@ -10,8 +10,8 @@
 #[path = "test_harness/mod.rs"]
 mod test_harness;
 
-use test_harness::{ScenarioBuilder, Verifier};
 use test_harness::verifier::RECTILINEAR_TOLERANCE;
+use test_harness::{ScenarioBuilder, Verifier};
 
 // ── Category 1: Basic geometry — two rectangles ─────────────────────────────
 
@@ -201,11 +201,11 @@ fn three_collinear_obstacles_sequential_routes() {
 #[test]
 fn two_by_two_grid_cross_routes() {
     let mut b = ScenarioBuilder::new();
-    let tl = b.add_rectangle_bl(0.0, 100.0, 40.0, 40.0);  // top-left
+    let tl = b.add_rectangle_bl(0.0, 100.0, 40.0, 40.0); // top-left
     let tr = b.add_rectangle_bl(100.0, 100.0, 40.0, 40.0); // top-right
-    let bl = b.add_rectangle_bl(0.0, 0.0, 40.0, 40.0);     // bottom-left
-    let br = b.add_rectangle_bl(100.0, 0.0, 40.0, 40.0);   // bottom-right
-    // Route all four edges
+    let bl = b.add_rectangle_bl(0.0, 0.0, 40.0, 40.0); // bottom-left
+    let br = b.add_rectangle_bl(100.0, 0.0, 40.0, 40.0); // bottom-right
+                                                         // Route all four edges
     b.route_between(tl, br);
     b.route_between(tr, bl);
     let shapes = b.shapes().to_vec();
@@ -288,7 +288,7 @@ fn corner_to_corner_ports() {
     let mut b = ScenarioBuilder::new();
     let src = b.add_rectangle_bl(0.0, 0.0, 60.0, 60.0); // center=(30,30)
     let tgt = b.add_rectangle_bl(200.0, 200.0, 60.0, 60.0); // center=(230,230)
-    // Offset src to its bottom-left quadrant, tgt to its top-right quadrant
+                                                            // Offset src to its bottom-left quadrant, tgt to its top-right quadrant
     use msagl_rust::Point;
     b.route_between_offsets(src, Point::new(-20.0, -20.0), tgt, Point::new(20.0, 20.0));
     let shapes = b.shapes().to_vec();
@@ -301,7 +301,7 @@ fn corner_to_corner_ports() {
 #[test]
 fn center_port_each_obstacle() {
     let mut b = ScenarioBuilder::new();
-    let src = b.add_rectangle(60.0, 60.0, 80.0, 80.0);  // center at (60,60)
+    let src = b.add_rectangle(60.0, 60.0, 80.0, 80.0); // center at (60,60)
     let tgt = b.add_rectangle(260.0, 60.0, 80.0, 80.0); // center at (260,60)
     b.route_between(src, tgt);
     let shapes = b.shapes().to_vec();

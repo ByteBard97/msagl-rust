@@ -17,7 +17,13 @@ pub struct Constraint {
 }
 
 impl Constraint {
-    pub fn new(index: ConIndex, left: VarIndex, right: VarIndex, gap: f64, is_equality: bool) -> Self {
+    pub fn new(
+        index: ConIndex,
+        left: VarIndex,
+        right: VarIndex,
+        gap: f64,
+        is_equality: bool,
+    ) -> Self {
         Self {
             index,
             left,
@@ -32,7 +38,13 @@ impl Constraint {
     }
 
     #[inline]
-    pub fn violation(&self, left_actual: f64, left_scale: f64, right_actual: f64, right_scale: f64) -> f64 {
+    pub fn violation(
+        &self,
+        left_actual: f64,
+        left_scale: f64,
+        right_actual: f64,
+        right_scale: f64,
+    ) -> f64 {
         left_actual * left_scale + self.gap - right_actual * right_scale
     }
 }

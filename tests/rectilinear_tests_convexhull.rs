@@ -11,9 +11,9 @@
 mod test_harness;
 
 #[allow(unused_imports)]
-use test_harness::{ScenarioBuilder, Verifier};
-#[allow(unused_imports)]
 use test_harness::verifier::RECTILINEAR_TOLERANCE;
+#[allow(unused_imports)]
+use test_harness::{ScenarioBuilder, Verifier};
 
 // ── Overlapping obstacles with non-overlapped rectangle ─────────────────────
 

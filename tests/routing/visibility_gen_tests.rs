@@ -1,5 +1,5 @@
-use msagl_rust::routing::visibility_graph_generator::generate_visibility_graph;
 use msagl_rust::routing::shape::Shape;
+use msagl_rust::routing::visibility_graph_generator::generate_visibility_graph;
 use msagl_rust::visibility::graph::VertexId;
 use msagl_rust::GeomConstants;
 use msagl_rust::Point;
@@ -59,9 +59,9 @@ fn two_obstacles_vertical_visibility() {
 fn three_obstacles_blocking() {
     // Middle obstacle blocks direct path between left and right
     let shapes = vec![
-        Shape::rectangle(0.0, 0.0, 10.0, 10.0),    // left
-        Shape::rectangle(20.0, -5.0, 10.0, 20.0),   // middle (taller)
-        Shape::rectangle(40.0, 0.0, 10.0, 10.0),    // right
+        Shape::rectangle(0.0, 0.0, 10.0, 10.0),   // left
+        Shape::rectangle(20.0, -5.0, 10.0, 20.0), // middle (taller)
+        Shape::rectangle(40.0, 0.0, 10.0, 10.0),  // right
     ];
     let graph = generate_visibility_graph(&shapes, 2.0);
     // The middle obstacle should block some horizontal visibility
@@ -109,7 +109,8 @@ fn two_obstacles_gap_has_edges() {
 
     // Verify there's an edge between them (directly or via intermediate vertices)
     let vid_left = v_left.unwrap();
-    let has_edge = graph.out_edges(vid_left)
+    let has_edge = graph
+        .out_edges(vid_left)
         .any(|e| e.target == v_right.unwrap());
     assert!(has_edge, "should have direct edge from (12,-2) to (28,-2)");
 }
@@ -199,9 +200,7 @@ fn three_boxes_triangle_layout() {
         for edge in graph.out_edges(vid) {
             let p = graph.point(vid);
             let tp = graph.point(edge.target);
-            assert!(
-                (p.x() - tp.x()).abs() < 1e-10 || (p.y() - tp.y()).abs() < 1e-10,
-            );
+            assert!((p.x() - tp.x()).abs() < 1e-10 || (p.y() - tp.y()).abs() < 1e-10,);
         }
     }
 }

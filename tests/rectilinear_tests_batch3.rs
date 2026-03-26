@@ -9,8 +9,8 @@
 #[path = "test_harness/mod.rs"]
 mod test_harness;
 
-use test_harness::{ScenarioBuilder, Verifier};
 use test_harness::verifier::RECTILINEAR_TOLERANCE;
+use test_harness::{ScenarioBuilder, Verifier};
 
 // ── Category 1: Zero / single obstacle (smoke tests) ─────────────────────────
 
@@ -186,7 +186,9 @@ fn clust5_minimal_fan_out() {
 /// the C# code is declared but never used in the body.
 /// We port as a single shared helper, with one test per C# variant.
 
-fn run_two_squares_with_top(want_top_rect: bool) -> (Vec<msagl_rust::Shape>, msagl_rust::RoutingResult) {
+fn run_two_squares_with_top(
+    want_top_rect: bool,
+) -> (Vec<msagl_rust::Shape>, msagl_rust::RoutingResult) {
     let mut b = ScenarioBuilder::new();
     // Left: (20,20)-(100,100)
     let left = b.add_rectangle_bl(20.0, 20.0, 80.0, 80.0);
@@ -473,8 +475,10 @@ fn grid_neighbors_8_unaligned() {
     // This gives varied positions while avoiding overlap at 200-unit separation.
     for row in 0..NUM_SQUARES {
         for col in 0..NUM_SQUARES {
-            let offset_x = ((row * 17 + col * 31) as f64 / 100.0) * OFFSET_MAX / (NUM_SQUARES as f64);
-            let offset_y = ((row * 23 + col * 13) as f64 / 100.0) * OFFSET_MAX / (NUM_SQUARES as f64);
+            let offset_x =
+                ((row * 17 + col * 31) as f64 / 100.0) * OFFSET_MAX / (NUM_SQUARES as f64);
+            let offset_y =
+                ((row * 23 + col * 13) as f64 / 100.0) * OFFSET_MAX / (NUM_SQUARES as f64);
             let cx = SEPARATION * col as f64 + offset_x;
             let cy = SEPARATION * row as f64 + offset_y;
             ids[row][col] = b.add_rectangle(cx, cy, HALF_SIZE * 2.0, HALF_SIZE * 2.0);
@@ -560,7 +564,7 @@ fn narrow_horizontal_corridor() {
 fn triangle_arrangement_complete_graph_k3() {
     let mut b = ScenarioBuilder::new();
     let a = b.add_rectangle(100.0, 200.0, 40.0, 40.0); // top
-    let b_obs = b.add_rectangle(50.0, 100.0, 40.0, 40.0);  // bottom-left
+    let b_obs = b.add_rectangle(50.0, 100.0, 40.0, 40.0); // bottom-left
     let c_obs = b.add_rectangle(150.0, 100.0, 40.0, 40.0); // bottom-right
     b.route_between(a, b_obs);
     b.route_between(a, c_obs);

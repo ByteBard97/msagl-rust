@@ -1,9 +1,9 @@
+use msagl_rust::routing::nudging::axis_edge::AxisEdge;
+use msagl_rust::routing::nudging::combinatorial_nudger::get_order;
+use msagl_rust::routing::nudging::free_space_finder::find_free_space;
 use msagl_rust::routing::nudging::nudge_paths;
 use msagl_rust::routing::nudging::path_refiner::{deduplicate, refine_paths};
-use msagl_rust::routing::nudging::combinatorial_nudger::get_order;
 use msagl_rust::routing::nudging::staircase_remover::remove_staircases;
-use msagl_rust::routing::nudging::free_space_finder::find_free_space;
-use msagl_rust::routing::nudging::axis_edge::AxisEdge;
 use msagl_rust::routing::scan_direction::Direction;
 use msagl_rust::Point;
 use msagl_rust::Rectangle;
@@ -197,9 +197,11 @@ fn refine_inserts_subdivision_points() {
 
 #[test]
 fn single_path_creates_axis_edges() {
-    let paths = vec![
-        vec![Point::new(0.0, 0.0), Point::new(10.0, 0.0), Point::new(10.0, 10.0)],
-    ];
+    let paths = vec![vec![
+        Point::new(0.0, 0.0),
+        Point::new(10.0, 0.0),
+        Point::new(10.0, 10.0),
+    ]];
     let result = get_order(&paths);
     assert_eq!(result.axis_edges.len(), 2);
     assert_eq!(result.path_edges.len(), 2);
@@ -257,11 +259,9 @@ fn does_not_remove_non_staircase() {
 
 #[test]
 fn obstacle_bounds_vertical_edge() {
-    let mut edges = vec![
-        AxisEdge::new(Point::new(5.0, 0.0), Point::new(5.0, 10.0)),
-    ];
+    let mut edges = vec![AxisEdge::new(Point::new(5.0, 0.0), Point::new(5.0, 10.0))];
     let obstacles = vec![
-        Rectangle::new(0.0, 0.0, 3.0, 10.0), // left obstacle
+        Rectangle::new(0.0, 0.0, 3.0, 10.0),  // left obstacle
         Rectangle::new(7.0, 0.0, 10.0, 10.0), // right obstacle
     ];
     find_free_space(&mut edges, &obstacles, Direction::North);

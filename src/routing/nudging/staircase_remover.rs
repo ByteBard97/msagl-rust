@@ -131,7 +131,11 @@ fn seg_direction(a: Point, b: Point) -> u8 {
     let dx = b.x() - a.x();
     let dy = b.y() - a.y();
     if dx.abs() > dy.abs() {
-        if dx > 0.0 { b'E' } else { b'W' }
+        if dx > 0.0 {
+            b'E'
+        } else {
+            b'W'
+        }
     } else if dy > 0.0 {
         b'N'
     } else {

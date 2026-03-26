@@ -93,7 +93,12 @@ fn group_test_simple_no_group_port_splice_limit_rect() {
 //   Hierarchy: g1 children=[s2,s3], g2 children=[s1,g1], g3 children=[s4,s5]
 //   If wantFourthGroup: s6=(-3,19)-(4,25), g4=(-12,-40)-(12,40), g4 children=[s6,s2]
 
-fn group_test_worker(b: &mut ScenarioBuilder, want_fourth_group: bool, outside_group1: bool, off_center: bool) {
+fn group_test_worker(
+    b: &mut ScenarioBuilder,
+    want_fourth_group: bool,
+    outside_group1: bool,
+    off_center: bool,
+) {
     let s1 = add_rect_corners(b, -45.0, -5.0, -35.0, 5.0);
     let s2_y_lo = if off_center { -2.0 } else { -5.0 };
     let s2 = add_rect_corners(b, -5.0, s2_y_lo, 5.0, 5.0);
@@ -421,7 +426,7 @@ fn group_landlock() {
     // Parent groups
     let _g1p = add_rect_corners(&mut b, 40.0, 30.0, 70.0, 60.0); // children: [s1]
     let _g2p = add_rect_corners(&mut b, 130.0, 30.0, 160.0, 60.0); // children: [s2]
-    // Landlocking groups
+                                                                   // Landlocking groups
     let _ga = add_rect_corners(&mut b, 10.0, 10.0, 20.0, 90.0); // children: [sa_dummy]
     let _gb = add_rect_corners(&mut b, 10.0, 80.0, 100.0, 90.0); // children: [sb_dummy]
     let _gc = add_rect_corners(&mut b, 90.0, 10.0, 100.0, 90.0); // children: [sc_dummy]
@@ -493,4 +498,3 @@ fn group_obstacle_overlap_rectangle() {
     b.route_between(s1, s2);
     let _result = b.run();
 }
-

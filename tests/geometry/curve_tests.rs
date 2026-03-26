@@ -54,7 +54,12 @@ fn from_polyline() {
 fn add_arc_segment() {
     let mut c = Curve::new();
     c.add_line(Point::new(0.0, 0.0), Point::new(5.0, 0.0));
-    c.add_arc(Point::new(5.0, 0.0), Point::new(7.0, 2.0), Point::new(7.0, 0.0), true);
+    c.add_arc(
+        Point::new(5.0, 0.0),
+        Point::new(7.0, 2.0),
+        Point::new(7.0, 0.0),
+        true,
+    );
     assert_eq!(c.segment_count(), 2);
 }
 

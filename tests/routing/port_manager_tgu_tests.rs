@@ -48,8 +48,14 @@ fn splice_connects_to_axis_aligned_neighbors() {
         .find_edge_pp(Point::new(25.0, 50.0), Point::new(0.0, 50.0))
         .is_some();
 
-    assert!(has_east, "port should connect east to axis-aligned neighbor (center)");
-    assert!(has_west, "port should connect west to axis-aligned neighbor (w)");
+    assert!(
+        has_east,
+        "port should connect east to axis-aligned neighbor (center)"
+    );
+    assert!(
+        has_west,
+        "port should connect west to axis-aligned neighbor (w)"
+    );
 }
 
 #[test]

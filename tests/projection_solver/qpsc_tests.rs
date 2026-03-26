@@ -1,6 +1,6 @@
 use msagl_rust::projection_solver::parameters::Parameters;
-use msagl_rust::projection_solver::qpsc::{Qpsc, dot};
-use msagl_rust::projection_solver::variable::{Variable, VarIndex, NeighborAndWeight};
+use msagl_rust::projection_solver::qpsc::{dot, Qpsc};
+use msagl_rust::projection_solver::variable::{NeighborAndWeight, VarIndex, Variable};
 
 fn make_var(index: usize, desired: f64, weight: f64) -> Variable {
     let mut v = Variable::new(VarIndex(index), desired, weight, 1.0);

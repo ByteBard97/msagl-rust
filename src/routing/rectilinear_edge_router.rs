@@ -123,14 +123,8 @@ impl RectilinearEdgeRouter {
             let mut src_splice = PortManager::splice_port(&mut vis_graph, edge.source.location);
             let mut tgt_splice = PortManager::splice_port(&mut vis_graph, edge.target.location);
 
-            let path = search.find_path(
-                &vis_graph,
-                edge.source.location,
-                edge.target.location,
-            );
-            paths.push(path.unwrap_or_else(|| {
-                vec![edge.source.location, edge.target.location]
-            }));
+            let path = search.find_path(&vis_graph, edge.source.location, edge.target.location);
+            paths.push(path.unwrap_or_else(|| vec![edge.source.location, edge.target.location]));
 
             PortManager::unsplice(&mut vis_graph, &mut src_splice);
             PortManager::unsplice(&mut vis_graph, &mut tgt_splice);
@@ -242,8 +236,7 @@ impl RectilinearEdgeRouter {
 
     /// Determine if the turn from a->b->c is counter-clockwise.
     fn is_ccw_turn(a: Point, b: Point, c: Point) -> bool {
-        let cross = (b.x() - a.x()) * (c.y() - b.y())
-            - (b.y() - a.y()) * (c.x() - b.x());
+        let cross = (b.x() - a.x()) * (c.y() - b.y()) - (b.y() - a.y()) * (c.x() - b.x());
         cross > 0.0
     }
 }
@@ -291,9 +284,7 @@ mod tests {
 
     #[test]
     fn empty_router_returns_empty_result() {
-        let mut router = RectilinearEdgeRouter::new(&[
-            Shape::rectangle(0.0, 0.0, 10.0, 10.0),
-        ]);
+        let mut router = RectilinearEdgeRouter::new(&[Shape::rectangle(0.0, 0.0, 10.0, 10.0)]);
         let result = router.run();
         assert!(result.edges.is_empty());
     }

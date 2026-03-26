@@ -79,11 +79,21 @@ impl Polyline {
         key
     }
 
-    pub fn count(&self) -> usize { self.nodes.len() }
-    pub fn is_closed(&self) -> bool { self.closed }
-    pub fn set_closed(&mut self, closed: bool) { self.closed = closed; }
-    pub fn start_key(&self) -> Option<PolylinePointKey> { self.start }
-    pub fn end_key(&self) -> Option<PolylinePointKey> { self.end }
+    pub fn count(&self) -> usize {
+        self.nodes.len()
+    }
+    pub fn is_closed(&self) -> bool {
+        self.closed
+    }
+    pub fn set_closed(&mut self, closed: bool) {
+        self.closed = closed;
+    }
+    pub fn start_key(&self) -> Option<PolylinePointKey> {
+        self.start
+    }
+    pub fn end_key(&self) -> Option<PolylinePointKey> {
+        self.end
+    }
 
     /// First point. Panics if empty.
     pub fn start(&self) -> Point {
@@ -129,12 +139,20 @@ impl Polyline {
 
     /// Iterate over points in order.
     pub fn points(&self) -> PointIter<'_> {
-        PointIter { poly: self, current: self.start, done: false }
+        PointIter {
+            poly: self,
+            current: self.start,
+            done: false,
+        }
     }
 
     /// Iterate over (key, point) pairs.
     pub fn polyline_points(&self) -> PolylinePointIter<'_> {
-        PolylinePointIter { poly: self, current: self.start, done: false }
+        PolylinePointIter {
+            poly: self,
+            current: self.start,
+            done: false,
+        }
     }
 
     pub fn bounding_box(&self) -> Rectangle {
@@ -197,7 +215,9 @@ impl Polyline {
 }
 
 impl Default for Polyline {
-    fn default() -> Self { Self::new() }
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 pub struct PointIter<'a> {
@@ -209,7 +229,9 @@ pub struct PointIter<'a> {
 impl<'a> Iterator for PointIter<'a> {
     type Item = Point;
     fn next(&mut self) -> Option<Point> {
-        if self.done { return None; }
+        if self.done {
+            return None;
+        }
         let key = self.current?;
         let data = &self.poly.nodes[key];
         let point = data.point;
@@ -231,10 +253,15 @@ pub struct PolylinePointIter<'a> {
 impl<'a> Iterator for PolylinePointIter<'a> {
     type Item = PolylinePoint;
     fn next(&mut self) -> Option<PolylinePoint> {
-        if self.done { return None; }
+        if self.done {
+            return None;
+        }
         let key = self.current?;
         let data = &self.poly.nodes[key];
-        let pp = PolylinePoint { key, point: data.point };
+        let pp = PolylinePoint {
+            key,
+            point: data.point,
+        };
         let next = data.next;
         if next.is_none() && self.poly.closed {
             self.done = true;

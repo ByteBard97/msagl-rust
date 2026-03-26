@@ -75,13 +75,7 @@ pub fn get_order(paths: &[Vec<Point>]) -> CombinatorialResult {
     // Simple approach: sort by path index for initial ordering,
     // then refine by looking at neighboring edges.
     for (ae_id, order) in axis_edge_orders.iter_mut().enumerate() {
-        sort_path_edges_on_axis(
-            ae_id,
-            order,
-            &path_edges,
-            &axis_edges,
-            paths,
-        );
+        sort_path_edges_on_axis(ae_id, order, &path_edges, &axis_edges, paths);
         // Assign index to each PathEdge.
         for (idx, &pe_id) in order.iter().enumerate() {
             path_edges[pe_id].index = idx as i32;
@@ -142,8 +136,7 @@ fn sort_path_edges_on_axis(
         let a_perp = get_perp_offset(a, path_edges, axis_edges, ae);
         let b_perp = get_perp_offset(b, path_edges, axis_edges, ae);
 
-        GeomConstants::compare(a_perp, b_perp)
-            .then_with(|| a.path_index.cmp(&b.path_index))
+        GeomConstants::compare(a_perp, b_perp).then_with(|| a.path_index.cmp(&b.path_index))
     });
 }
 

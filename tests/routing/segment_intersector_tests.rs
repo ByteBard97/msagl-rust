@@ -1,11 +1,21 @@
-use msagl_rust::routing::segment_intersector::build_graph_from_segments;
 use msagl_rust::routing::scan_segment::{ScanSegment, SegmentWeight};
+use msagl_rust::routing::segment_intersector::build_graph_from_segments;
 use msagl_rust::Point;
 
 #[test]
 fn two_crossing_segments_create_intersection() {
-    let mut h = vec![ScanSegment::new(Point::new(0.0, 5.0), Point::new(10.0, 5.0), SegmentWeight::Normal, false)];
-    let mut v = vec![ScanSegment::new(Point::new(5.0, 0.0), Point::new(5.0, 10.0), SegmentWeight::Normal, true)];
+    let mut h = vec![ScanSegment::new(
+        Point::new(0.0, 5.0),
+        Point::new(10.0, 5.0),
+        SegmentWeight::Normal,
+        false,
+    )];
+    let mut v = vec![ScanSegment::new(
+        Point::new(5.0, 0.0),
+        Point::new(5.0, 10.0),
+        SegmentWeight::Normal,
+        true,
+    )];
 
     let graph = build_graph_from_segments(&mut h, &mut v);
 
@@ -17,8 +27,18 @@ fn two_crossing_segments_create_intersection() {
 #[test]
 fn parallel_segments_no_intersection() {
     let mut h = vec![
-        ScanSegment::new(Point::new(0.0, 0.0), Point::new(10.0, 0.0), SegmentWeight::Normal, false),
-        ScanSegment::new(Point::new(0.0, 5.0), Point::new(10.0, 5.0), SegmentWeight::Normal, false),
+        ScanSegment::new(
+            Point::new(0.0, 0.0),
+            Point::new(10.0, 0.0),
+            SegmentWeight::Normal,
+            false,
+        ),
+        ScanSegment::new(
+            Point::new(0.0, 5.0),
+            Point::new(10.0, 5.0),
+            SegmentWeight::Normal,
+            false,
+        ),
     ];
 
     let graph = build_graph_from_segments(&mut h, &mut []);

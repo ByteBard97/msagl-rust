@@ -11,12 +11,9 @@ use msagl_rust::Rectangle;
 #[test]
 fn bounds_computed_from_obstacles() {
     // Vertical axis edge at x=5, between two flanking obstacles.
-    let mut edges = vec![AxisEdge::new(
-        Point::new(5.0, 0.0),
-        Point::new(5.0, 10.0),
-    )];
+    let mut edges = vec![AxisEdge::new(Point::new(5.0, 0.0), Point::new(5.0, 10.0))];
     let obstacles = vec![
-        Rectangle::new(0.0, 0.0, 3.0, 10.0),  // left obstacle: right edge at x=3
+        Rectangle::new(0.0, 0.0, 3.0, 10.0), // left obstacle: right edge at x=3
         Rectangle::new(7.0, 0.0, 10.0, 10.0), // right obstacle: left edge at x=7
     ];
     find_free_space(&mut edges, &obstacles, Direction::North);
@@ -34,10 +31,7 @@ fn bounds_computed_from_obstacles() {
 
 #[test]
 fn unobstructed_edge_has_infinite_bounds() {
-    let mut edges = vec![AxisEdge::new(
-        Point::new(5.0, 0.0),
-        Point::new(5.0, 10.0),
-    )];
+    let mut edges = vec![AxisEdge::new(Point::new(5.0, 0.0), Point::new(5.0, 10.0))];
     let obstacles: Vec<Rectangle> = vec![];
     find_free_space(&mut edges, &obstacles, Direction::North);
     assert_eq!(
@@ -54,10 +48,7 @@ fn unobstructed_edge_has_infinite_bounds() {
 
 #[test]
 fn obstacle_only_on_left_constrains_left_bound() {
-    let mut edges = vec![AxisEdge::new(
-        Point::new(10.0, 0.0),
-        Point::new(10.0, 10.0),
-    )];
+    let mut edges = vec![AxisEdge::new(Point::new(10.0, 0.0), Point::new(10.0, 10.0))];
     let obstacles = vec![
         Rectangle::new(0.0, 0.0, 6.0, 10.0), // right edge at x=6, left of edge at x=10
     ];
@@ -76,10 +67,7 @@ fn obstacle_only_on_left_constrains_left_bound() {
 
 #[test]
 fn obstacle_only_on_right_constrains_right_bound() {
-    let mut edges = vec![AxisEdge::new(
-        Point::new(5.0, 0.0),
-        Point::new(5.0, 10.0),
-    )];
+    let mut edges = vec![AxisEdge::new(Point::new(5.0, 0.0), Point::new(5.0, 10.0))];
     let obstacles = vec![
         Rectangle::new(8.0, 0.0, 14.0, 10.0), // left edge at x=8, right of edge at x=5
     ];
@@ -99,10 +87,7 @@ fn obstacle_only_on_right_constrains_right_bound() {
 #[test]
 fn non_overlapping_obstacle_does_not_constrain() {
     // Obstacle does not overlap along the axis edge's direction range.
-    let mut edges = vec![AxisEdge::new(
-        Point::new(5.0, 0.0),
-        Point::new(5.0, 10.0),
-    )];
+    let mut edges = vec![AxisEdge::new(Point::new(5.0, 0.0), Point::new(5.0, 10.0))];
     // Obstacle is entirely below the edge (y=20..30, edge is y=0..10)
     let obstacles = vec![Rectangle::new(0.0, 20.0, 3.0, 30.0)];
     find_free_space(&mut edges, &obstacles, Direction::North);
@@ -175,10 +160,7 @@ fn horizontal_edges_neighbor_relationship() {
 #[test]
 fn wrong_direction_edges_not_processed() {
     // Horizontal edge passed to North sweep — should not be constrained.
-    let mut edges = vec![AxisEdge::new(
-        Point::new(0.0, 5.0),
-        Point::new(20.0, 5.0),
-    )];
+    let mut edges = vec![AxisEdge::new(Point::new(0.0, 5.0), Point::new(20.0, 5.0))];
     let obstacles = vec![Rectangle::new(2.0, 3.0, 4.0, 7.0)];
     find_free_space(&mut edges, &obstacles, Direction::North);
     // Horizontal edge is Direction::East, not Direction::North.

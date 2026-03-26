@@ -5,8 +5,16 @@ use crate::geometry::rectangle::Rectangle;
 /// A segment within a compound curve.
 #[derive(Clone, Debug)]
 pub enum CurveSegment {
-    Line { from: Point, to: Point },
-    Arc { from: Point, to: Point, center: Point, ccw: bool },
+    Line {
+        from: Point,
+        to: Point,
+    },
+    Arc {
+        from: Point,
+        to: Point,
+        center: Point,
+        ccw: bool,
+    },
 }
 
 impl CurveSegment {
@@ -27,7 +35,9 @@ impl CurveSegment {
     pub fn bounding_box(&self) -> Rectangle {
         match self {
             CurveSegment::Line { from, to } => Rectangle::from_points(*from, *to),
-            CurveSegment::Arc { from, to, center, .. } => {
+            CurveSegment::Arc {
+                from, to, center, ..
+            } => {
                 let mut bb = Rectangle::from_points(*from, *to);
                 bb.add_point(*center);
                 bb
@@ -43,17 +53,28 @@ pub struct Curve {
 }
 
 impl Curve {
-    pub fn new() -> Self { Self { segments: Vec::new() } }
+    pub fn new() -> Self {
+        Self {
+            segments: Vec::new(),
+        }
+    }
 
     pub fn add_line(&mut self, from: Point, to: Point) {
         self.segments.push(CurveSegment::Line { from, to });
     }
 
     pub fn add_arc(&mut self, from: Point, to: Point, center: Point, ccw: bool) {
-        self.segments.push(CurveSegment::Arc { from, to, center, ccw });
+        self.segments.push(CurveSegment::Arc {
+            from,
+            to,
+            center,
+            ccw,
+        });
     }
 
-    pub fn segment_count(&self) -> usize { self.segments.len() }
+    pub fn segment_count(&self) -> usize {
+        self.segments.len()
+    }
 
     pub fn start(&self) -> Point {
         self.segments.first().expect("empty curve").start()
@@ -89,5 +110,7 @@ impl Curve {
 }
 
 impl Default for Curve {
-    fn default() -> Self { Self::new() }
+    fn default() -> Self {
+        Self::new()
+    }
 }

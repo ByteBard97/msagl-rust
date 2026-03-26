@@ -45,7 +45,8 @@ impl UniformOneDimensionalSolver {
 
     /// Add a goal that minimises the squared distance between two variables.
     pub fn add_goal_two_variables_are_close(&mut self, id1: usize, id2: usize, weight: f64) {
-        self.shell.add_goal_two_variables_are_close(id1, id2, weight);
+        self.shell
+            .add_goal_two_variables_are_close(id1, id2, weight);
     }
 
     /// Replace the solver parameters.

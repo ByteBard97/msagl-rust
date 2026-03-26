@@ -17,7 +17,12 @@ impl Rectangle {
     pub fn new(left: f64, bottom: f64, right: f64, top: f64) -> Self {
         debug_assert!(left <= right && bottom <= top,
             "Rectangle::new called with inverted bounds: left={left}, right={right}, bottom={bottom}, top={top}");
-        Self { left, bottom, right, top }
+        Self {
+            left,
+            bottom,
+            right,
+            top,
+        }
     }
 
     pub fn from_points(a: Point, b: Point) -> Self {
@@ -30,30 +35,65 @@ impl Rectangle {
     }
 
     pub fn from_point(p: Point) -> Self {
-        Self { left: p.x(), bottom: p.y(), right: p.x(), top: p.y() }
+        Self {
+            left: p.x(),
+            bottom: p.y(),
+            right: p.x(),
+            top: p.y(),
+        }
     }
 
     pub fn empty() -> Self {
-        Self { left: 0.0, right: -1.0, bottom: 0.0, top: -1.0 }
+        Self {
+            left: 0.0,
+            right: -1.0,
+            bottom: 0.0,
+            top: -1.0,
+        }
     }
 
-    pub fn is_empty(&self) -> bool { self.right < self.left }
+    pub fn is_empty(&self) -> bool {
+        self.right < self.left
+    }
 
-    pub fn left(&self) -> f64 { self.left }
-    pub fn bottom(&self) -> f64 { self.bottom }
-    pub fn right(&self) -> f64 { self.right }
-    pub fn top(&self) -> f64 { self.top }
-    pub fn width(&self) -> f64 { self.right - self.left }
-    pub fn height(&self) -> f64 { self.top - self.bottom }
+    pub fn left(&self) -> f64 {
+        self.left
+    }
+    pub fn bottom(&self) -> f64 {
+        self.bottom
+    }
+    pub fn right(&self) -> f64 {
+        self.right
+    }
+    pub fn top(&self) -> f64 {
+        self.top
+    }
+    pub fn width(&self) -> f64 {
+        self.right - self.left
+    }
+    pub fn height(&self) -> f64 {
+        self.top - self.bottom
+    }
 
     pub fn center(&self) -> Point {
-        Point::new((self.left + self.right) / 2.0, (self.bottom + self.top) / 2.0)
+        Point::new(
+            (self.left + self.right) / 2.0,
+            (self.bottom + self.top) / 2.0,
+        )
     }
 
-    pub fn left_bottom(&self) -> Point { Point::new(self.left, self.bottom) }
-    pub fn right_top(&self) -> Point { Point::new(self.right, self.top) }
-    pub fn left_top(&self) -> Point { Point::new(self.left, self.top) }
-    pub fn right_bottom(&self) -> Point { Point::new(self.right, self.bottom) }
+    pub fn left_bottom(&self) -> Point {
+        Point::new(self.left, self.bottom)
+    }
+    pub fn right_top(&self) -> Point {
+        Point::new(self.right, self.top)
+    }
+    pub fn left_top(&self) -> Point {
+        Point::new(self.left, self.top)
+    }
+    pub fn right_bottom(&self) -> Point {
+        Point::new(self.right, self.bottom)
+    }
 
     pub fn contains(&self, p: Point) -> bool {
         let eps = GeomConstants::DISTANCE_EPSILON;
@@ -112,7 +152,9 @@ impl Rectangle {
     }
 
     pub fn add_rect(&mut self, other: &Rectangle) {
-        if other.is_empty() { return; }
+        if other.is_empty() {
+            return;
+        }
         if self.is_empty() {
             *self = *other;
         } else {
