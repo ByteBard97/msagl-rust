@@ -5,6 +5,14 @@ use std::ops::{Add, Div, Mul, Neg, Sub};
 
 use crate::geometry::point_comparer::GeomConstants;
 
+/// Triangle orientation result, matching C# `TriangleOrientation`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TriangleOrientation {
+    Counterclockwise,
+    Clockwise,
+    Collinear,
+}
+
 #[derive(Clone, Copy)]
 pub struct Point {
     x: OrderedFloat<f64>,
@@ -122,6 +130,42 @@ impl Point {
     #[inline]
     pub fn signed_doubled_triangle_area(a: Point, b: Point, c: Point) -> f64 {
         Point::cross(b - a, c - a)
+    }
+
+    /// Determine triangle orientation using `DISTANCE_EPSILON` threshold.
+    /// Faithful port of C# `Point.GetTriangleOrientation`.
+    #[inline]
+    pub fn get_triangle_orientation(
+        corner_a: Point,
+        corner_b: Point,
+        corner_c: Point,
+    ) -> TriangleOrientation {
+        let area = Point::signed_doubled_triangle_area(corner_a, corner_b, corner_c);
+        if area > GeomConstants::DISTANCE_EPSILON {
+            TriangleOrientation::Counterclockwise
+        } else if area < -GeomConstants::DISTANCE_EPSILON {
+            TriangleOrientation::Clockwise
+        } else {
+            TriangleOrientation::Collinear
+        }
+    }
+
+    /// Determine triangle orientation using `INTERSECTION_EPSILON` threshold.
+    /// Faithful port of C# `Point.GetTriangleOrientationWithIntersectionEpsilon`.
+    #[inline]
+    pub fn get_triangle_orientation_with_intersection_epsilon(
+        corner_a: Point,
+        corner_b: Point,
+        corner_c: Point,
+    ) -> TriangleOrientation {
+        let area = Point::signed_doubled_triangle_area(corner_a, corner_b, corner_c);
+        if area > GeomConstants::INTERSECTION_EPSILON {
+            TriangleOrientation::Counterclockwise
+        } else if area < -GeomConstants::INTERSECTION_EPSILON {
+            TriangleOrientation::Clockwise
+        } else {
+            TriangleOrientation::Collinear
+        }
     }
 }
 
