@@ -102,14 +102,17 @@ impl SweepEvent {
 
     /// Event type priority (lower = processed first at the same coordinate).
     ///
-    /// Matches TS EventQueue.ts ordering:
-    ///   reflection events (0) → open (1) → bend (2) → close (3)
+    /// Matches C#/TS EventQueue: reflection events come first. Among
+    /// non-reflection vertex events, no further type ordering is imposed
+    /// (the C#/TS comparator only distinguishes reflection vs non-reflection).
+    /// Tie-breaking by scan coordinate handles collinear events.
     fn type_priority(&self) -> u8 {
         match self {
             Self::LowReflection { .. } | Self::HighReflection { .. } => 0,
-            Self::OpenVertex { .. } => 1,
-            Self::LowBend { .. } | Self::HighBend { .. } => 2,
-            Self::CloseVertex { .. } => 3,
+            Self::OpenVertex { .. }
+            | Self::CloseVertex { .. }
+            | Self::LowBend { .. }
+            | Self::HighBend { .. } => 1,
         }
     }
 }

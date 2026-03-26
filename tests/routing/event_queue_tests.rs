@@ -89,28 +89,37 @@ fn reflection_events_before_vertex_events_at_same_coord() {
     assert!(first.is_reflection());
 }
 
+/// C#/TS EventQueue only distinguishes reflection vs non-reflection.
+/// Among non-reflection events at the same perpendicular coordinate,
+/// tie-breaking is by scan coordinate. Events at the exact same site
+/// (same perp AND scan coord) have no guaranteed sub-ordering.
 #[test]
-fn open_before_close_at_same_coord() {
+fn close_before_open_when_scan_coord_lower() {
     let mut queue = EventQueue::new(ScanDirection::horizontal());
-    queue.enqueue(SweepEvent::CloseVertex {
-        site: Point::new(5.0, 10.0),
-        obstacle_index: 0,
-        vertex_key: vk(),
-    });
+    // Close at scan_coord=3, Open at scan_coord=5 — both at perp=10.
+    // Smaller scan_coord first, so Close comes first.
     queue.enqueue(SweepEvent::OpenVertex {
         site: Point::new(5.0, 10.0),
         obstacle_index: 1,
         vertex_key: vk(),
     });
+    queue.enqueue(SweepEvent::CloseVertex {
+        site: Point::new(3.0, 10.0),
+        obstacle_index: 0,
+        vertex_key: vk(),
+    });
     let first = queue.dequeue().unwrap();
-    assert!(matches!(first, SweepEvent::OpenVertex { .. }));
+    assert!(matches!(first, SweepEvent::CloseVertex { .. }));
 }
 
+/// All non-reflection events at the same perp coordinate are ordered
+/// solely by scan coordinate, matching C#/TS EventQueue.Compare().
 #[test]
-fn bend_events_between_open_and_close() {
+fn non_reflection_events_ordered_by_scan_coord_only() {
     let mut queue = EventQueue::new(ScanDirection::horizontal());
+    // All at perp=10. Scan coords: Close=7, Bend=5, Open=3.
     queue.enqueue(SweepEvent::CloseVertex {
-        site: Point::new(5.0, 10.0),
+        site: Point::new(7.0, 10.0),
         obstacle_index: 0,
         vertex_key: vk(),
     });
@@ -120,10 +129,11 @@ fn bend_events_between_open_and_close() {
         vertex_key: vk(),
     });
     queue.enqueue(SweepEvent::OpenVertex {
-        site: Point::new(5.0, 10.0),
+        site: Point::new(3.0, 10.0),
         obstacle_index: 0,
         vertex_key: vk(),
     });
+    // Dequeue order: scan_coord 3, 5, 7.
     let first = queue.dequeue().unwrap();
     assert!(matches!(first, SweepEvent::OpenVertex { .. }));
     let second = queue.dequeue().unwrap();
