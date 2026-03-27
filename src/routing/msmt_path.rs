@@ -6,6 +6,7 @@
 //! processing closest pairs first and using cost bounds to prune.
 
 use crate::geometry::point::Point;
+use crate::geometry::point_comparer::GeomConstants;
 use crate::visibility::graph::{VertexId, VisibilityGraph};
 use super::path_search::{
     SsstRectilinearPath, manhattan_distance,
@@ -143,17 +144,27 @@ impl MsmtRectilinearPath {
             };
 
             if use_temp_targets {
-                // Update target entries for each direction
-                if let Some(ref mut _tve) = target_vertex_entries {
-                    // This branch is unreachable due to the borrow checker — we handle
-                    // target_vertex_entries after the loop instead.
-                }
                 Self::update_target_entries_static(
                     &self.current_pass_target_entries,
                     &ssst,
                     &mut best_cost,
                     &mut best_entry,
                 );
+                // Write back per-direction slot updates to caller's target_vertex_entries
+                if let Some(ref mut tve) = target_vertex_entries {
+                    for i in 0..4 {
+                        if let Some(temp_idx) = self.current_pass_target_entries[i] {
+                            let temp_cost = ssst.arena().get(temp_idx).cost;
+                            let should_update = match tve[i] {
+                                None => true,
+                                Some(existing) => temp_cost < ssst.arena().get(existing).cost,
+                            };
+                            if should_update {
+                                tve[i] = Some(temp_idx);
+                            }
+                        }
+                    }
+                }
                 continue;
             }
 
@@ -212,12 +223,10 @@ fn barycenter(vertices: &[VertexId], graph: &VisibilityGraph) -> Point {
 
 /// Check if two points are approximately equal.
 fn close_dist(a: Point, b: Point) -> bool {
-    let dx = (a.x() - b.x()).abs();
-    let dy = (a.y() - b.y()).abs();
-    dx < 1e-6 && dy < 1e-6
+    GeomConstants::close(a.x(), b.x()) && GeomConstants::close(a.y(), b.y())
 }
 
 /// Check if two f64 values are approximately equal.
 fn close_f64(a: f64, b: f64) -> bool {
-    (a - b).abs() < 1e-6
+    GeomConstants::close(a, b)
 }
