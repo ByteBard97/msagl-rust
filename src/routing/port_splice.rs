@@ -46,6 +46,7 @@ impl PortManager {
         let mut tgu = TransientGraphUtility::new();
         let port_vertex = tgu.find_or_add_vertex(graph, location);
 
+        // Phase 1: Connect port vertex to nearest VG structure in each direction.
         for &direction in &CompassDirection::all() {
             // Strategy 1: Find the nearest perpendicular VG edge crossing
             // using coordinate-index lookup + VG adjacency chain walk.

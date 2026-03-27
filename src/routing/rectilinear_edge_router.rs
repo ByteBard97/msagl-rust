@@ -9,7 +9,10 @@ use crate::geometry::rectangle::Rectangle;
 use crate::routing::edge_geometry::EdgeGeometry;
 use crate::routing::nudging::nudge_paths;
 use crate::routing::path_search::PathSearch;
+use crate::routing::port::{ObstaclePort, ObstaclePortEntrance};
 use crate::routing::port_manager::PortManager;
+use crate::routing::port_manager::FullPortManager;
+use crate::routing::transient_graph_utility::TransientGraphUtility;
 use crate::routing::shape::Shape;
 use crate::routing::visibility_graph_generator::generate_visibility_graph;
 
@@ -119,7 +122,21 @@ impl RectilinearEdgeRouter {
         let search = PathSearch::new(self.bend_penalty_as_percentage);
         let mut paths: Vec<Vec<Point>> = Vec::new();
 
+        let graph_box = obstacle_tree.graph_box();
+
         for edge in &self.edges {
+            // Create port entrances at obstacle boundaries for center ports.
+            // C# does this via PortManager.AddObstaclePortToGraph → CreateObstaclePortEntrances.
+            let mut tgu = TransientGraphUtility::new();
+            Self::create_port_entrances_for_location(
+                edge.source.location, &self.shapes, self.padding,
+                &mut vis_graph, &mut obstacle_tree, &mut tgu, &graph_box,
+            );
+            Self::create_port_entrances_for_location(
+                edge.target.location, &self.shapes, self.padding,
+                &mut vis_graph, &mut obstacle_tree, &mut tgu, &graph_box,
+            );
+
             let mut src_splice = PortManager::splice_port(&mut vis_graph, &mut obstacle_tree, edge.source.location);
             let mut tgt_splice = PortManager::splice_port(&mut vis_graph, &mut obstacle_tree, edge.target.location);
 
@@ -132,6 +149,7 @@ impl RectilinearEdgeRouter {
 
             PortManager::unsplice(&mut vis_graph, &mut src_splice);
             PortManager::unsplice(&mut vis_graph, &mut tgt_splice);
+            tgu.remove_from_graph(&mut vis_graph);
         }
 
         // 3. Nudge paths for edge separation
@@ -148,6 +166,93 @@ impl RectilinearEdgeRouter {
             .collect();
 
         RoutingResult { edges }
+    }
+
+    /// Create port entrances at obstacle boundaries for a port location.
+    ///
+    /// If the location is inside an obstacle (center port), creates entrances
+    /// at the boundary intersections and extends edge chains outward.
+    /// This matches C#: PortManager.CreateObstaclePortEntrancesFromPoints +
+    /// AddObstaclePortEntranceToGraph.
+    fn create_port_entrances_for_location(
+        location: Point,
+        shapes: &[Shape],
+        padding: f64,
+        graph: &mut crate::visibility::graph::VisibilityGraph,
+        obstacle_tree: &mut crate::routing::obstacle_tree::ObstacleTree,
+        tgu: &mut TransientGraphUtility,
+        graph_box: &Rectangle,
+    ) {
+        use crate::routing::compass_direction::CompassDirection;
+        use crate::geometry::point_comparer::GeomConstants;
+
+        // Find which obstacle contains this port location.
+        let containing_obs = obstacle_tree.obstacles.iter().enumerate().find(|(_, obs)| {
+            let bb = obs.padded_bounding_box();
+            location.x() > bb.left() + GeomConstants::DISTANCE_EPSILON
+                && location.x() < bb.right() - GeomConstants::DISTANCE_EPSILON
+                && location.y() > bb.bottom() + GeomConstants::DISTANCE_EPSILON
+                && location.y() < bb.top() - GeomConstants::DISTANCE_EPSILON
+        });
+
+        let (obs_idx, obs) = match containing_obs {
+            Some((i, o)) => (i, o),
+            None => return, // Port is not inside any obstacle — splice_port handles it
+        };
+
+        let padded_box = obs.padded_bounding_box();
+        let rounded = Point::round(location);
+
+        // Create entrances at boundary intersections (matches C# CreateObstaclePortEntrancesFromPoints).
+        // For rectangular obstacles: project port location to each boundary edge.
+        let mut entrances = Vec::new();
+
+        // Horizontal pass: if port is not on top/bottom boundary, create E and W entrances
+        if !GeomConstants::close(rounded.y(), padded_box.top())
+            && !GeomConstants::close(rounded.y(), padded_box.bottom())
+        {
+            let w_border = Point::new(padded_box.left(), rounded.y());
+            let e_border = Point::new(padded_box.right(), rounded.y());
+
+            if !w_border.close_to(rounded) {
+                entrances.push((e_border, CompassDirection::East));
+            }
+            if !e_border.close_to(rounded) {
+                entrances.push((w_border, CompassDirection::West));
+            }
+        }
+
+        // Vertical pass: if port is not on left/right boundary, create N and S entrances
+        if !GeomConstants::close(rounded.x(), padded_box.left())
+            && !GeomConstants::close(rounded.x(), padded_box.right())
+        {
+            let s_border = Point::new(rounded.x(), padded_box.bottom());
+            let n_border = Point::new(rounded.x(), padded_box.top());
+
+            if !s_border.close_to(rounded) {
+                entrances.push((n_border, CompassDirection::North));
+            }
+            if !n_border.close_to(rounded) {
+                entrances.push((s_border, CompassDirection::South));
+            }
+        }
+
+        // For each entrance: add vertex at boundary, connect to port, extend outward
+        let port_vertex = tgu.find_or_add_vertex(graph, rounded);
+        for (border_point, out_dir) in entrances {
+            let border_vertex = tgu.find_or_add_vertex(graph, border_point);
+            tgu.find_or_add_edge(graph, port_vertex, border_vertex, 1.0);
+
+            // Compute max visibility segment from boundary outward
+            let (seg_start, seg_end, _pac) =
+                obstacle_tree.create_max_visibility_segment(border_point, out_dir, graph_box);
+            if !seg_start.close_to(seg_end) {
+                tgu.extend_edge_chain_public(
+                    graph, obstacle_tree, border_vertex, graph_box,
+                    seg_start, seg_end, None, false,
+                );
+            }
+        }
     }
 
     /// Build padded obstacle rectangles for nudging.
