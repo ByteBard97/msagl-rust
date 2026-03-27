@@ -1,5 +1,6 @@
 use msagl_rust::routing::obstacle_tree::ObstacleTree;
 use msagl_rust::routing::port_manager::PortManager;
+use msagl_rust::routing::transient_graph_utility::TransientGraphUtility;
 use msagl_rust::visibility::graph::{VertexId, VisibilityGraph};
 use msagl_rust::Point;
 
@@ -86,4 +87,32 @@ fn unsplice_restores_edge_count() {
         initial_edges, final_edges,
         "edge count should be restored after unsplice"
     );
+}
+
+#[test]
+fn find_or_add_vertex_on_edge_splits_existing_edge() {
+    // Create a simple VG with one vertical edge: (0,0) → (0,10)
+    let mut graph = VisibilityGraph::new();
+    let v_bottom = graph.add_vertex(Point::new(0.0, 0.0));
+    let v_top = graph.add_vertex(Point::new(0.0, 10.0));
+    graph.add_edge(v_bottom, v_top, 1.0);
+
+    // Add a vertex at (0, 5) — on the existing edge.
+    // After this, (0,5) should have edges to both (0,0) and (0,10).
+    let mut tgu = TransientGraphUtility::new();
+    let v_mid = tgu.find_or_add_vertex_splitting(
+        &mut graph,
+        Point::new(0.0, 5.0),
+    );
+
+    assert!(graph.out_degree(v_mid) + graph.in_degree(v_mid) > 0,
+        "vertex at (0,5) should have edges after splitting");
+
+    // Should be connected to bottom
+    let has_bottom = graph.find_edge_pp(Point::new(0.0, 0.0), Point::new(0.0, 5.0)).is_some();
+    assert!(has_bottom, "should have edge between (0,0) and (0,5)");
+
+    // Should be connected to top
+    let has_top = graph.find_edge_pp(Point::new(0.0, 5.0), Point::new(0.0, 10.0)).is_some();
+    assert!(has_top, "should have edge between (0,5) and (0,10)");
 }

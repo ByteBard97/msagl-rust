@@ -47,6 +47,84 @@ impl TransientGraphUtility {
         self.add_vertex(graph, location)
     }
 
+    /// Find or add a vertex at `location`, splitting any existing VG edge
+    /// that passes through that point.
+    ///
+    /// This is needed when creating vertices on obstacle boundaries where
+    /// VG scan segment edges pass through. Without splitting, the vertex
+    /// is isolated (0 edges) and unreachable by the path search.
+    ///
+    /// Matches the C# pattern where AddVertex + FindOrAddEdge together
+    /// handle edge splitting via bracket detection.
+    pub fn find_or_add_vertex_splitting(
+        &mut self,
+        graph: &mut VisibilityGraph,
+        location: Point,
+    ) -> VertexId {
+        if let Some(existing) = graph.find_vertex(location) {
+            return existing;
+        }
+        let vertex = self.add_vertex(graph, location);
+
+        // Check all 4 directions for an existing VG edge that contains this point.
+        // If found, split that edge at this vertex.
+        use super::compass_direction::CompassDirection;
+        for &dir in &CompassDirection::all() {
+            if let Some(neighbor) = super::static_graph_utility::StaticGraphUtility::find_adjacent_vertex(graph, vertex, dir) {
+                // The vertex already has a neighbor — it was connected by add_vertex
+                // (this shouldn't happen for a new vertex, but check anyway).
+                let _ = neighbor;
+            }
+        }
+
+        // The vertex is new and isolated. Look for edges passing through its location
+        // by checking if there are VG vertices on opposite sides of this point
+        // along the same axis.
+        let dirs = [
+            (CompassDirection::North, CompassDirection::South),
+            (CompassDirection::East, CompassDirection::West),
+        ];
+        for (dir_a, dir_b) in dirs {
+            // Find nearest VG vertex in each direction along this axis
+            let va = graph.find_nearest_vertex_in_direction(location, dir_a);
+            let vb = graph.find_nearest_vertex_in_direction(location, dir_b);
+
+            if let (Some(va_id), Some(vb_id)) = (va, vb) {
+                let pa = graph.point(va_id);
+                let pb = graph.point(vb_id);
+
+                // Check they're on the same axis as our point
+                let same_axis = match dir_a {
+                    CompassDirection::North | CompassDirection::South => {
+                        crate::geometry::point_comparer::GeomConstants::close(pa.x(), location.x())
+                            && crate::geometry::point_comparer::GeomConstants::close(pb.x(), location.x())
+                    }
+                    CompassDirection::East | CompassDirection::West => {
+                        crate::geometry::point_comparer::GeomConstants::close(pa.y(), location.y())
+                            && crate::geometry::point_comparer::GeomConstants::close(pb.y(), location.y())
+                    }
+                };
+
+                if !same_axis {
+                    continue;
+                }
+
+                // Check if there's an edge between va and vb (or any edge chain
+                // that passes through our point). If so, split it.
+                if graph.find_edge(va_id, vb_id).is_some() {
+                    self.split_edge(graph, va_id, vb_id, vertex);
+                    break;
+                }
+                if graph.find_edge(vb_id, va_id).is_some() {
+                    self.split_edge(graph, vb_id, va_id, vertex);
+                    break;
+                }
+            }
+        }
+
+        vertex
+    }
+
     /// Add a transient edge with bracket detection, using default weight.
     pub fn find_or_add_edge_vv(
         &mut self,
