@@ -191,20 +191,30 @@ impl RectilinearEdgeRouter {
         use crate::geometry::point_comparer::GeomConstants;
 
         // Find which obstacle contains this port location.
-        let containing_obs = session.obstacle_tree.obstacles.iter().enumerate().find(|(_, obs)| {
+        let obs_idx = session.obstacle_tree.obstacles.iter().enumerate().find_map(|(i, obs)| {
             let bb = obs.padded_bounding_box();
-            location.x() > bb.left() + GeomConstants::DISTANCE_EPSILON
+            if location.x() > bb.left() + GeomConstants::DISTANCE_EPSILON
                 && location.x() < bb.right() - GeomConstants::DISTANCE_EPSILON
                 && location.y() > bb.bottom() + GeomConstants::DISTANCE_EPSILON
                 && location.y() < bb.top() - GeomConstants::DISTANCE_EPSILON
+            {
+                Some(i)
+            } else {
+                None
+            }
         });
 
-        let (obs_idx, obs) = match containing_obs {
-            Some((i, o)) => (i, o),
+        let obs_idx = match obs_idx {
+            Some(i) => i,
             None => return, // Port is not inside any obstacle — splice_port handles it
         };
 
-        let padded_box = obs.padded_bounding_box();
+        let padded_box = session.obstacle_tree.obstacles[obs_idx].padded_bounding_box().clone();
+
+        // Temporarily mark this obstacle as transparent so that
+        // restrict_segment_with_obstacles doesn't block rays from the
+        // boundary outward through the port's own obstacle.
+        session.obstacle_tree.obstacles[obs_idx].set_transparent(true);
         let rounded = Point::round(location);
 
         // Create entrances at boundary intersections (matches C# CreateObstaclePortEntrancesFromPoints).
@@ -248,9 +258,6 @@ impl RectilinearEdgeRouter {
         for (border_point, out_dir) in entrances {
             let border_vertex = tgu.find_or_add_vertex(session, border_point);
 
-            // Compute max visibility segment from boundary outward
-            let (seg_start, seg_end, _pac) =
-                session.obstacle_tree.create_max_visibility_segment(border_point, out_dir, graph_box);
             // Extend edge chain outward from boundary vertex along max visibility segment.
             let (seg_start, seg_end, _pac) =
                 session.obstacle_tree.create_max_visibility_segment(border_point, out_dir, graph_box);
@@ -261,6 +268,9 @@ impl RectilinearEdgeRouter {
                 );
             }
         }
+
+        // Restore obstacle opacity.
+        session.obstacle_tree.obstacles[obs_idx].set_transparent(false);
     }
 
     /// Build padded obstacle rectangles for nudging.

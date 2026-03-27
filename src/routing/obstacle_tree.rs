@@ -235,8 +235,9 @@ impl ObstacleTree {
                 continue;
             }
 
-            // Groups do not shorten the ray (handled in pass 2 below).
-            if obs.is_group() {
+            // Groups and transparent obstacles do not shorten the ray.
+            // Transparent obstacles are ports whose interior is temporarily passable.
+            if obs.is_group() || obs.is_transparent() {
                 continue;
             }
 
