@@ -130,18 +130,18 @@ impl RectilinearEdgeRouter {
         for edge in &self.edges {
             Self::create_port_entrances_for_location(
                 edge.source.location, &self.shapes, self.padding,
-                &mut session.vis_graph, &mut session.obstacle_tree, &mut entrance_tgu, &graph_box,
+                &mut session, &mut entrance_tgu, &graph_box,
             );
             Self::create_port_entrances_for_location(
                 edge.target.location, &self.shapes, self.padding,
-                &mut session.vis_graph, &mut session.obstacle_tree, &mut entrance_tgu, &graph_box,
+                &mut session, &mut entrance_tgu, &graph_box,
             );
         }
 
         // Phase 2b: Route each edge with port splicing.
         for edge in &self.edges {
-            let mut src_splice = PortManager::splice_port(&mut session.vis_graph, &mut session.obstacle_tree, edge.source.location);
-            let mut tgt_splice = PortManager::splice_port(&mut session.vis_graph, &mut session.obstacle_tree, edge.target.location);
+            let mut src_splice = PortManager::splice_port(&mut session, edge.source.location);
+            let mut tgt_splice = PortManager::splice_port(&mut session, edge.target.location);
 
             let path = search.find_path(&session.vis_graph, edge.source.location, edge.target.location);
             paths.push(path.unwrap_or_else(|| {
@@ -150,12 +150,12 @@ impl RectilinearEdgeRouter {
                 vec![edge.source.location, edge.target.location]
             }));
 
-            PortManager::unsplice(&mut session.vis_graph, &mut src_splice);
-            PortManager::unsplice(&mut session.vis_graph, &mut tgt_splice);
+            PortManager::unsplice(&mut session, &mut src_splice);
+            PortManager::unsplice(&mut session, &mut tgt_splice);
         }
 
         // Clean up entrance modifications after all routing is done.
-        entrance_tgu.remove_from_graph(&mut session.vis_graph);
+        entrance_tgu.remove_from_graph(&mut session);
 
         // 3. Nudge paths for edge separation
         let obstacles = self.padded_obstacles();
@@ -183,8 +183,7 @@ impl RectilinearEdgeRouter {
         location: Point,
         shapes: &[Shape],
         padding: f64,
-        graph: &mut crate::visibility::graph::VisibilityGraph,
-        obstacle_tree: &mut crate::routing::obstacle_tree::ObstacleTree,
+        session: &mut crate::routing::router_session::RouterSession,
         tgu: &mut TransientGraphUtility,
         graph_box: &Rectangle,
     ) {
@@ -192,7 +191,7 @@ impl RectilinearEdgeRouter {
         use crate::geometry::point_comparer::GeomConstants;
 
         // Find which obstacle contains this port location.
-        let containing_obs = obstacle_tree.obstacles.iter().enumerate().find(|(_, obs)| {
+        let containing_obs = session.obstacle_tree.obstacles.iter().enumerate().find(|(_, obs)| {
             let bb = obs.padded_bounding_box();
             location.x() > bb.left() + GeomConstants::DISTANCE_EPSILON
                 && location.x() < bb.right() - GeomConstants::DISTANCE_EPSILON
@@ -247,17 +246,17 @@ impl RectilinearEdgeRouter {
         // as those edges cross through the obstacle interior. splice_port will
         // connect the center to these boundary vertices via its own heuristic.
         for (border_point, out_dir) in entrances {
-            let border_vertex = tgu.find_or_add_vertex(graph, border_point);
+            let border_vertex = tgu.find_or_add_vertex(session, border_point);
 
             // Compute max visibility segment from boundary outward
             let (seg_start, seg_end, _pac) =
-                obstacle_tree.create_max_visibility_segment(border_point, out_dir, graph_box);
+                session.obstacle_tree.create_max_visibility_segment(border_point, out_dir, graph_box);
             // Extend edge chain outward from boundary vertex along max visibility segment.
             let (seg_start, seg_end, _pac) =
-                obstacle_tree.create_max_visibility_segment(border_point, out_dir, graph_box);
+                session.obstacle_tree.create_max_visibility_segment(border_point, out_dir, graph_box);
             if !seg_start.close_to(seg_end) {
                 tgu.extend_edge_chain_public(
-                    graph, obstacle_tree, border_vertex, graph_box,
+                    session, border_vertex, graph_box,
                     seg_start, seg_end, None, false,
                 );
             }

@@ -6,12 +6,12 @@
 
 use super::compass_direction::{CompassDirection, Direction};
 use super::group_boundary_crossing::PointAndCrossingsList;
-use super::obstacle_tree::ObstacleTree;
+use super::router_session::RouterSession;
 use super::static_graph_utility::StaticGraphUtility;
 use super::transient_graph_utility::TransientGraphUtility;
 use crate::geometry::point::Point;
 use crate::geometry::rectangle::Rectangle;
-use crate::visibility::graph::{VertexId, VisibilityGraph};
+use crate::visibility::graph::VertexId;
 
 /// Weight for normal scan segments (matches C# ScanSegment.NormalWeight = 1).
 const NORMAL_WEIGHT: f64 = 1.0;
@@ -23,8 +23,7 @@ impl TransientGraphUtility {
     // ── C# line 418-452: ExtendEdgeChain (public entry point) ──────────────────
     pub fn extend_edge_chain_public(
         &mut self,
-        graph: &mut VisibilityGraph,
-        obstacle_tree: &mut ObstacleTree,
+        session: &mut RouterSession,
         start_vertex: VertexId,
         limit_rect: &Rectangle,
         max_visibility_segment_start: Point,
@@ -45,7 +44,7 @@ impl TransientGraphUtility {
         debug_assert!(dir.is_pure(), "impure max visibility segment");
 
         // Debug assertion: start vertex is consistent with segment direction
-        let start_point = graph.point(start_vertex);
+        let start_point = session.vis_graph.point(start_vertex);
         debug_assert!(
             start_point.close_to(max_visibility_segment_start)
                 || CompassDirection::from_points(max_visibility_segment_start, start_point)
@@ -92,8 +91,7 @@ impl TransientGraphUtility {
 
         // ExtendEdgeChain(startVertex, dir, maxDesiredSegment, maxVisibilitySegment, pacList, isOverlapped);
         self.extend_edge_chain(
-            graph,
-            obstacle_tree,
+            session,
             start_vertex,
             compass_dir,
             max_desired_segment_start,
@@ -108,8 +106,7 @@ impl TransientGraphUtility {
     // ── C# line 454-493: ExtendEdgeChain (private) ─────────────────────────────
     fn extend_edge_chain(
         &mut self,
-        graph: &mut VisibilityGraph,
-        obstacle_tree: &mut ObstacleTree,
+        session: &mut RouterSession,
         start_vertex: VertexId,
         extend_dir: CompassDirection,
         max_desired_segment_start: Point,
@@ -127,7 +124,7 @@ impl TransientGraphUtility {
         );
 
         // Direction segmentDir = PointComparer.GetDirections(startVertex.Point, maxDesiredSegment.End);
-        let start_point = graph.point(start_vertex);
+        let start_point = session.vis_graph.point(start_vertex);
         let segment_dir = Direction::from_point_to_point(start_point, max_desired_segment_end);
 
         // if (segmentDir != extendDir)
@@ -145,7 +142,7 @@ impl TransientGraphUtility {
 
         // VisibilityVertex spliceSource = StaticGraphUtility.FindAdjacentVertex(startVertex, spliceSourceDir);
         let mut splice_source =
-            StaticGraphUtility::find_adjacent_vertex(graph, start_vertex, splice_source_dir);
+            StaticGraphUtility::find_adjacent_vertex(&session.vis_graph, start_vertex, splice_source_dir);
 
         let mut actual_splice_source_dir = splice_source_dir;
 
@@ -155,7 +152,7 @@ impl TransientGraphUtility {
             actual_splice_source_dir = splice_source_dir.opposite();
             // spliceSource = StaticGraphUtility.FindAdjacentVertex(startVertex, spliceSourceDir);
             splice_source = StaticGraphUtility::find_adjacent_vertex(
-                graph,
+                &session.vis_graph,
                 start_vertex,
                 actual_splice_source_dir,
             );
@@ -173,8 +170,7 @@ impl TransientGraphUtility {
         // VisibilityVertex spliceTarget;
         // if (ExtendSpliceWorker(spliceSource, extendDir, spliceTargetDir, ...))
         let (should_continue, splice_target) = self.extend_splice_worker(
-            graph,
-            obstacle_tree,
+            session,
             splice_source_id,
             extend_dir,
             splice_target_dir,
@@ -189,8 +185,7 @@ impl TransientGraphUtility {
             if let Some(st) = splice_target {
                 // ExtendSpliceWorker(spliceTarget, extendDir, spliceSourceDir, ...)
                 let _ = self.extend_splice_worker(
-                    graph,
-                    obstacle_tree,
+                    session,
                     st,
                     extend_dir,
                     actual_splice_source_dir,
@@ -205,8 +200,7 @@ impl TransientGraphUtility {
 
         // SpliceGroupBoundaryCrossings(pacList, startVertex, maxDesiredSegment);
         self.splice_group_boundary_crossings(
-            graph,
-            obstacle_tree,
+            session,
             pac_list,
             start_vertex,
             max_desired_segment_start,
@@ -217,8 +211,7 @@ impl TransientGraphUtility {
     // ── C# line 579-670: ExtendSpliceWorker ────────────────────────────────────
     fn extend_splice_worker(
         &mut self,
-        graph: &mut VisibilityGraph,
-        obstacle_tree: &mut ObstacleTree,
+        session: &mut RouterSession,
         splice_source: VertexId,
         extend_dir: CompassDirection,
         splice_target_dir: CompassDirection,
@@ -233,7 +226,7 @@ impl TransientGraphUtility {
 
         // VisibilityVertex extendVertex = StaticGraphUtility.FindAdjacentVertex(spliceSource, spliceTargetDir);
         let extend_vertex_opt =
-            StaticGraphUtility::find_adjacent_vertex(graph, splice_source, splice_target_dir);
+            StaticGraphUtility::find_adjacent_vertex(&session.vis_graph, splice_source, splice_target_dir);
         let mut extend_vertex = match extend_vertex_opt {
             Some(v) => v,
             None => return (false, None),
@@ -241,12 +234,12 @@ impl TransientGraphUtility {
 
         // spliceTarget = StaticGraphUtility.FindAdjacentVertex(extendVertex, spliceTargetDir);
         let mut splice_target =
-            StaticGraphUtility::find_adjacent_vertex(graph, extend_vertex, splice_target_dir);
+            StaticGraphUtility::find_adjacent_vertex(&session.vis_graph, extend_vertex, splice_target_dir);
 
         // for (;;)
         loop {
             // if (!GetNextSpliceSource(ref spliceSource, spliceTargetDir, extendDir)) { break; }
-            match Self::get_next_splice_source(graph, splice_source, splice_target_dir, extend_dir)
+            match Self::get_next_splice_source(&session.vis_graph, splice_source, splice_target_dir, extend_dir)
             {
                 Some(new_source) => splice_source = new_source,
                 None => break,
@@ -255,8 +248,8 @@ impl TransientGraphUtility {
             // Point nextExtendPoint = StaticGraphUtility.FindBendPointBetween(
             //     extendVertex.Point, spliceSource.Point, CompassVector.OppositeDir(spliceTargetDir));
             let next_extend_point = StaticGraphUtility::find_bend_point_between(
-                graph.point(extend_vertex),
-                graph.point(splice_source),
+                session.vis_graph.point(extend_vertex),
+                session.vis_graph.point(splice_source),
                 splice_target_dir.opposite(),
             );
 
@@ -271,7 +264,7 @@ impl TransientGraphUtility {
 
             // spliceTarget = GetSpliceTarget(ref spliceSource, spliceTargetDir, nextExtendPoint);
             let (new_source, new_target) =
-                Self::get_splice_target(graph, splice_source, splice_target_dir, next_extend_point);
+                Self::get_splice_target(&session.vis_graph, splice_source, splice_target_dir, next_extend_point);
             splice_source = new_source;
             splice_target = new_target;
 
@@ -279,7 +272,7 @@ impl TransientGraphUtility {
             if splice_target.is_none() {
                 // if (this.IsSkippableSpliceSourceWithNullSpliceTarget(spliceSource, extendDir)) { continue; }
                 if Self::is_skippable_splice_source_with_null_splice_target(
-                    graph,
+                    &session.vis_graph,
                     splice_source,
                     extend_dir,
                 ) {
@@ -287,8 +280,8 @@ impl TransientGraphUtility {
                 }
 
                 // if (ObstacleTree.SegmentCrossesAnObstacle(spliceSource.Point, nextExtendPoint)) { return false; }
-                if obstacle_tree.segment_crosses_an_obstacle(
-                    graph.point(splice_source),
+                if session.obstacle_tree.segment_crosses_an_obstacle(
+                    session.vis_graph.point(splice_source),
                     next_extend_point,
                 ) {
                     return (false, None);
@@ -296,7 +289,7 @@ impl TransientGraphUtility {
             }
 
             // VisibilityVertex nextExtendVertex = VisGraph.FindVertex(nextExtendPoint);
-            let next_extend_vertex_existing = graph.find_vertex(next_extend_point);
+            let next_extend_vertex_existing = session.vis_graph.find_vertex(next_extend_point);
 
             let next_extend_vertex;
 
@@ -304,15 +297,15 @@ impl TransientGraphUtility {
             if let Some(existing) = next_extend_vertex_existing {
                 // if ((spliceTarget == null) || (this.VisGraph.FindEdge(extendVertex.Point, nextExtendPoint) != null))
                 if splice_target.is_none()
-                    || graph
-                        .find_edge_pp(graph.point(extend_vertex), next_extend_point)
+                    || session.vis_graph
+                        .find_edge_pp(session.vis_graph.point(extend_vertex), next_extend_point)
                         .is_some()
                 {
                     if splice_target.is_none() {
                         // Debug_VerifyNonOverlappedExtension(isOverlapped, extendVertex, nextExtendVertex, spliceSource:null, spliceTarget:null);
                         self.debug_verify_non_overlapped_extension(
-                            graph,
-                            obstacle_tree,
+                            &session.vis_graph,
+                            &mut session.obstacle_tree,
                             is_overlapped,
                             extend_vertex,
                             existing,
@@ -325,7 +318,7 @@ impl TransientGraphUtility {
                         } else {
                             NORMAL_WEIGHT
                         };
-                        self.find_or_add_edge(graph, extend_vertex, existing, weight);
+                        self.find_or_add_edge(session, extend_vertex, existing, weight);
                     }
                     return (false, splice_target);
                 }
@@ -334,7 +327,7 @@ impl TransientGraphUtility {
                 debug_assert!(
                     splice_target
                         == StaticGraphUtility::find_adjacent_vertex(
-                            graph,
+                            &session.vis_graph,
                             existing,
                             splice_target_dir
                         ),
@@ -346,14 +339,14 @@ impl TransientGraphUtility {
                 // StaticGraphUtility.Assert((spliceTarget == null) || spliceTargetDir == PointComparer.GetPureDirection(nextExtendPoint, spliceTarget.Point), ...)
                 if let Some(st) = splice_target {
                     debug_assert!(
-                        CompassDirection::from_points(next_extend_point, graph.point(st))
+                        CompassDirection::from_points(next_extend_point, session.vis_graph.point(st))
                             == Some(splice_target_dir),
                         "spliceTarget is not to spliceTargetDir of nextExtendVertex"
                     );
                 }
 
                 // nextExtendVertex = this.AddVertex(nextExtendPoint);
-                next_extend_vertex = self.add_vertex(graph, next_extend_point);
+                next_extend_vertex = self.add_vertex(session, next_extend_point);
             }
 
             // FindOrAddEdge(extendVertex, nextExtendVertex, isOverlapped ? OverlappedWeight : NormalWeight);
@@ -362,12 +355,12 @@ impl TransientGraphUtility {
             } else {
                 NORMAL_WEIGHT
             };
-            self.find_or_add_edge(graph, extend_vertex, next_extend_vertex, weight);
+            self.find_or_add_edge(session, extend_vertex, next_extend_vertex, weight);
 
             // Debug_VerifyNonOverlappedExtension(isOverlapped, extendVertex, nextExtendVertex, spliceSource, spliceTarget);
             self.debug_verify_non_overlapped_extension(
-                graph,
-                obstacle_tree,
+                &session.vis_graph,
+                &mut session.obstacle_tree,
                 is_overlapped,
                 extend_vertex,
                 next_extend_vertex,
@@ -376,13 +369,12 @@ impl TransientGraphUtility {
             );
 
             // FindOrAddEdge(spliceSource, nextExtendVertex, isOverlapped ? OverlappedWeight : NormalWeight);
-            self.find_or_add_edge(graph, splice_source, next_extend_vertex, weight);
+            self.find_or_add_edge(session, splice_source, next_extend_vertex, weight);
 
             // if (isOverlapped) { isOverlapped = this.SeeIfSpliceIsStillOverlapped(extendDir, nextExtendVertex); }
             if is_overlapped {
                 is_overlapped = self.see_if_splice_is_still_overlapped(
-                    graph,
-                    obstacle_tree,
+                    session,
                     extend_dir,
                     next_extend_vertex,
                 );

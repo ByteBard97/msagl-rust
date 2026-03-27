@@ -1,4 +1,5 @@
 use super::compass_direction::CompassDirection;
+use super::router_session::RouterSession;
 use super::static_graph_utility::StaticGraphUtility;
 use crate::geometry::point::Point;
 use crate::geometry::point_comparer::GeomConstants;
@@ -33,18 +34,18 @@ impl TransientGraphUtility {
     /// Add a transient vertex at the given location.
     ///
     /// Always creates a new vertex and tracks it for removal.
-    pub fn add_vertex(&mut self, graph: &mut VisibilityGraph, location: Point) -> VertexId {
-        let id = graph.add_vertex(location);
+    pub fn add_vertex(&mut self, session: &mut RouterSession, location: Point) -> VertexId {
+        let id = session.vis_graph.add_vertex(location);
         self.added_vertices.push(id);
         id
     }
 
     /// Find an existing vertex at `location`, or add a transient one.
-    pub fn find_or_add_vertex(&mut self, graph: &mut VisibilityGraph, location: Point) -> VertexId {
-        if let Some(existing) = graph.find_vertex(location) {
+    pub fn find_or_add_vertex(&mut self, session: &mut RouterSession, location: Point) -> VertexId {
+        if let Some(existing) = session.vis_graph.find_vertex(location) {
             return existing;
         }
-        self.add_vertex(graph, location)
+        self.add_vertex(session, location)
     }
 
     /// Find or add a vertex at `location`, splitting any existing VG edge
@@ -58,19 +59,19 @@ impl TransientGraphUtility {
     /// handle edge splitting via bracket detection.
     pub fn find_or_add_vertex_splitting(
         &mut self,
-        graph: &mut VisibilityGraph,
+        session: &mut RouterSession,
         location: Point,
     ) -> VertexId {
-        if let Some(existing) = graph.find_vertex(location) {
+        if let Some(existing) = session.vis_graph.find_vertex(location) {
             return existing;
         }
-        let vertex = self.add_vertex(graph, location);
+        let vertex = self.add_vertex(session, location);
 
         // Check all 4 directions for an existing VG edge that contains this point.
         // If found, split that edge at this vertex.
         use super::compass_direction::CompassDirection;
         for &dir in &CompassDirection::all() {
-            if let Some(neighbor) = super::static_graph_utility::StaticGraphUtility::find_adjacent_vertex(graph, vertex, dir) {
+            if let Some(neighbor) = super::static_graph_utility::StaticGraphUtility::find_adjacent_vertex(&session.vis_graph, vertex, dir) {
                 // The vertex already has a neighbor — it was connected by add_vertex
                 // (this shouldn't happen for a new vertex, but check anyway).
                 let _ = neighbor;
@@ -86,12 +87,12 @@ impl TransientGraphUtility {
         ];
         for (dir_a, dir_b) in dirs {
             // Find nearest VG vertex in each direction along this axis
-            let va = graph.find_nearest_vertex_in_direction(location, dir_a);
-            let vb = graph.find_nearest_vertex_in_direction(location, dir_b);
+            let va = session.vis_graph.find_nearest_vertex_in_direction(location, dir_a);
+            let vb = session.vis_graph.find_nearest_vertex_in_direction(location, dir_b);
 
             if let (Some(va_id), Some(vb_id)) = (va, vb) {
-                let pa = graph.point(va_id);
-                let pb = graph.point(vb_id);
+                let pa = session.vis_graph.point(va_id);
+                let pb = session.vis_graph.point(vb_id);
 
                 // Check they're on the same axis as our point
                 let same_axis = match dir_a {
@@ -111,12 +112,12 @@ impl TransientGraphUtility {
 
                 // Check if there's an edge between va and vb (or any edge chain
                 // that passes through our point). If so, split it.
-                if graph.find_edge(va_id, vb_id).is_some() {
-                    self.split_edge(graph, va_id, vb_id, vertex);
+                if session.vis_graph.find_edge(va_id, vb_id).is_some() {
+                    self.split_edge(session, va_id, vb_id, vertex);
                     break;
                 }
-                if graph.find_edge(vb_id, va_id).is_some() {
-                    self.split_edge(graph, vb_id, va_id, vertex);
+                if session.vis_graph.find_edge(vb_id, va_id).is_some() {
+                    self.split_edge(session, vb_id, va_id, vertex);
                     break;
                 }
             }
@@ -128,11 +129,11 @@ impl TransientGraphUtility {
     /// Add a transient edge with bracket detection, using default weight.
     pub fn find_or_add_edge_vv(
         &mut self,
-        graph: &mut VisibilityGraph,
+        session: &mut RouterSession,
         source: VertexId,
         target: VertexId,
     ) {
-        self.find_or_add_edge(graph, source, target, NORMAL_WEIGHT);
+        self.find_or_add_edge(session, source, target, NORMAL_WEIGHT);
     }
 
     /// Add a transient edge with bracket detection.
@@ -144,13 +145,13 @@ impl TransientGraphUtility {
     /// Faithfully ports `FindOrAddEdge` from the TS source.
     pub fn find_or_add_edge(
         &mut self,
-        graph: &mut VisibilityGraph,
+        session: &mut RouterSession,
         source: VertexId,
         target: VertexId,
         weight: f64,
     ) {
-        let source_point = graph.point(source);
-        let target_point = graph.point(target);
+        let source_point = session.vis_graph.point(source);
+        let target_point = session.vis_graph.point(target);
 
         let dir_to_target = match CompassDirection::from_points(source_point, target_point) {
             Some(d) => d,
@@ -163,7 +164,7 @@ impl TransientGraphUtility {
         let mut split_vertex = target;
 
         let found_forward = Self::find_bracketing_vertices(
-            graph,
+            &session.vis_graph,
             source,
             target_point,
             dir_to_target,
@@ -177,7 +178,7 @@ impl TransientGraphUtility {
             let mut rev_bracket_source = target;
             let mut rev_bracket_target = target; // placeholder
             let found_reverse = Self::find_bracketing_vertices(
-                graph,
+                &session.vis_graph,
                 target,
                 source_point,
                 reverse_dir,
@@ -194,13 +195,15 @@ impl TransientGraphUtility {
         }
 
         // If there's an existing edge between bracket_source and bracket_target, split it.
-        let edge_info =
-            graph.find_edge_pp(graph.point(bracket_source), graph.point(bracket_target));
+        let edge_info = session.vis_graph.find_edge_pp(
+            session.vis_graph.point(bracket_source),
+            session.vis_graph.point(bracket_target),
+        );
 
         if let Some((edge_src, edge_tgt, _edge_weight)) = edge_info {
-            self.split_edge(graph, edge_src, edge_tgt, split_vertex);
+            self.split_edge(session, edge_src, edge_tgt, split_vertex);
         } else {
-            self.create_edge(graph, bracket_source, bracket_target, weight);
+            self.create_edge(session, bracket_source, bracket_target, weight);
         }
     }
 
@@ -266,20 +269,20 @@ impl TransientGraphUtility {
     /// convention where `IsPureLower(source, target)` must hold.
     fn create_edge(
         &mut self,
-        graph: &mut VisibilityGraph,
+        session: &mut RouterSession,
         first: VertexId,
         second: VertexId,
         weight: f64,
     ) {
         // All edges in the graph are stored in ascending order.
         let (source, target) =
-            if StaticGraphUtility::is_pure_lower(graph.point(first), graph.point(second)) {
+            if StaticGraphUtility::is_pure_lower(session.vis_graph.point(first), session.vis_graph.point(second)) {
                 (first, second)
             } else {
                 (second, first)
             };
 
-        graph.add_toll_free_edge(source, target, weight);
+        session.vis_graph.add_toll_free_edge(source, target, weight);
         self.added_edges.push((source, target));
     }
 
@@ -291,14 +294,14 @@ impl TransientGraphUtility {
     /// Faithfully ports `SplitEdge` from the TS source.
     pub fn split_edge(
         &mut self,
-        graph: &mut VisibilityGraph,
+        session: &mut RouterSession,
         source: VertexId,
         far: VertexId,
         split_vertex: VertexId,
     ) {
-        let source_point = graph.point(source);
-        let far_point = graph.point(far);
-        let split_point = graph.point(split_vertex);
+        let source_point = session.vis_graph.point(source);
+        let far_point = session.vis_graph.point(far);
+        let split_point = session.vis_graph.point(split_vertex);
 
         // No split needed if split_vertex is at either endpoint.
         if (GeomConstants::close(source_point.x(), split_point.x())
@@ -310,7 +313,7 @@ impl TransientGraphUtility {
         }
 
         // Find the original edge weight.
-        let original_edge = graph.find_edge(source, far);
+        let original_edge = session.vis_graph.find_edge(source, far);
         let (orig_weight, orig_toll_free) = match original_edge {
             Some(e) => (e.weight, e.is_toll_free),
             None => return, // edge doesn't exist
@@ -323,11 +326,11 @@ impl TransientGraphUtility {
         }
 
         // Remove the original edge.
-        graph.remove_edge(source, far);
+        session.vis_graph.remove_edge(source, far);
 
         // Create the two replacement edges with the original weight.
-        self.create_edge(graph, source, split_vertex, orig_weight);
-        self.create_edge(graph, split_vertex, far, orig_weight);
+        self.create_edge(session, source, split_vertex, orig_weight);
+        self.create_edge(session, split_vertex, far, orig_weight);
     }
 
     /// Connect `source_vertex` to `target_vertex`, adding a bend vertex if needed.
@@ -339,14 +342,14 @@ impl TransientGraphUtility {
     /// Faithfully ports `ConnectVertexToTargetVertex` from the TS source.
     pub fn connect_vertex_to_target(
         &mut self,
-        graph: &mut VisibilityGraph,
+        session: &mut RouterSession,
         source: VertexId,
         target: VertexId,
         final_edge_dir: CompassDirection,
         weight: f64,
     ) {
-        let source_point = graph.point(source);
-        let target_point = graph.point(target);
+        let source_point = session.vis_graph.point(source);
+        let target_point = session.vis_graph.point(target);
 
         if GeomConstants::close(source_point.x(), target_point.x())
             && GeomConstants::close(source_point.y(), target_point.y())
@@ -357,7 +360,7 @@ impl TransientGraphUtility {
         // If collinear, just one edge.
         if let Some(_dir) = CompassDirection::from_points(source_point, target_point) {
             if StaticGraphUtility::is_collinear(source_point, target_point) {
-                self.find_or_add_edge_vv(graph, source, target);
+                self.find_or_add_edge_vv(session, source, target);
                 return;
             }
         }
@@ -365,9 +368,9 @@ impl TransientGraphUtility {
         // Need a bend vertex.
         let bend_point =
             StaticGraphUtility::find_bend_point_between(source_point, target_point, final_edge_dir);
-        let bend_vertex = self.find_or_add_vertex(graph, bend_point);
-        self.find_or_add_edge(graph, source, bend_vertex, weight);
-        self.find_or_add_edge(graph, bend_vertex, target, weight);
+        let bend_vertex = self.find_or_add_vertex(session, bend_point);
+        self.find_or_add_edge(session, source, bend_vertex, weight);
+        self.find_or_add_edge(session, bend_vertex, target, weight);
     }
 
     /// Add an edge from `source_vertex` to a point on `target_edge`, splitting
@@ -378,21 +381,21 @@ impl TransientGraphUtility {
     /// Faithfully ports `AddEdgeToTargetEdge` from the TS source.
     pub fn add_edge_to_target_edge(
         &mut self,
-        graph: &mut VisibilityGraph,
+        session: &mut RouterSession,
         source: VertexId,
         target_edge_source: VertexId,
         target_edge_target: VertexId,
         target_intersect: Point,
     ) -> VertexId {
-        let target_vertex = match graph.find_vertex(target_intersect) {
+        let target_vertex = match session.vis_graph.find_vertex(target_intersect) {
             Some(v) => v,
             None => {
-                let v = self.add_vertex(graph, target_intersect);
-                self.split_edge(graph, target_edge_source, target_edge_target, v);
+                let v = self.add_vertex(session, target_intersect);
+                self.split_edge(session, target_edge_source, target_edge_target, v);
                 v
             }
         };
-        self.find_or_add_edge_vv(graph, source, target_vertex);
+        self.find_or_add_edge_vv(session, source, target_vertex);
         target_vertex
     }
 
@@ -577,21 +580,21 @@ impl TransientGraphUtility {
     /// Faithfully ports `RemoveFromGraph` from TransientGraphUtility.ts lines 178-182.
     /// Order matters: vertices first (removes all incident edges), then remaining
     /// edges, then restore split edges.
-    pub fn remove_from_graph(&mut self, graph: &mut VisibilityGraph) {
-        self.remove_added_vertices(graph);
-        self.remove_added_edges(graph);
-        self.restore_removed_edges(graph);
+    pub fn remove_from_graph(&mut self, session: &mut RouterSession) {
+        self.remove_added_vertices(session);
+        self.remove_added_edges(session);
+        self.restore_removed_edges(session);
     }
 
     /// Remove all transient vertices (and their incident edges) from the graph.
     ///
     /// Faithfully ports `RemoveAddedVertices` from TransientGraphUtility.ts lines 184-193.
-    fn remove_added_vertices(&mut self, graph: &mut VisibilityGraph) {
+    fn remove_added_vertices(&mut self, session: &mut RouterSession) {
         for &vertex in &self.added_vertices {
             // Removing all transient vertices will remove all associated transient
             // edges as well.
-            if graph.find_vertex(graph.point(vertex)).is_some() {
-                graph.remove_vertex(vertex);
+            if session.vis_graph.find_vertex(session.vis_graph.point(vertex)).is_some() {
+                session.vis_graph.remove_vertex(vertex);
             }
         }
         self.added_vertices.clear();
@@ -600,11 +603,11 @@ impl TransientGraphUtility {
     /// Remove any remaining transient edges that weren't already removed by vertex removal.
     ///
     /// Faithfully ports `RemoveAddedEdges` from TransientGraphUtility.ts lines 195-203.
-    fn remove_added_edges(&mut self, graph: &mut VisibilityGraph) {
+    fn remove_added_edges(&mut self, session: &mut RouterSession) {
         for &(s, t) in &self.added_edges {
             // If either vertex was removed, so was the edge, so just check source.
-            if graph.find_vertex(graph.point(s)).is_some() {
-                graph.remove_edge(s, t);
+            if session.vis_graph.find_vertex(session.vis_graph.point(s)).is_some() {
+                session.vis_graph.remove_edge(s, t);
             }
         }
         self.added_edges.clear();
@@ -613,9 +616,9 @@ impl TransientGraphUtility {
     /// Restore original edges that were split during transient splicing.
     ///
     /// Faithfully ports `RestoreRemovedEdges` from TransientGraphUtility.ts lines 206-218.
-    fn restore_removed_edges(&mut self, graph: &mut VisibilityGraph) {
+    fn restore_removed_edges(&mut self, session: &mut RouterSession) {
         for &(s, t, w, _toll_free) in &self.edges_to_restore {
-            graph.add_edge(s, t, w);
+            session.vis_graph.add_edge(s, t, w);
         }
         self.edges_to_restore.clear();
     }

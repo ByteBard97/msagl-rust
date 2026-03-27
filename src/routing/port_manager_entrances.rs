@@ -8,11 +8,11 @@
 use crate::geometry::point::Point;
 use crate::geometry::point_comparer::GeomConstants;
 use crate::geometry::rectangle::Rectangle;
-use crate::visibility::graph::{VertexId, VisibilityGraph};
 use super::compass_direction::CompassDirection;
 use super::obstacle_tree::ObstacleTree;
 use super::port::{ObstaclePort, ObstaclePortEntrance};
 use super::port_manager::FullPortManager;
+use super::router_session::RouterSession;
 use super::transient_graph_utility::TransientGraphUtility;
 
 impl FullPortManager {
@@ -174,18 +174,17 @@ impl FullPortManager {
     // Calls: entrance.ExtendEdgeChain, entrance.AddToAdjacentVertex
     pub(crate) fn add_obstacle_port_entrance_to_graph(
         entrance: &ObstaclePortEntrance,
-        graph: &mut VisibilityGraph,
+        session: &mut RouterSession,
         trans_util: &mut TransientGraphUtility,
-        obstacle_tree: &mut ObstacleTree,
         limit_rect: &Rectangle,
         route_to_center: bool,
     ) {
         // TS line 156: const borderVertex = this.VisGraph.FindVertex(entrance.VisibilityBorderIntersect)
-        let border_vertex = graph.find_vertex(entrance.visibility_border_intersect);
+        let border_vertex = session.vis_graph.find_vertex(entrance.visibility_border_intersect);
 
         if let Some(bv) = border_vertex {
             // TS line 158: entrance.ExtendEdgeChain(transUtil, bv, bv, limitRect, routeToCenter)
-            entrance.extend_edge_chain(graph, trans_util, obstacle_tree, bv, bv, limit_rect, route_to_center);
+            entrance.extend_edge_chain(session, trans_util, bv, bv, limit_rect, route_to_center);
             return;
         }
 
@@ -193,9 +192,9 @@ impl FullPortManager {
         // Use TransientGraphUtility's find_nearest_perpendicular_or_containing_edge
         // as a simplified version of FindorCreateNearestPerpEdgePPDNT.
         let target_vertex = {
-            let start_vertex = trans_util.find_or_add_vertex(graph, entrance.visibility_border_intersect);
+            let start_vertex = trans_util.find_or_add_vertex(session, entrance.visibility_border_intersect);
             TransientGraphUtility::find_nearest_perpendicular_or_containing_edge(
-                graph,
+                &session.vis_graph,
                 start_vertex,
                 entrance.outward_direction,
                 entrance.max_visibility_segment_end,
@@ -206,7 +205,7 @@ impl FullPortManager {
 
         // TS line 174-176: if edge found, call AddToAdjacentVertex
         if let Some(tv) = target_vertex {
-            entrance.add_to_adjacent_vertex(graph, trans_util, obstacle_tree, tv, limit_rect, route_to_center);
+            entrance.add_to_adjacent_vertex(session, trans_util, tv, limit_rect, route_to_center);
         }
     }
 }

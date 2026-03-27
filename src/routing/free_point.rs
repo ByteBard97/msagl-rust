@@ -8,6 +8,7 @@ use crate::geometry::point_comparer::GeomConstants;
 use crate::geometry::rectangle::Rectangle;
 use crate::visibility::graph::VertexId;
 use super::compass_direction::CompassDirection;
+use super::router_session::RouterSession;
 
 // =========================================================================
 // FreePoint — C# FreePoint.cs (132 lines)
@@ -61,9 +62,9 @@ impl FreePoint {
     ///
     /// C# file: FreePoint.cs, lines 34-37
     /// Big-O: O(log V) for vertex find/add
-    pub fn new(point: Point, graph: &mut crate::visibility::graph::VisibilityGraph) -> Self {
+    pub fn new(point: Point, session: &mut RouterSession) -> Self {
         // C#: OutOfBoundsDirectionFromGraph = Direction.None; this.GetVertex(transUtil, point);
-        let vertex = graph.find_or_add_vertex(point);
+        let vertex = session.vis_graph.find_or_add_vertex(point);
         Self {
             vertex: Some(vertex),
             point,
@@ -77,9 +78,9 @@ impl FreePoint {
     ///
     /// C# file: FreePoint.cs, lines 39-41
     /// Big-O: O(log V) for vertex find/add
-    pub fn get_vertex(&mut self, graph: &mut crate::visibility::graph::VisibilityGraph) {
+    pub fn get_vertex(&mut self, session: &mut RouterSession) {
         // C#: this.Vertex = transUtil.FindOrAddVertex(point);
-        let vertex = graph.find_or_add_vertex(self.point);
+        let vertex = session.vis_graph.find_or_add_vertex(self.point);
         self.vertex = Some(vertex);
     }
 
@@ -111,16 +112,15 @@ impl FreePoint {
         target_edge: (VertexId, VertexId),
         dir_to_extend: CompassDirection,
         limit_rect: &Rectangle,
-        graph: &mut crate::visibility::graph::VisibilityGraph,
+        session: &mut RouterSession,
         trans_util: &mut crate::routing::transient_graph_utility::TransientGraphUtility,
-        obstacle_tree: &mut crate::routing::obstacle_tree::ObstacleTree,
     ) -> Option<VertexId> {
         // C#: Point targetIntersect = StaticGraphUtility.SegmentIntersection(targetEdge, this.Point);
         // SegmentIntersection finds the perpendicular projection of this.Point onto the edge.
         // For rectilinear edges, this is the point on the edge sharing the appropriate coordinate.
         let self_vertex = self.vertex?;
-        let edge_src_point = graph.point(target_edge.0);
-        let edge_tgt_point = graph.point(target_edge.1);
+        let edge_src_point = session.vis_graph.point(target_edge.0);
+        let edge_tgt_point = session.vis_graph.point(target_edge.1);
 
         // For axis-aligned edges, the intersection is the projection of self.point onto the edge.
         let target_intersect = if GeomConstants::close(edge_src_point.x(), edge_tgt_point.x()) {
@@ -132,18 +132,18 @@ impl FreePoint {
         };
 
         // C#: VisibilityVertex targetVertex = transUtil.VisGraph.FindVertex(targetIntersect);
-        let target_vertex = graph.find_vertex(target_intersect);
+        let target_vertex = session.vis_graph.find_vertex(target_intersect);
 
         if let Some(tv) = target_vertex {
             // Vertex already exists — add edge to it and extend.
-            self.add_to_adjacent_vertex(tv, dir_to_extend, limit_rect, graph, trans_util, obstacle_tree);
+            self.add_to_adjacent_vertex(tv, dir_to_extend, limit_rect, session, trans_util);
             return Some(tv);
         }
 
         // Vertex doesn't exist — AddEdgeToTargetEdge adds it to the graph.
         // C#: targetVertex = transUtil.AddEdgeToTargetEdge(this.Vertex, targetEdge, targetIntersect);
         let new_vertex = trans_util.add_edge_to_target_edge(
-            graph,
+            session,
             self_vertex,
             target_edge.0,
             target_edge.1,
@@ -151,7 +151,7 @@ impl FreePoint {
         );
 
         // C#: ExtendEdgeChain(transUtil, targetVertex, dirToExtend, limitRect);
-        self.extend_edge_chain(new_vertex, dir_to_extend, limit_rect, graph, trans_util, obstacle_tree);
+        self.extend_edge_chain(new_vertex, dir_to_extend, limit_rect, session, trans_util);
         Some(new_vertex)
     }
 
@@ -164,20 +164,19 @@ impl FreePoint {
         target_vertex: VertexId,
         dir_to_extend: CompassDirection,
         limit_rect: &Rectangle,
-        graph: &mut crate::visibility::graph::VisibilityGraph,
+        session: &mut RouterSession,
         trans_util: &mut crate::routing::transient_graph_utility::TransientGraphUtility,
-        obstacle_tree: &mut crate::routing::obstacle_tree::ObstacleTree,
     ) {
         if let Some(self_vertex) = self.vertex {
-            let tp = graph.point(target_vertex);
+            let tp = session.vis_graph.point(target_vertex);
             if !(GeomConstants::close(self.point.x(), tp.x())
                 && GeomConstants::close(self.point.y(), tp.y()))
             {
                 let weight = self.initial_weight();
-                trans_util.find_or_add_edge(graph, self_vertex, target_vertex, weight);
+                trans_util.find_or_add_edge(session, self_vertex, target_vertex, weight);
             }
         }
-        self.extend_edge_chain(target_vertex, dir_to_extend, limit_rect, graph, trans_util, obstacle_tree);
+        self.extend_edge_chain(target_vertex, dir_to_extend, limit_rect, session, trans_util);
     }
 
     /// Extend the edge chain from a target vertex in the given direction.
@@ -190,9 +189,8 @@ impl FreePoint {
         target_vertex: VertexId,
         dir_to_extend: CompassDirection,
         limit_rect: &Rectangle,
-        graph: &mut crate::visibility::graph::VisibilityGraph,
+        session: &mut RouterSession,
         trans_util: &mut crate::routing::transient_graph_utility::TransientGraphUtility,
-        obstacle_tree: &mut crate::routing::obstacle_tree::ObstacleTree,
     ) {
         let mut extend_overlapped = self.is_overlapped;
         if extend_overlapped {
@@ -202,14 +200,13 @@ impl FreePoint {
             } else {
                 ScanDirection::vertical()
             };
-            extend_overlapped = obstacle_tree.point_is_inside_an_obstacle(graph.point(target_vertex), scan_dir);
+            extend_overlapped = session.obstacle_tree.point_is_inside_an_obstacle(session.vis_graph.point(target_vertex), scan_dir);
         }
 
         let start_vertex = if self.is_overlapped { target_vertex } else { self.vertex.unwrap() };
-        let (seg_start, seg_end) = self.get_segment_and_crossings(start_vertex, dir_to_extend, graph, obstacle_tree);
+        let (seg_start, seg_end) = self.get_segment_and_crossings(start_vertex, dir_to_extend, session);
         trans_util.extend_edge_chain_public(
-            graph,
-            obstacle_tree,
+            session,
             target_vertex,
             limit_rect,
             seg_start,
@@ -223,19 +220,18 @@ impl FreePoint {
         &mut self,
         start_vertex: VertexId,
         dir_to_extend: CompassDirection,
-        graph: &crate::visibility::graph::VisibilityGraph,
-        obstacle_tree: &mut crate::routing::obstacle_tree::ObstacleTree,
+        session: &mut RouterSession,
     ) -> (Point, Point) {
         let dir_index = dir_to_extend.index();
         if let Some(ref mut sac) = self.max_visibility_segments[dir_index] {
-            let start_point = graph.point(start_vertex);
+            let start_point = session.vis_graph.point(start_vertex);
             if CompassDirection::from_points(start_point, sac.segment_start) == Some(dir_to_extend) {
                 sac.segment_start = start_point;
             }
             return (sac.segment_start, sac.segment_end);
         }
 
-        let start_point = graph.point(start_vertex);
+        let start_point = session.vis_graph.point(start_vertex);
         // Create a very long segment in the direction of extension
         // Then restrict it using the obstacle tree.
         let far_distance = 1e6; // A sufficiently large number representing max visibility
@@ -246,7 +242,7 @@ impl FreePoint {
             CompassDirection::West => Point::new(start_point.x() - far_distance, start_point.y()),
         };
 
-        let (seg_start, seg_end) = obstacle_tree.restrict_segment_with_obstacles(start_point, far_point);
+        let (seg_start, seg_end) = session.obstacle_tree.restrict_segment_with_obstacles(start_point, far_point);
         let sac = match &mut self.max_visibility_segments[dir_index] {
             slot => {
                 let val = SegmentAndCrossings {
@@ -267,11 +263,10 @@ impl FreePoint {
     pub fn max_visibility_in_direction(
         &mut self,
         dir_to_extend: CompassDirection,
-        graph: &crate::visibility::graph::VisibilityGraph,
-        obstacle_tree: &mut crate::routing::obstacle_tree::ObstacleTree,
+        session: &mut RouterSession,
     ) -> Point {
         let vertex = self.vertex.unwrap();
-        let (_start, end) = self.get_segment_and_crossings(vertex, dir_to_extend, graph, obstacle_tree);
+        let (_start, end) = self.get_segment_and_crossings(vertex, dir_to_extend, session);
         end
     }
 

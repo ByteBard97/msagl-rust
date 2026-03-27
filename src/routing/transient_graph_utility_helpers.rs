@@ -6,13 +6,17 @@
 
 use super::compass_direction::{CompassDirection, Direction};
 use super::group_boundary_crossing::{PointAndCrossings, PointAndCrossingsList, BOUNDARY_WIDTH};
-use super::obstacle_tree::ObstacleTree;
+use super::router_session::RouterSession;
 use super::static_graph_utility::StaticGraphUtility;
 use super::transient_graph_utility::TransientGraphUtility;
 use crate::geometry::point::Point;
 use crate::geometry::point_comparer::GeomConstants;
 use crate::visibility::graph::{VertexId, VisibilityGraph};
 use std::sync::Arc;
+
+// ObstacleTree is referenced via super::obstacle_tree::ObstacleTree in the
+// debug_verify_non_overlapped_extension method signature (kept as &VisibilityGraph
+// + &mut ObstacleTree since it's called from extend.rs with field borrows).
 
 /// Weight for normal scan segments (matches C# ScanSegment.NormalWeight = 1).
 const NORMAL_WEIGHT: f64 = 1.0;
@@ -145,8 +149,7 @@ impl TransientGraphUtility {
     // ── C# line 495-541: SpliceGroupBoundaryCrossings ──────────────────────────
     pub(super) fn splice_group_boundary_crossings(
         &mut self,
-        graph: &mut VisibilityGraph,
-        obstacle_tree: &ObstacleTree,
+        session: &mut RouterSession,
         crossing_list: Option<&mut PointAndCrossingsList>,
         start_vertex: VertexId,
         max_segment_start: Point,
@@ -187,12 +190,12 @@ impl TransientGraphUtility {
 
         // startVertex = TraverseToFirstVertexAtOrAbove(startVertex, start, CompassVector.OppositeDir(dir));
         let current_start_vertex =
-            Self::traverse_to_first_vertex_at_or_above(graph, start_vertex, start, dir.opposite());
+            Self::traverse_to_first_vertex_at_or_above(&session.vis_graph, start_vertex, start, dir.opposite());
 
         // for (var currentVertex = startVertex; currentVertex != null; currentVertex = StaticGraphUtility.FindAdjacentVertex(currentVertex, dir))
         let mut current_vertex_opt = Some(current_start_vertex);
         while let Some(current_vertex) = current_vertex_opt {
-            let current_point = graph.point(current_vertex);
+            let current_point = session.vis_graph.point(current_vertex);
 
             // bool isFinalVertex = (PointComparer.Compare(currentVertex.Point, end) >= 0);
             let is_final_vertex = compare_points(current_point, end) != std::cmp::Ordering::Less;
@@ -202,7 +205,7 @@ impl TransientGraphUtility {
                 // PointAndCrossings pac = crossingList.Pop();
                 let pac = crossing_list.pop();
 
-                let start_vertex_point = graph.point(current_start_vertex);
+                let start_vertex_point = session.vis_graph.point(current_start_vertex);
 
                 // if (PointComparer.Compare(pac.Location, startVertex.Point) > 0)
                 if compare_points(pac.location, start_vertex_point) == std::cmp::Ordering::Greater
@@ -211,8 +214,7 @@ impl TransientGraphUtility {
                     if compare_points(pac.location, end) != std::cmp::Ordering::Greater {
                         // SpliceGroupBoundaryCrossing(currentVertex, pac, CompassVector.OppositeDir(dir));
                         self.splice_group_boundary_crossing(
-                            graph,
-                            obstacle_tree,
+                            session,
                             current_vertex,
                             &pac,
                             dir.opposite(),
@@ -226,8 +228,7 @@ impl TransientGraphUtility {
                     if compare_points(pac.location, end) == std::cmp::Ordering::Less {
                         // SpliceGroupBoundaryCrossing(currentVertex, pac, dir);
                         self.splice_group_boundary_crossing(
-                            graph,
-                            obstacle_tree,
+                            session,
                             current_vertex,
                             &pac,
                             dir,
@@ -243,7 +244,7 @@ impl TransientGraphUtility {
 
             // advance: currentVertex = StaticGraphUtility.FindAdjacentVertex(currentVertex, dir)
             current_vertex_opt =
-                StaticGraphUtility::find_adjacent_vertex(graph, current_vertex, dir);
+                StaticGraphUtility::find_adjacent_vertex(&session.vis_graph, current_vertex, dir);
         }
     }
 
@@ -287,8 +288,7 @@ impl TransientGraphUtility {
     // ── C# line 559-575: SpliceGroupBoundaryCrossing ───────────────────────────
     fn splice_group_boundary_crossing(
         &mut self,
-        graph: &mut VisibilityGraph,
-        obstacle_tree: &ObstacleTree,
+        session: &mut RouterSession,
         current_vertex: VertexId,
         pac: &PointAndCrossings,
         dir_to_inside: CompassDirection,
@@ -301,30 +301,30 @@ impl TransientGraphUtility {
         }
 
         // var outerVertex = VisGraph.FindVertex(pac.Location) ?? AddVertex(pac.Location);
-        let outer_vertex = match graph.find_vertex(pac.location) {
+        let outer_vertex = match session.vis_graph.find_vertex(pac.location) {
             Some(v) => v,
-            None => self.add_vertex(graph, pac.location),
+            None => self.add_vertex(session, pac.location),
         };
 
         // if (currentVertex.Point != outerVertex.Point) { FindOrAddEdge(currentVertex, outerVertex); }
-        let current_point = graph.point(current_vertex);
+        let current_point = session.vis_graph.point(current_vertex);
         if !GeomConstants::close(current_point.x(), pac.location.x())
             || !GeomConstants::close(current_point.y(), pac.location.y())
         {
-            self.find_or_add_edge(graph, current_vertex, outer_vertex, NORMAL_WEIGHT);
+            self.find_or_add_edge(session, current_vertex, outer_vertex, NORMAL_WEIGHT);
         }
 
         // var interiorPoint = crossings[0].GetInteriorVertexPoint(pac.Location);
         let interior_point = crossings[0].get_interior_vertex_point(pac.location);
 
         // var interiorVertex = VisGraph.FindVertex(interiorPoint) ?? AddVertex(interiorPoint);
-        let interior_vertex = match graph.find_vertex(interior_point) {
+        let interior_vertex = match session.vis_graph.find_vertex(interior_point) {
             Some(v) => v,
-            None => self.add_vertex(graph, interior_point),
+            None => self.add_vertex(session, interior_point),
         };
 
         // FindOrAddEdge(outerVertex, interiorVertex);
-        self.find_or_add_edge(graph, outer_vertex, interior_vertex, NORMAL_WEIGHT);
+        self.find_or_add_edge(session, outer_vertex, interior_vertex, NORMAL_WEIGHT);
 
         // var edge = VisGraph.FindEdge(outerVertex.Point, interiorVertex.Point);
         // var crossingsArray = crossings.Select(c => c.Group.InputShape).ToArray();
@@ -335,7 +335,7 @@ impl TransientGraphUtility {
         // during the session. We capture Arc<[bool]> for the obstacle indices.
         let is_transparent_flags: Vec<bool> = crossings
             .iter()
-            .map(|c| obstacle_tree.obstacles[c.obstacle_idx].is_transparent())
+            .map(|c| session.obstacle_tree.obstacles[c.obstacle_idx].is_transparent())
             .collect();
         let is_transparent_flags = Arc::new(is_transparent_flags);
         let passable_fn: Arc<dyn Fn() -> bool + Send + Sync> =
@@ -343,26 +343,25 @@ impl TransientGraphUtility {
 
         // Set is_passable on the outer→interior edge.
         // Edges are stored source→target in ascending point order (via is_pure_lower).
-        let outer_pt = graph.point(outer_vertex);
-        let inner_pt = graph.point(interior_vertex);
+        let outer_pt = session.vis_graph.point(outer_vertex);
+        let inner_pt = session.vis_graph.point(interior_vertex);
         let (edge_src, edge_tgt) = if StaticGraphUtility::is_pure_lower(outer_pt, inner_pt) {
             (outer_vertex, interior_vertex)
         } else {
             (interior_vertex, outer_vertex)
         };
-        graph.set_edge_passable(edge_src, edge_tgt, passable_fn);
+        session.vis_graph.set_edge_passable(edge_src, edge_tgt, passable_fn);
     }
 
     // ── C# line 755-767: SeeIfSpliceIsStillOverlapped ─────────────────────────
     pub(super) fn see_if_splice_is_still_overlapped(
         &self,
-        graph: &VisibilityGraph,
-        obstacle_tree: &mut ObstacleTree,
+        session: &mut RouterSession,
         extend_dir: CompassDirection,
         next_extend_vertex: VertexId,
     ) -> bool {
         // var edge = this.FindNextEdge(nextExtendVertex, CompassVector.RotateLeft(extendDir));
-        let edge = TransientGraphUtility::find_next_edge(graph, next_extend_vertex, extend_dir.left());
+        let edge = TransientGraphUtility::find_next_edge(&session.vis_graph, next_extend_vertex, extend_dir.left());
 
         // var maybeFreeSpace = (edge == null) ? false : (ScanSegment.NormalWeight == edge.Weight);
         let mut maybe_free_space = match edge {
@@ -374,7 +373,7 @@ impl TransientGraphUtility {
         if !maybe_free_space {
             // edge = this.FindNextEdge(nextExtendVertex, CompassVector.RotateRight(extendDir));
             let edge2 =
-                TransientGraphUtility::find_next_edge(graph, next_extend_vertex, extend_dir.right());
+                TransientGraphUtility::find_next_edge(&session.vis_graph, next_extend_vertex, extend_dir.right());
             // maybeFreeSpace = (edge == null) ? false : (ScanSegment.NormalWeight == edge.Weight);
             maybe_free_space = match edge2 {
                 None => false,
@@ -384,8 +383,8 @@ impl TransientGraphUtility {
 
         // return !maybeFreeSpace || this.ObstacleTree.PointIsInsideAnObstacle(nextExtendVertex.Point, extendDir);
         !maybe_free_space
-            || obstacle_tree.point_is_inside_an_obstacle_dir(
-                graph.point(next_extend_vertex),
+            || session.obstacle_tree.point_is_inside_an_obstacle_dir(
+                session.vis_graph.point(next_extend_vertex),
                 extend_dir.to_direction(),
             )
     }
@@ -476,7 +475,7 @@ impl TransientGraphUtility {
     pub(super) fn debug_verify_non_overlapped_extension(
         &self,
         graph: &VisibilityGraph,
-        obstacle_tree: &mut ObstacleTree,
+        obstacle_tree: &mut super::obstacle_tree::ObstacleTree,
         is_overlapped: bool,
         _extend_vertex: VertexId,
         next_extend_vertex: VertexId,
@@ -554,7 +553,7 @@ impl TransientGraphUtility {
     pub(super) fn debug_verify_non_overlapped_extension(
         &self,
         _graph: &VisibilityGraph,
-        _obstacle_tree: &mut ObstacleTree,
+        _obstacle_tree: &mut super::obstacle_tree::ObstacleTree,
         _is_overlapped: bool,
         _extend_vertex: VertexId,
         _next_extend_vertex: VertexId,

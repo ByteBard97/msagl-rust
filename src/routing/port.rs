@@ -3,6 +3,7 @@ use crate::geometry::point_comparer::GeomConstants;
 use crate::geometry::rectangle::Rectangle;
 use crate::visibility::graph::VertexId;
 use super::compass_direction::CompassDirection;
+use super::router_session::RouterSession;
 
 /// A floating port attached to an obstacle.
 ///
@@ -145,9 +146,8 @@ impl ObstaclePortEntrance {
     /// Big-O: O(chain) for VG adjacency walk
     pub fn extend_edge_chain(
         &self,
-        graph: &mut crate::visibility::graph::VisibilityGraph,
+        session: &mut RouterSession,
         trans_util: &mut crate::routing::transient_graph_utility::TransientGraphUtility,
-        obstacle_tree: &mut crate::routing::obstacle_tree::ObstacleTree,
         padded_border_vertex: VertexId,
         target_vertex: VertexId,
         limit_rect: &Rectangle,
@@ -156,8 +156,7 @@ impl ObstaclePortEntrance {
         // C# line 169: transUtil.ExtendEdgeChain(targetVertex, limitRect,
         //     this.MaxVisibilitySegment, this.pointAndCrossingsList, this.IsOverlapped);
         trans_util.extend_edge_chain_public(
-            graph,
-            obstacle_tree,
+            session,
             target_vertex,
             limit_rect,
             self.max_visibility_segment_start,
@@ -167,12 +166,12 @@ impl ObstaclePortEntrance {
         );
 
         // C# line 173-174: connect unpadded border to padded border.
-        let unpadded_vertex = trans_util.find_or_add_vertex(graph, self.unpadded_border_intersect);
+        let unpadded_vertex = trans_util.find_or_add_vertex(session, self.unpadded_border_intersect);
         let weight = if self.is_overlapped { 100_000.0 } else { 1.0 };
-        let up = graph.point(unpadded_vertex);
-        let pp = graph.point(padded_border_vertex);
+        let up = session.vis_graph.point(unpadded_vertex);
+        let pp = session.vis_graph.point(padded_border_vertex);
         if !(GeomConstants::close(up.x(), pp.x()) && GeomConstants::close(up.y(), pp.y())) {
-            trans_util.find_or_add_edge(graph, unpadded_vertex, padded_border_vertex, weight);
+            trans_util.find_or_add_edge(session, unpadded_vertex, padded_border_vertex, weight);
         }
 
         if route_to_center {
@@ -189,24 +188,23 @@ impl ObstaclePortEntrance {
     /// Big-O: O(chain) for VG adjacency walk
     pub fn add_to_adjacent_vertex(
         &self,
-        graph: &mut crate::visibility::graph::VisibilityGraph,
+        session: &mut RouterSession,
         trans_util: &mut crate::routing::transient_graph_utility::TransientGraphUtility,
-        obstacle_tree: &mut crate::routing::obstacle_tree::ObstacleTree,
         target_vertex: VertexId,
         limit_rect: &Rectangle,
         route_to_center: bool,
     ) {
         // C#: First check if a vertex already exists at VisibilityBorderIntersect.
-        let border_vertex_existing = graph.find_vertex(self.visibility_border_intersect);
+        let border_vertex_existing = session.vis_graph.find_vertex(self.visibility_border_intersect);
 
         if let Some(bv) = border_vertex_existing {
             // Border vertex already in graph — just extend.
-            self.extend_edge_chain(graph, trans_util, obstacle_tree, bv, bv, limit_rect, route_to_center);
+            self.extend_edge_chain(session, trans_util, bv, bv, limit_rect, route_to_center);
             return;
         }
 
         // Check if target is in the outward direction from visibility border intersect.
-        let target_point = graph.point(target_vertex);
+        let target_point = session.vis_graph.point(target_vertex);
         let dir_from_target = CompassDirection::from_points(target_point, self.visibility_border_intersect);
 
         let border_vertex;
@@ -218,18 +216,18 @@ impl ObstaclePortEntrance {
             border_vertex = target_vertex;
         } else {
             // Create a new vertex at the visibility border intersect and connect to target.
-            border_vertex = trans_util.find_or_add_vertex(graph, self.visibility_border_intersect);
+            border_vertex = trans_util.find_or_add_vertex(session, self.visibility_border_intersect);
             let weight = if self.is_overlapped { 100_000.0 } else { 1.0 };
             // Connect border vertex to target vertex.
-            let bp = graph.point(border_vertex);
-            let tp = graph.point(target_vertex);
+            let bp = session.vis_graph.point(border_vertex);
+            let tp = session.vis_graph.point(target_vertex);
             if !(GeomConstants::close(bp.x(), tp.x()) && GeomConstants::close(bp.y(), tp.y())) {
-                trans_util.find_or_add_edge(graph, border_vertex, target_vertex, weight);
+                trans_util.find_or_add_edge(session, border_vertex, target_vertex, weight);
             }
         }
 
         let _ = vis_border; // used conceptually above
-        self.extend_edge_chain(graph, trans_util, obstacle_tree, border_vertex, target_vertex, limit_rect, route_to_center);
+        self.extend_edge_chain(session, trans_util, border_vertex, target_vertex, limit_rect, route_to_center);
     }
 }
 

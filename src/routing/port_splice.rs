@@ -1,4 +1,5 @@
 use super::compass_direction::CompassDirection;
+use super::router_session::RouterSession;
 use super::static_graph_utility::StaticGraphUtility;
 use super::transient_graph_utility::TransientGraphUtility;
 use crate::geometry::point::Point;
@@ -39,29 +40,28 @@ impl PortManager {
     /// (ported from C# `FindNearestPerpendicularOrContainingEdge`) instead of
     /// O(V) brute-force vertex scanning.
     pub fn splice_port(
-        graph: &mut VisibilityGraph,
-        obstacle_tree: &mut super::obstacle_tree::ObstacleTree,
+        session: &mut RouterSession,
         location: Point,
     ) -> PortSpliceResult {
         let mut tgu = TransientGraphUtility::new();
-        let port_vertex = tgu.find_or_add_vertex(graph, location);
+        let port_vertex = tgu.find_or_add_vertex(session, location);
 
         // Phase 1: Connect port vertex to nearest VG structure in each direction.
         for &direction in &CompassDirection::all() {
             // Strategy 1: Find the nearest perpendicular VG edge crossing
             // using coordinate-index lookup + VG adjacency chain walk.
             if let Some(intersection) =
-                Self::find_nearest_crossing_edge(graph, location, direction)
+                Self::find_nearest_crossing_edge(&session.vis_graph, location, direction)
             {
                 let (edge_source, edge_target, intersect_point) = intersection;
                 // Detect zombie vertices: vertices left behind by a previous
                 // splice that was unspliced, leaving them completely disconnected.
-                let pre_existing = graph.find_vertex(intersect_point);
+                let pre_existing = session.vis_graph.find_vertex(intersect_point);
                 let was_orphan = pre_existing
-                    .is_some_and(|v| graph.out_degree(v) == 0 && graph.in_degree(v) == 0);
+                    .is_some_and(|v| session.vis_graph.out_degree(v) == 0 && session.vis_graph.in_degree(v) == 0);
 
                 let split_vertex = tgu.add_edge_to_target_edge(
-                    graph,
+                    session,
                     port_vertex,
                     edge_source,
                     edge_target,
@@ -70,21 +70,21 @@ impl PortManager {
 
                 // If the vertex was orphaned and the original VG edge still
                 // exists unsplit, split it to reconnect the vertex to the VG.
-                if was_orphan && graph.find_edge(edge_source, edge_target).is_some() {
-                    tgu.split_edge(graph, edge_source, edge_target, split_vertex);
+                if was_orphan && session.vis_graph.find_edge(edge_source, edge_target).is_some() {
+                    tgu.split_edge(session, edge_source, edge_target, split_vertex);
                 }
 
                 let dist = ((intersect_point.x() - location.x()).powi(2)
                     + (intersect_point.y() - location.y()).powi(2))
                 .sqrt();
                 if dist > GeomConstants::DISTANCE_EPSILON {
-                    tgu.find_or_add_edge(graph, port_vertex, split_vertex, dist);
+                    tgu.find_or_add_edge(session, port_vertex, split_vertex, dist);
                 }
             } else if let Some((neighbor, dist)) =
-                Self::find_nearest_aligned(graph, port_vertex, location, direction)
+                Self::find_nearest_aligned(&session.vis_graph, port_vertex, location, direction)
             {
                 // Strategy 2: Direct aligned-vertex connection.
-                tgu.find_or_add_edge(graph, port_vertex, neighbor, dist);
+                tgu.find_or_add_edge(session, port_vertex, neighbor, dist);
             }
         }
 
@@ -92,8 +92,8 @@ impl PortManager {
     }
 
     /// Remove all transient port-splice modifications, restoring the graph.
-    pub fn unsplice(graph: &mut VisibilityGraph, result: &mut PortSpliceResult) {
-        result.tgu.remove_from_graph(graph);
+    pub fn unsplice(session: &mut RouterSession, result: &mut PortSpliceResult) {
+        result.tgu.remove_from_graph(session);
     }
 
     /// Find the nearest VG edge that an axis-aligned ray from `location`
