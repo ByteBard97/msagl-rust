@@ -124,19 +124,21 @@ impl RectilinearEdgeRouter {
 
         let graph_box = obstacle_tree.graph_box();
 
+        // Phase 2a: Create port entrances at obstacle boundaries for ALL ports before routing.
+        let mut entrance_tgu = TransientGraphUtility::new();
         for edge in &self.edges {
-            // Create port entrances at obstacle boundaries for center ports.
-            // C# does this via PortManager.AddObstaclePortToGraph → CreateObstaclePortEntrances.
-            let mut tgu = TransientGraphUtility::new();
             Self::create_port_entrances_for_location(
                 edge.source.location, &self.shapes, self.padding,
-                &mut vis_graph, &mut obstacle_tree, &mut tgu, &graph_box,
+                &mut vis_graph, &mut obstacle_tree, &mut entrance_tgu, &graph_box,
             );
             Self::create_port_entrances_for_location(
                 edge.target.location, &self.shapes, self.padding,
-                &mut vis_graph, &mut obstacle_tree, &mut tgu, &graph_box,
+                &mut vis_graph, &mut obstacle_tree, &mut entrance_tgu, &graph_box,
             );
+        }
 
+        // Phase 2b: Route each edge with port splicing.
+        for edge in &self.edges {
             let mut src_splice = PortManager::splice_port(&mut vis_graph, &mut obstacle_tree, edge.source.location);
             let mut tgt_splice = PortManager::splice_port(&mut vis_graph, &mut obstacle_tree, edge.target.location);
 
@@ -149,8 +151,10 @@ impl RectilinearEdgeRouter {
 
             PortManager::unsplice(&mut vis_graph, &mut src_splice);
             PortManager::unsplice(&mut vis_graph, &mut tgt_splice);
-            tgu.remove_from_graph(&mut vis_graph);
         }
+
+        // Clean up entrance modifications after all routing is done.
+        entrance_tgu.remove_from_graph(&mut vis_graph);
 
         // 3. Nudge paths for edge separation
         let obstacles = self.padded_obstacles();
@@ -238,12 +242,16 @@ impl RectilinearEdgeRouter {
         }
 
         // For each entrance: add vertex at boundary, connect to port, extend outward
-        let port_vertex = tgu.find_or_add_vertex(graph, rounded);
+        // Add boundary vertices only — do NOT add edges from center to boundary,
+        // as those edges cross through the obstacle interior. splice_port will
+        // connect the center to these boundary vertices via its own heuristic.
         for (border_point, out_dir) in entrances {
             let border_vertex = tgu.find_or_add_vertex(graph, border_point);
-            tgu.find_or_add_edge(graph, port_vertex, border_vertex, 1.0);
 
             // Compute max visibility segment from boundary outward
+            let (seg_start, seg_end, _pac) =
+                obstacle_tree.create_max_visibility_segment(border_point, out_dir, graph_box);
+            // Extend edge chain outward from boundary vertex along max visibility segment.
             let (seg_start, seg_end, _pac) =
                 obstacle_tree.create_max_visibility_segment(border_point, out_dir, graph_box);
             if !seg_start.close_to(seg_end) {
