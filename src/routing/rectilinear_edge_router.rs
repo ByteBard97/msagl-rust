@@ -14,6 +14,7 @@ use crate::routing::port_manager::PortManager;
 use crate::routing::port_manager::FullPortManager;
 use crate::routing::transient_graph_utility::TransientGraphUtility;
 use crate::routing::shape::Shape;
+use crate::routing::router_session::RouterSession;
 use crate::routing::visibility_graph_generator::generate_visibility_graph;
 
 /// Default padding around obstacles (pixels).
@@ -115,46 +116,46 @@ impl RectilinearEdgeRouter {
             return RoutingResult { edges: Vec::new() };
         }
 
-        // 1. Build visibility graph from shapes
-        let (mut vis_graph, mut obstacle_tree) = generate_visibility_graph(&self.shapes, self.padding);
+        // 1. Build visibility graph from shapes (H/V scan segment trees kept on session)
+        let mut session = generate_visibility_graph(&self.shapes, self.padding);
 
         // 2. Route each edge: splice ports -> A* -> unsplice
         let search = PathSearch::new(self.bend_penalty_as_percentage);
         let mut paths: Vec<Vec<Point>> = Vec::new();
 
-        let graph_box = obstacle_tree.graph_box();
+        let graph_box = session.obstacle_tree.graph_box();
 
         // Phase 2a: Create port entrances at obstacle boundaries for ALL ports before routing.
         let mut entrance_tgu = TransientGraphUtility::new();
         for edge in &self.edges {
             Self::create_port_entrances_for_location(
                 edge.source.location, &self.shapes, self.padding,
-                &mut vis_graph, &mut obstacle_tree, &mut entrance_tgu, &graph_box,
+                &mut session.vis_graph, &mut session.obstacle_tree, &mut entrance_tgu, &graph_box,
             );
             Self::create_port_entrances_for_location(
                 edge.target.location, &self.shapes, self.padding,
-                &mut vis_graph, &mut obstacle_tree, &mut entrance_tgu, &graph_box,
+                &mut session.vis_graph, &mut session.obstacle_tree, &mut entrance_tgu, &graph_box,
             );
         }
 
         // Phase 2b: Route each edge with port splicing.
         for edge in &self.edges {
-            let mut src_splice = PortManager::splice_port(&mut vis_graph, &mut obstacle_tree, edge.source.location);
-            let mut tgt_splice = PortManager::splice_port(&mut vis_graph, &mut obstacle_tree, edge.target.location);
+            let mut src_splice = PortManager::splice_port(&mut session.vis_graph, &mut session.obstacle_tree, edge.source.location);
+            let mut tgt_splice = PortManager::splice_port(&mut session.vis_graph, &mut session.obstacle_tree, edge.target.location);
 
-            let path = search.find_path(&vis_graph, edge.source.location, edge.target.location);
+            let path = search.find_path(&session.vis_graph, edge.source.location, edge.target.location);
             paths.push(path.unwrap_or_else(|| {
                 debug_assert!(false, "path search failed for {:?} -> {:?}",
                     edge.source.location, edge.target.location);
                 vec![edge.source.location, edge.target.location]
             }));
 
-            PortManager::unsplice(&mut vis_graph, &mut src_splice);
-            PortManager::unsplice(&mut vis_graph, &mut tgt_splice);
+            PortManager::unsplice(&mut session.vis_graph, &mut src_splice);
+            PortManager::unsplice(&mut session.vis_graph, &mut tgt_splice);
         }
 
         // Clean up entrance modifications after all routing is done.
-        entrance_tgu.remove_from_graph(&mut vis_graph);
+        entrance_tgu.remove_from_graph(&mut session.vis_graph);
 
         // 3. Nudge paths for edge separation
         let obstacles = self.padded_obstacles();

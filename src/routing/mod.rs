@@ -19,6 +19,7 @@ mod port_manager_entrances;
 mod port_manager_free_point;
 pub mod port_splice;
 pub mod rectilinear_edge_router;
+pub mod router_session;
 pub mod scan_direction;
 pub mod scan_line;
 pub mod scan_segment;

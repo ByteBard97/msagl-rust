@@ -2,6 +2,7 @@ use msagl_rust::routing::obstacle_tree::ObstacleTree;
 use msagl_rust::routing::path_search::PathSearch;
 use msagl_rust::routing::port_manager::PortManager;
 use msagl_rust::routing::shape::Shape;
+use msagl_rust::routing::router_session::RouterSession;
 use msagl_rust::routing::visibility_graph_generator::generate_visibility_graph;
 use msagl_rust::visibility::graph::VisibilityGraph;
 use msagl_rust::Point;
@@ -46,7 +47,7 @@ fn splice_and_route_between_obstacles() {
         Shape::rectangle(0.0, 0.0, 10.0, 10.0),
         Shape::rectangle(30.0, 0.0, 10.0, 10.0),
     ];
-    let (mut graph, mut _obstacle_tree) = generate_visibility_graph(&shapes, 2.0);
+    let RouterSession { vis_graph: mut graph, obstacle_tree: mut _obstacle_tree, .. } = generate_visibility_graph(&shapes, 2.0);
 
     // Splice source port (right of obstacle 0) and target (left of obstacle 1)
     let source = Point::new(12.0, 5.0);
@@ -77,7 +78,7 @@ fn full_pipeline_shapes_to_path() {
         Shape::rectangle(10.0, 20.0, 10.0, 10.0), // obstacle at (10,20)-(20,30)
     ];
     let padding = 2.0;
-    let (mut graph, mut _obstacle_tree) = generate_visibility_graph(&shapes, padding);
+    let RouterSession { vis_graph: mut graph, obstacle_tree: mut _obstacle_tree, .. } = generate_visibility_graph(&shapes, padding);
 
     // Route from right of obstacle 0 to left of obstacle 1
     let source = Point::new(12.0, 5.0);

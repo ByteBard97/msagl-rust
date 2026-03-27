@@ -3,6 +3,7 @@ use super::neighbor_sides::NeighborSides;
 use super::obstacle::Obstacle;
 use super::obstacle_side::{ObstacleSide, SideType};
 use super::obstacle_tree::ObstacleTree;
+use super::router_session::RouterSession;
 use super::scan_direction::ScanDirection;
 use super::scan_line::RectilinearScanLine;
 use super::scan_segment::{ScanSegment, ScanSegmentTree, SegmentWeight};
@@ -16,41 +17,64 @@ use crate::visibility::graph::VisibilityGraph;
 /// Matches C# VisibilityGraphGenerator.SentinelOffset = 1.0.
 const SENTINEL_OFFSET: f64 = 1.0;
 
-/// Generate a visibility graph from rectangular shapes.
+/// Generate a visibility graph from rectangular shapes, returning a populated RouterSession.
 ///
 /// Uses a two-pass event-driven sweep-line algorithm:
 ///   Pass 1 (horizontal scan, vertical sweep): creates horizontal segments
 ///   Pass 2 (vertical scan, horizontal sweep): creates vertical segments
 /// Then intersects H and V segments to build the visibility graph.
 ///
+/// The H and V scan segment trees are preserved on the session so that PortManager
+/// can perform O(log n) edge lookups during port splicing.
+///
 /// Mirrors FullVisibilityGraphGenerator.cs / VisibilityGraphGenerator.ts from MSAGL.
-pub fn generate_visibility_graph(shapes: &[Shape], padding: f64) -> (VisibilityGraph, ObstacleTree) {
+pub fn generate_visibility_graph(shapes: &[Shape], padding: f64) -> RouterSession {
     if shapes.is_empty() {
-        return (VisibilityGraph::new(), ObstacleTree::empty());
+        return RouterSession {
+            vis_graph: VisibilityGraph::new(),
+            obstacle_tree: ObstacleTree::empty(),
+            h_scan_segments: ScanSegmentTree::new(ScanDirection::horizontal()),
+            v_scan_segments: ScanSegmentTree::new(ScanDirection::vertical()),
+            padding,
+        };
     }
 
     let obstacle_tree = ObstacleTree::new(shapes, padding);
     let graph_box = obstacle_tree.graph_box();
 
     // Pass 1: Horizontal scan (vertical sweep, creates horizontal segments)
-    let mut h_segments = run_sweep(&obstacle_tree, ScanDirection::horizontal(), &graph_box);
+    let h_scan_segments = run_sweep(&obstacle_tree, ScanDirection::horizontal(), &graph_box);
 
     // Pass 2: Vertical scan (horizontal sweep, creates vertical segments)
-    let mut v_segments = run_sweep(&obstacle_tree, ScanDirection::vertical(), &graph_box);
+    let v_scan_segments = run_sweep(&obstacle_tree, ScanDirection::vertical(), &graph_box);
 
-    // Intersect to build the visibility graph
-    let graph = build_graph_from_segments(&mut h_segments, &mut v_segments);
-    (graph, obstacle_tree)
+    // Intersect to build the visibility graph.
+    // build_graph_from_segments clones the input slices internally, so we can still
+    // keep the trees alive on the session for PortManager splice lookups.
+    let mut h_segs: Vec<ScanSegment> = h_scan_segments.all_segments().cloned().collect();
+    let mut v_segs: Vec<ScanSegment> = v_scan_segments.all_segments().cloned().collect();
+    let vis_graph = build_graph_from_segments(&mut h_segs, &mut v_segs);
+
+    RouterSession {
+        vis_graph,
+        obstacle_tree,
+        h_scan_segments,
+        v_scan_segments,
+        padding,
+    }
 }
 
-/// Run one sweep pass (horizontal or vertical) and return the resulting scan segments.
+/// Run one sweep pass (horizontal or vertical) and return the resulting ScanSegmentTree.
+///
+/// The tree is preserved (not flattened to a Vec) so the session can hold it for
+/// PortManager lookups after the sweep completes.
 fn run_sweep(
     tree: &ObstacleTree,
     scan_direction: ScanDirection,
     graph_box: &crate::geometry::rectangle::Rectangle,
-) -> Vec<ScanSegment> {
+) -> ScanSegmentTree {
     let mut scan_line = RectilinearScanLine::new(scan_direction);
-    let mut seg_tree = ScanSegmentTree::new(scan_direction);
+    let seg_tree = ScanSegmentTree::new(scan_direction);
 
     insert_sentinels(&mut scan_line, scan_direction, graph_box);
 
@@ -74,7 +98,7 @@ fn run_sweep(
 
     state.seg_tree.merge_segments();
 
-    state.seg_tree.all_segments().cloned().collect()
+    state.seg_tree
 }
 
 /// Insert sentinel obstacle sides at the graph boundaries.
