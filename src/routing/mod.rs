@@ -15,6 +15,7 @@ pub mod path_search_wrapper;
 pub mod free_point;
 pub mod port;
 pub mod port_manager;
+mod port_manager_entrances;
 mod port_manager_free_point;
 pub mod port_splice;
 pub mod rectilinear_edge_router;

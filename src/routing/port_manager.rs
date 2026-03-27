@@ -309,33 +309,7 @@ impl FullPortManager {
         // The caller should handle entrance creation and graph splicing externally.
     }
 
-    /// Create port entrances from border intersection points.
-    ///
-    /// C# file: PortManager.cs, lines 447-503
-    /// Big-O: O(1) per entrance (up to 4 directions)
-    /// MUST compute horizontal and vertical border intersections
-    fn create_obstacle_port_entrances_from_points(
-        &mut self,
-        _oport_id: ObstaclePortId,
-        _graph_box: &Rectangle,
-    ) {
-        // C# creates port entrances at horizontal and vertical border intersections
-        // of the obstacle boundary with the port location.
-        //
-        // For rectangular obstacles with port at `location`:
-        //   - If location is NOT on top/bottom boundary: create E and W entrances
-        //     at the horizontal border intersections
-        //   - If location is NOT on left/right boundary: create N and S entrances
-        //     at the vertical border intersections
-        //   - If on a corner: create 2 entrances in the appropriate directions
-        //
-        // NOTE: This requires access to the obstacle's boundary curve and the
-        // ObstaclePort's entrance list, which are not stored in FullPortManager.
-        // The entrances would be stored on the ObstaclePort object itself in the
-        // full C# implementation. Since we use index-based ObstaclePortId without
-        // a backing store for entrance data, this is a structural placeholder.
-        // The caller must provide obstacle geometry for full implementation.
-    }
+    // create_obstacle_port_entrances_from_points is in port_manager_entrances.rs.
 
     // Free point splicing methods are in port_manager_free_point.rs.
 

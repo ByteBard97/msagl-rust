@@ -124,7 +124,11 @@ impl RectilinearEdgeRouter {
             let mut tgt_splice = PortManager::splice_port(&mut vis_graph, edge.target.location);
 
             let path = search.find_path(&vis_graph, edge.source.location, edge.target.location);
-            paths.push(path.unwrap_or_else(|| vec![edge.source.location, edge.target.location]));
+            paths.push(path.unwrap_or_else(|| {
+                debug_assert!(false, "path search failed for {:?} -> {:?}",
+                    edge.source.location, edge.target.location);
+                vec![edge.source.location, edge.target.location]
+            }));
 
             PortManager::unsplice(&mut vis_graph, &mut src_splice);
             PortManager::unsplice(&mut vis_graph, &mut tgt_splice);
