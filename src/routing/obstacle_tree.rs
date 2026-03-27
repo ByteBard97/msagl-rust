@@ -1,4 +1,7 @@
-use super::compass_direction::Direction;
+use super::compass_direction::{CompassDirection, Direction};
+use super::group_boundary_crossing::{
+    compare_points, GroupBoundaryCrossingMap, PointAndCrossingsList,
+};
 use super::obstacle::Obstacle;
 use super::obstacle_tree_overlap::resolve_overlaps;
 use super::scan_direction::ScanDirection;
@@ -32,6 +35,13 @@ impl PointDistance for ObstacleEnvelope {
 pub struct ObstacleTree {
     pub obstacles: Vec<Obstacle>,
     rtree: RTree<ObstacleEnvelope>,
+    /// Accumulates group boundary crossings during segment restriction.
+    ///
+    /// Matches C# `ObstacleTree.CurrentGroupBoundaryCrossingMap`.
+    /// Cleared at the start of each `restrict_segment_private` call, then
+    /// populated by `add_group_intersections_to_restricted_ray` for each group
+    /// obstacle encountered during the scan.
+    pub current_group_boundary_crossing_map: GroupBoundaryCrossingMap,
 }
 
 impl ObstacleTree {
@@ -62,6 +72,7 @@ impl ObstacleTree {
         Self {
             obstacles,
             rtree: RTree::bulk_load(envelopes),
+            current_group_boundary_crossing_map: GroupBoundaryCrossingMap::new(),
         }
     }
 
@@ -169,14 +180,15 @@ impl ObstacleTree {
     /// Matches C# `ObstacleTree.RestrictSegmentWithObstacles()` (line 634).
     /// The segment direction must be a pure compass direction (axis-aligned).
     ///
+    /// Also populates `current_group_boundary_crossing_map` with group crossings.
+    ///
     /// Returns `(clipped_start, clipped_end)`.
     pub fn restrict_segment_with_obstacles(
-        &self,
+        &mut self,
         start_point: Point,
         end_point: Point,
     ) -> (Point, Point) {
-        // Matches C# RestrictSegmentPrivate (line 640) with stopAtGroups=false,
-        // wantGroupCrossings=true (group crossings are deferred for now).
+        // Matches C# RestrictSegmentPrivate (line 640) with stopAtGroups=false.
         self.restrict_segment_private(start_point, end_point, false)
     }
 
@@ -185,12 +197,18 @@ impl ObstacleTree {
     /// Matches C# `RestrictSegmentPrivate` (line 640).
     /// `stop_at_groups`: if true, treat group obstacles as blocking (used by
     /// `segment_crosses_an_obstacle`).
+    ///
+    /// Clears `current_group_boundary_crossing_map` at the start, then populates
+    /// it with group crossings during the scan (when `stop_at_groups` is false).
     fn restrict_segment_private(
-        &self,
+        &mut self,
         start_point: Point,
         end_point: Point,
         stop_at_groups: bool,
     ) -> (Point, Point) {
+        // C# RestrictSegmentPrivate line 640-641: clear group crossings before scan.
+        self.current_group_boundary_crossing_map.clear();
+
         // Build the segment bounding box for spatial query.
         let seg_rect = Rectangle::from_points(start_point, end_point);
 
@@ -203,7 +221,8 @@ impl ObstacleTree {
         let seg_dir = Direction::from_point_to_point(start_point, end_point);
         let opp_dir = opposite_direction(seg_dir);
 
-        for idx in candidates {
+        // Pass 1: non-group obstacles — restrict best_end.
+        for &idx in &candidates {
             let obs = &self.obstacles[idx];
 
             // Skip non-primary obstacles (inside convex hulls).
@@ -211,9 +230,10 @@ impl ObstacleTree {
                 continue;
             }
 
-            // Groups are handled differently in the full C# — for now, skip them
-            // unless stop_at_groups is set. (Groups are not yet implemented in Rust.)
-            let _ = stop_at_groups;
+            // Groups do not shorten the ray (handled in pass 2 below).
+            if obs.is_group() {
+                continue;
+            }
 
             // A segment that moves along the boundary of an obstacle is not blocked.
             // Check that the segment's bounding box interior intersects the obstacle's.
@@ -240,14 +260,139 @@ impl ObstacleTree {
             }
         }
 
+        // Pass 2: group obstacles — collect boundary crossings (when not stop_at_groups).
+        //
+        // Matches C# RecurseRestrictRayWithObstacles: groups call
+        // AddGroupIntersectionsToRestrictedRay instead of
+        // LookForCloserNonGroupIntersectionToRestrictRay.
+        if !stop_at_groups {
+            let group_indices: Vec<usize> = candidates
+                .iter()
+                .copied()
+                .filter(|&idx| self.obstacles[idx].is_primary_obstacle() && self.obstacles[idx].is_group())
+                .collect();
+            for idx in group_indices {
+                self.add_group_intersections_to_restricted_ray(idx, start_point, best_end);
+            }
+        }
+
         (start_point, best_end)
+    }
+
+    /// Populate `current_group_boundary_crossing_map` with intersections of the
+    /// segment [start, end] against the given group obstacle's boundary.
+    ///
+    /// Matches C# `AddGroupIntersectionsToRestrictedRay` (lines 730-767).
+    ///
+    /// For each intersection of [start, end] with the group's padded polyline:
+    /// - determine `dir_toward_intersect = GetPureDirection(start, end)`
+    /// - determine `dirs_of_side` = direction of the polyline side at the intersection
+    /// - if `RotateRight(dir_toward_intersect)` is contained in `dirs_of_side`,
+    ///   then `dir_to_inside = Opposite(dir_toward_intersect)`
+    ///   else `dir_to_inside = dir_toward_intersect`
+    fn add_group_intersections_to_restricted_ray(
+        &mut self,
+        obstacle_idx: usize,
+        start: Point,
+        end: Point,
+    ) {
+        let dir_toward = match CompassDirection::from_points(start, end) {
+            Some(d) => d,
+            None => return,
+        };
+
+        // For rectangular groups (the common case), iterate the 4 padded sides and
+        // find axis-aligned intersections with the segment [start, end].
+        let padded_pts: Vec<Point> = {
+            let obs = &self.obstacles[obstacle_idx];
+            let bb = obs.padded_bounding_box();
+            // Clockwise: bottom-left, top-left, top-right, bottom-right.
+            vec![
+                bb.left_bottom(),
+                bb.left_top(),
+                bb.right_top(),
+                bb.right_bottom(),
+            ]
+        };
+
+        let n = padded_pts.len();
+        for i in 0..n {
+            let pa = padded_pts[i];
+            let pb = padded_pts[(i + 1) % n];
+
+            // Find intersection of [start,end] with side [pa,pb].
+            if let Some(intersect) = axis_aligned_segment_intersection(start, end, pa, pb) {
+                // Round the intersection (matches C# ApproximateComparer.Round).
+                let intersect = Point::round(intersect);
+
+                // Determine the direction of the polyline side (its derivative).
+                // The side goes from pa to pb; its direction is a compass direction.
+                let dirs_of_side = CompassDirection::from_points(pa, pb);
+
+                // C# logic:
+                // dirToInsideOfGroup = dirTowardIntersect (default)
+                // if (0 != (dirsOfSide & CompassVector.RotateRight(dirTowardIntersect)))
+                //     dirToInsideOfGroup = CompassVector.OppositeDir(dirTowardIntersect)
+                let rotate_right = dir_toward.right();
+                let dir_to_inside =
+                    if dirs_of_side == Some(rotate_right) {
+                        dir_toward.opposite()
+                    } else {
+                        dir_toward
+                    };
+
+                self.current_group_boundary_crossing_map.add_intersection(
+                    intersect,
+                    obstacle_idx,
+                    dir_to_inside,
+                );
+            }
+        }
+    }
+
+    /// Compute the maximum-visibility segment from `start_point` in `dir`,
+    /// clipped to the graph box, restricted by non-group obstacles.
+    ///
+    /// Also returns the `PointAndCrossingsList` of group boundary crossings
+    /// along the restricted segment (or `None` if there are none).
+    ///
+    /// Matches C# `ObstacleTree.CreateMaxVisibilitySegment` (lines 509-519).
+    pub fn create_max_visibility_segment(
+        &mut self,
+        start_point: Point,
+        dir: CompassDirection,
+        graph_box: &Rectangle,
+    ) -> (Point, Point, Option<PointAndCrossingsList>) {
+        // graphBoxBorderIntersect = StaticGraphUtility.RectangleBorderIntersect(this.GraphBox, startPoint, dir)
+        let border_coord = StaticGraphUtility::get_rectangle_bound(graph_box, dir);
+        let end_point = if StaticGraphUtility::is_vertical(dir) {
+            Point::round(Point::new(start_point.x(), border_coord))
+        } else {
+            Point::round(Point::new(border_coord, start_point.y()))
+        };
+
+        // if (PointComparer.GetDirections(startPoint, graphBoxBorderIntersect) == Direction.None)
+        if compare_points(start_point, end_point) == std::cmp::Ordering::Equal {
+            return (start_point, start_point, None);
+        }
+
+        // segment = this.RestrictSegmentWithObstacles(startPoint, graphBoxBorderIntersect)
+        let (seg_start, seg_end) =
+            self.restrict_segment_with_obstacles(start_point, end_point);
+
+        // pacList = this.CurrentGroupBoundaryCrossingMap.GetOrderedListBetween(segment.Start, segment.End)
+        let pac_list = self
+            .current_group_boundary_crossing_map
+            .get_ordered_list_between(seg_start, seg_end);
+
+        (seg_start, seg_end, pac_list)
     }
 
     /// Returns true if the line segment from `start_point` to `end_point` crosses
     /// any obstacle (the restricted segment end differs from the original end).
     ///
     /// Matches C# `ObstacleTree.SegmentCrossesAnObstacle()` (line 619).
-    pub fn segment_crosses_an_obstacle(&self, start_point: Point, end_point: Point) -> bool {
+    pub fn segment_crosses_an_obstacle(&mut self, start_point: Point, end_point: Point) -> bool {
         let (_start, restricted_end) =
             self.restrict_segment_private(start_point, end_point, true);
         !points_equal(restricted_end, end_point)
@@ -317,8 +462,11 @@ impl ObstacleTree {
                 continue;
             }
 
-            // C# line 571-576: skip groups (handled differently).
-            // Groups are not yet implemented in this Rust port.
+            // C# line 571-576: skip group obstacles — they are transparent containers
+            // and do not block point-inside tests.
+            if obs.is_group() {
+                continue;
+            }
 
             // C# line 578: the point must be strictly inside the rectangle interior.
             if !StaticGraphUtility::point_is_in_rectangle_interior(
@@ -548,6 +696,56 @@ fn segment_segment_intersection(a1: Point, a2: Point, b1: Point, b2: Point) -> O
     } else {
         None
     }
+}
+
+/// Find the intersection of an axis-aligned segment [seg_a, seg_b] with a
+/// single polyline side [side_a, side_b], both axis-aligned.
+///
+/// Used by `add_group_intersections_to_restricted_ray`.
+/// Returns the intersection point if it lies strictly on both segments.
+fn axis_aligned_segment_intersection(
+    seg_a: Point,
+    seg_b: Point,
+    side_a: Point,
+    side_b: Point,
+) -> Option<Point> {
+    let eps = 1e-9;
+
+    // Horizontal segment (constant Y) vs vertical side (constant X)
+    if (seg_a.y() - seg_b.y()).abs() < eps && (side_a.x() - side_b.x()).abs() < eps {
+        let seg_y = seg_a.y();
+        let side_x = side_a.x();
+        let seg_x_min = seg_a.x().min(seg_b.x());
+        let seg_x_max = seg_a.x().max(seg_b.x());
+        let side_y_min = side_a.y().min(side_b.y());
+        let side_y_max = side_a.y().max(side_b.y());
+        if side_x > seg_x_min + eps
+            && side_x < seg_x_max - eps
+            && seg_y > side_y_min + eps
+            && seg_y < side_y_max - eps
+        {
+            return Some(Point::new(side_x, seg_y));
+        }
+    }
+
+    // Vertical segment (constant X) vs horizontal side (constant Y)
+    if (seg_a.x() - seg_b.x()).abs() < eps && (side_a.y() - side_b.y()).abs() < eps {
+        let seg_x = seg_a.x();
+        let side_y = side_a.y();
+        let seg_y_min = seg_a.y().min(seg_b.y());
+        let seg_y_max = seg_a.y().max(seg_b.y());
+        let side_x_min = side_a.x().min(side_b.x());
+        let side_x_max = side_a.x().max(side_b.x());
+        if side_y > seg_y_min + eps
+            && side_y < seg_y_max - eps
+            && seg_x > side_x_min + eps
+            && seg_x < side_x_max - eps
+        {
+            return Some(Point::new(seg_x, side_y));
+        }
+    }
+
+    None
 }
 
 /// Test if a point is inside a non-rectangular obstacle polyline using ray casting.

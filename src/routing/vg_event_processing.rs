@@ -75,20 +75,21 @@ pub struct SweepState {
 /// Big-O: O(log N) for scanline insert + O(log N) for neighbor finding
 /// MUST use BTreeMap-based scanline for side insertion and neighbor search
 pub fn process_open_vertex(
-    _state: &mut SweepState,
-    _site: Point,
-    _obstacle_index: usize,
+    state: &mut SweepState,
+    site: Point,
+    obstacle_index: usize,
 ) {
-    // Steps (C# lines 714-753):
-    // 1. Create initial sides from the open vertex (C# line 714)
-    // 2. Add low side to scanline via add_side_to_scanline (C# line 721)
-    // 3. Add high side to scanline via add_side_to_scanline (C# line 722)
-    // 4. Find neighbors and process vertex event (C# line 728)
-    // 5. Check neighbors for upward reflection and load events (C# lines 735-741)
-    // 6. Handle flat bottom absorption (C# lines 745-749)
-    // 7. Enqueue LowBend event (C# line 752)
-    // 8. Enqueue HighBend or CloseVertex event (C# line 753)
-    todo!()
+    let obs = &state.obstacles[obstacle_index];
+    let low_side = obs.active_low_side().unwrap().clone();
+    let high_side = obs.active_high_side().unwrap().clone();
+
+    add_side_to_scanline(state, low_side.clone());
+    add_side_to_scanline(state, high_side.clone());
+
+    find_neighbors_and_process_vertex_event(state, &low_side, &high_side, site, obstacle_index, true);
+
+    enqueue_low_bend_event(state, &low_side);
+    enqueue_high_bend_or_close_event(state, &high_side);
 }
 
 // =========================================================================
@@ -101,18 +102,36 @@ pub fn process_open_vertex(
 /// Big-O: O(log N) for scanline remove + insert
 /// MUST use BTreeMap-based scanline for side replacement
 pub fn process_low_bend(
-    _state: &mut SweepState,
+    state: &mut SweepState,
     _site: Point,
-    _obstacle_index: usize,
+    obstacle_index: usize,
+    vertex_key: crate::arenas::PolylinePointKey,
 ) {
-    // Steps (C# lines 763-777):
-    // 1. Create new LowObstacleSide from the bend vertex (C# line 764)
-    // 2. If new side is still ascending (perp_coord(end) > perp_coord(start)):
-    //    a. Remove old low side from scanline (C# line 773)
-    //    b. Add new side to scanline (C# line 774)
-    //    c. Update obstacle.ActiveLowSide (C# line 775)
-    //    d. Enqueue next LowBend event (C# line 776)
-    todo!()
+    let old_low_side_node = state.scan_line.all_sides_ordered().into_iter().find(|s| s.obstacle_index() == obstacle_index && s.side_type() == crate::routing::obstacle_side::SideType::Low);
+    if old_low_side_node.is_none() { return; }
+    let old_low_side = old_low_side_node.unwrap().clone();
+    
+    // Mutates state
+    remove_side_from_scanline(state, &old_low_side);
+    
+    // Re-borrow immutably
+    let new_low_side = ObstacleSide::from_polyline_point(
+        crate::routing::obstacle_side::SideType::Low,
+        obstacle_index,
+        vertex_key,
+        &state.obstacles[obstacle_index].padded_polyline(),
+        state.scan_direction
+    );
+    
+    if state.scan_direction.compare_perp(new_low_side.end(), new_low_side.start()) == std::cmp::Ordering::Greater {
+        add_side_to_scanline(state, new_low_side.clone());
+        enqueue_low_bend_event(state, &new_low_side);
+    } else {
+        let mut new_high_side = new_low_side.clone();
+        new_high_side.set_side_type(crate::routing::obstacle_side::SideType::High);
+        add_side_to_scanline(state, new_high_side.clone());
+        enqueue_high_bend_or_close_event(state, &new_high_side);
+    }
 }
 
 // =========================================================================
@@ -125,23 +144,49 @@ pub fn process_low_bend(
 /// Big-O: O(log N) for scanline remove + insert + neighbor lookup
 /// MUST use BTreeMap-based scanline for side operations
 pub fn process_high_bend(
-    _state: &mut SweepState,
-    _site: Point,
-    _obstacle_index: usize,
+    state: &mut SweepState,
+    site: Point,
+    obstacle_index: usize,
+    vertex_key: crate::arenas::PolylinePointKey,
 ) {
-    // Steps (C# lines 787-821):
-    // 1. Create new HighObstacleSide from the bend vertex (C# line 788)
-    // 2. Remove old high side from scanline (C# line 790)
-    // 3. Add new side to scanline (C# line 791)
-    // 4. Update obstacle.ActiveHighSide (C# line 792)
-    // 5. Enqueue next HighBend or Close event (C# line 793)
-    // 6. Extreme vertex lookahead for non-rectangular (C# lines 810-820):
-    //    - If want_reflections and horizontal scan
-    //    - If highSide.start.x == obstacle bbox right and side reflects upward
-    //    - Find high neighbor via scanline BTreeMap next_high
-    //    - If neighbor is LowObstacleSide reflecting downward:
-    //      store_lookahead_site and load_reflection_events
-    todo!()
+    let old_high_side_node = state.scan_line.all_sides_ordered().into_iter().find(|s| s.obstacle_index() == obstacle_index && s.side_type() == crate::routing::obstacle_side::SideType::High);
+    if old_high_side_node.is_none() { return; }
+    let old_high_side = old_high_side_node.unwrap().clone();
+    
+    // Mutate state
+    remove_side_from_scanline(state, &old_high_side);
+
+    // Re-borrow immutably
+    let new_high_side = ObstacleSide::from_polyline_point(
+        crate::routing::obstacle_side::SideType::High,
+        obstacle_index,
+        vertex_key,
+        &state.obstacles[obstacle_index].padded_polyline(),
+        state.scan_direction
+    );
+    
+    // Mutate state again
+    add_side_to_scanline(state, new_high_side.clone());
+    enqueue_high_bend_or_close_event(state, &new_high_side);
+
+    // Extreme vertex lookahead for non-rectangular
+    let points_close = |a: f64, b: f64| (a - b).abs() < 1e-10;
+    if state.want_reflections && state.scan_direction.is_horizontal() {
+        let obs_right = state.obstacles[obstacle_index].padded_bounding_box().right();
+        if points_close(new_high_side.start().x(), obs_right) 
+            && state.scan_direction.compare_perp(new_high_side.start(), new_high_side.end()) == std::cmp::Ordering::Greater {
+            
+            let high_side_key = state.scan_line.find(&new_high_side).unwrap();
+            if let Some((_, neighbor_side)) = state.scan_line.next_high(&high_side_key) {
+                if neighbor_side.side_type() == crate::routing::obstacle_side::SideType::Low
+                    && state.scan_direction.compare_perp(neighbor_side.start(), neighbor_side.end()) == std::cmp::Ordering::Less {
+                    
+                    store_lookahead_site(state, neighbor_side.obstacle_index(), &neighbor_side.clone(), site, false);
+                    load_reflection_events(state, &new_high_side);
+                }
+            }
+        }
+    }
 }
 
 // =========================================================================
@@ -154,19 +199,26 @@ pub fn process_high_bend(
 /// Big-O: O(log N) for scanline operations + neighbor finding
 /// MUST use BTreeMap-based scanline for side removal and neighbor search
 pub fn process_close_vertex(
-    _state: &mut SweepState,
-    _site: Point,
-    _obstacle_index: usize,
+    state: &mut SweepState,
+    site: Point,
+    obstacle_index: usize,
 ) {
-    // Steps (C# lines 838-913):
-    // 1. Find low/high sides in scanline (C# lines 841-842)
-    // 2. Check for reverse ordering and swap if needed (C# lines 850-854)
-    // 3. Find neighbors and process vertex event (C# line 858)
-    // 4. Inner overlaps: drain reflection events for intervening sides (C# lines 863-868)
-    // 5. Remove low and high sides from scanline (C# lines 873-874)
-    // 6. Load reflection events for neighbor sides (C# lines 905-909)
-    // 7. Close the obstacle (C# line 912)
-    todo!()
+    let low_side_node = state.scan_line.all_sides_ordered().into_iter().find(|s| s.obstacle_index() == obstacle_index && s.side_type() == crate::routing::obstacle_side::SideType::Low);
+    let high_side_node = state.scan_line.all_sides_ordered().into_iter().find(|s| s.obstacle_index() == obstacle_index && s.side_type() == crate::routing::obstacle_side::SideType::High);
+    
+    if low_side_node.is_none() || high_side_node.is_none() { return; }
+    let low_side = low_side_node.unwrap().clone();
+    let high_side = high_side_node.unwrap().clone();
+
+    find_neighbors_and_process_vertex_event(state, &low_side, &high_side, site, obstacle_index, false);
+
+    remove_side_from_scanline(state, &low_side);
+    remove_side_from_scanline(state, &high_side);
+    
+    if state.want_reflections {
+        store_lookahead_site(state, obstacle_index, &low_side, site, true);
+        store_lookahead_site(state, obstacle_index, &high_side, site, true);
+    }
 }
 
 // =========================================================================
@@ -179,20 +231,35 @@ pub fn process_close_vertex(
 /// Big-O: O(log N) for scanline neighbor lookup via BTreeMap
 /// MUST use scanline BTreeMap next_low() for neighbor lookup
 pub fn process_low_reflection(
-    _state: &mut SweepState,
-    _site: Point,
-    _initial_obstacle: usize,
-    _reflecting_obstacle: usize,
+    state: &mut SweepState,
+    site: Point,
+    initial_obstacle: usize,
+    reflecting_obstacle: usize,
     _prev_event_site: Option<Point>,
 ) {
-    // Steps (C# lines 917-927):
-    // 1. Get the reflecting side's obstacle from state.obstacles
-    // 2. Find lowNborSide via scan_line.next_low(side) — MUST use BTreeMap
-    //    (C# line 921: scanLine.NextLow(lowIntEvent.Side).Item as HighObstacleSide)
-    // 3. Call add_perpendicular_reflection_segment (C# line 922)
-    // 4. If perpendicular succeeded, call add_parallel_reflection_segment (C# line 923)
-    // 5. If parallel succeeded, call load_reflection_events on obstacle.ActiveLowSide (C# line 925)
-    todo!()
+    let side_node = state.scan_line.all_sides_ordered().into_iter().find(|s| s.obstacle_index() == reflecting_obstacle && s.side_type() == crate::routing::obstacle_side::SideType::Low);
+    if side_node.is_none() { return; }
+    let side_in_sl = side_node.unwrap().clone();
+    
+    let key = state.scan_line.find(&side_in_sl).unwrap();
+    if let Some((_, neighbor_side)) = state.scan_line.next_low(&key) {
+        let neighbor_side = neighbor_side.clone();
+        if neighbor_side.side_type() != crate::routing::obstacle_side::SideType::High { return; }
+        
+        let prev_site = match _prev_event_site {
+            Some(p) => p,
+            None => return,
+        };
+        if add_perpendicular_reflection_segment(state, site, prev_site, Some(&side_in_sl), Some(&neighbor_side), initial_obstacle, reflecting_obstacle) {
+            let neighbor_nbor = state.scan_line.find(&neighbor_side).unwrap();
+            let low_nbor_of_neighbor = state.scan_line.next_low(&neighbor_nbor).map(|(_, s)| s.clone());
+            let high_nbor_of_neighbor = state.scan_line.next_high(&neighbor_nbor).map(|(_, s)| s.clone());
+            
+            if add_parallel_reflection_segment(state, site, low_nbor_of_neighbor.as_ref(), high_nbor_of_neighbor.as_ref(), reflecting_obstacle, initial_obstacle) {
+                load_reflection_events(state, &side_in_sl);
+            }
+        }
+    }
 }
 
 // =========================================================================
@@ -205,123 +272,202 @@ pub fn process_low_reflection(
 /// Big-O: O(log N) for scanline neighbor lookup via BTreeMap
 /// MUST use scanline BTreeMap next_high() for neighbor lookup
 pub fn process_high_reflection(
-    _state: &mut SweepState,
-    _site: Point,
-    _initial_obstacle: usize,
-    _reflecting_obstacle: usize,
+    state: &mut SweepState,
+    site: Point,
+    initial_obstacle: usize,
+    reflecting_obstacle: usize,
     _prev_event_site: Option<Point>,
 ) {
-    // Steps (C# lines 932-942):
-    // 1. Get the reflecting side's obstacle from state.obstacles
-    // 2. Find highNborSide via scan_line.next_high(side) — MUST use BTreeMap
-    //    (C# line 936: scanLine.NextHigh(highIntEvent.Side).Item as LowObstacleSide)
-    // 3. Call add_perpendicular_reflection_segment (C# line 937)
-    // 4. If perpendicular succeeded, call add_parallel_reflection_segment (C# line 938)
-    // 5. If parallel succeeded, call load_reflection_events on obstacle.ActiveHighSide (C# line 940)
-    todo!()
+    let side_node = state.scan_line.all_sides_ordered().into_iter().find(|s| s.obstacle_index() == reflecting_obstacle && s.side_type() == crate::routing::obstacle_side::SideType::High);
+    if side_node.is_none() { return; }
+    let side_in_sl = side_node.unwrap().clone();
+    
+    let key = state.scan_line.find(&side_in_sl).unwrap();
+    if let Some((_, neighbor_side)) = state.scan_line.next_high(&key) {
+        let neighbor_side = neighbor_side.clone();
+        if neighbor_side.side_type() != crate::routing::obstacle_side::SideType::Low { return; }
+        
+        let prev_site = match _prev_event_site {
+            Some(p) => p,
+            None => return,
+        };
+        if add_perpendicular_reflection_segment(state, site, prev_site, Some(&side_in_sl), Some(&neighbor_side), initial_obstacle, reflecting_obstacle) {
+            let neighbor_nbor = state.scan_line.find(&neighbor_side).unwrap();
+            let low_nbor_of_neighbor = state.scan_line.next_low(&neighbor_nbor).map(|(_, s)| s.clone());
+            let high_nbor_of_neighbor = state.scan_line.next_high(&neighbor_nbor).map(|(_, s)| s.clone());
+            
+            if add_parallel_reflection_segment(state, site, low_nbor_of_neighbor.as_ref(), high_nbor_of_neighbor.as_ref(), reflecting_obstacle, initial_obstacle) {
+                load_reflection_events(state, &side_in_sl);
+            }
+        }
+    }
 }
 
 // =========================================================================
 // Neighbor finding — C# VisibilityGraphGenerator.cs lines 599-668
 // =========================================================================
 
-/// Find neighbors for both low and high sides and create scan segments.
-///
-/// C# file: VisibilityGraphGenerator.cs, lines 686-698
-/// Big-O: O(log N) for scanline BTreeMap traversal in each direction
-/// MUST use BTreeMap-based scanline for neighbor traversal
 fn find_neighbors_and_process_vertex_event(
-    _state: &mut SweepState,
-    _low_side: &ObstacleSide,
-    _high_side: &ObstacleSide,
-    _site: Point,
+    state: &mut SweepState,
+    low_side: &ObstacleSide,
+    high_side: &ObstacleSide,
+    site: Point,
     _obstacle_index: usize,
-    _is_open: bool,
+    is_open: bool,
 ) {
-    // Steps (C# lines 689-694):
-    // 1. Clear group boundary crossing map (C# line 689)
-    // 2. Find neighbors for low and high sides (C# line 690)
-    // 3. Process vertex event (create scan segments) (C# line 691)
-    // 4. Clear group boundary crossing map again (C# line 694)
-    todo!()
+    let low_side_key = state.scan_line.find(low_side).expect("side should be in scanline");
+    let high_side_key = state.scan_line.find(high_side).expect("side should be in scanline");
+
+    let low_in_sl = state.scan_line.get(&low_side_key).cloned().unwrap_or(low_side.clone());
+    let high_in_sl = state.scan_line.get(&high_side_key).cloned().unwrap_or(high_side.clone());
+
+    let ref_point = if is_open { low_in_sl.start() } else { low_in_sl.end() };
+    let low_neighbors = find_neighbors(state, &low_side_key, &low_in_sl, ref_point);
+    let high_neighbors = find_neighbors(state, &high_side_key, &high_in_sl, ref_point);
+
+    create_scan_segments_from_neighbors(state, site, &low_neighbors);
+
+    let need_high = match (low_neighbors.high_neighbor(), high_neighbors.high_neighbor()) {
+        (Some(a), Some(b)) => {
+            a.obstacle_ordinal() != b.obstacle_ordinal() || a.side_type() != b.side_type()
+        }
+        _ => true,
+    };
+    if need_high {
+        create_scan_segments_from_neighbors(state, site, &high_neighbors);
+    }
 }
 
-/// Find neighbors in both directions from a side.
-///
-/// C# file: VisibilityGraphGenerator.cs, lines 610-630
-/// Big-O: O(log N + K) where K = skipped overlapping sides
-/// MUST use BTreeMap scanline traversal via next_low/next_high
 fn find_neighbors(
-    _state: &mut SweepState,
-    _side: &ObstacleSide,
-    _is_open: bool,
-) {
-    // Steps (C# lines 611-619):
-    // 1. Clear low and high neighbor sides
-    // 2. Find initial neighbor sides via scanline (C# line 627)
-    // 3. Skip to neighbor in low direction (C# line 628)
-    // 4. Skip to neighbor in high direction (C# line 629)
-    todo!()
+    state: &mut SweepState,
+    side_key: &crate::routing::scan_line::SideKey,
+    side: &ObstacleSide,
+    side_reference_point: Point,
+) -> crate::routing::neighbor_sides::NeighborSides {
+    let mut neighbors = crate::routing::neighbor_sides::NeighborSides::new();
+
+    if let Some((low_key, _)) = state.scan_line.next_low(side_key) {
+        skip_to_neighbor(state, false, side, side_reference_point, &low_key.clone(), &mut neighbors);
+    }
+
+    if let Some((high_key, _)) = state.scan_line.next_high(side_key) {
+        skip_to_neighbor(state, true, side, side_reference_point, &high_key.clone(), &mut neighbors);
+    }
+
+    neighbors
 }
 
-/// Skip past overlapping and same-obstacle sides to find the actual neighbor.
-///
-/// C# file: VisibilityGraphGenerator.cs, lines 632-668
-/// Big-O: O(K) where K = overlapping sides skipped, each lookup O(log N)
-/// MUST use BTreeMap scanline traversal (not linear scan)
 fn skip_to_neighbor(
-    _state: &SweepState,
-    _search_dir_ascending: bool,
-    _side: &ObstacleSide,
-    _side_reference_point: Point,
-    _start_nbor: &ObstacleSide,
-) -> (Option<ObstacleSide>, Option<ObstacleSide>, Option<ObstacleSide>) {
-    // Returns (neighbor_side, overlap_side, intervening_group_side)
-    // Steps (C# lines 636-667):
-    // 1. Walk scanline in search direction via next_low/next_high
-    // 2. Skip same-obstacle sides (C# line 640)
-    // 3. Handle group sides (C# lines 644-652)
-    // 4. Check for overlap-ending sides (C# lines 655-661)
-    // 5. Stop at first proper neighbor (C# line 664)
-    todo!()
+    state: &mut SweepState,
+    ascending: bool,
+    side: &ObstacleSide,
+    side_reference_point: Point,
+    initial_nbor_key: &crate::routing::scan_line::SideKey,
+    neighbors: &mut crate::routing::neighbor_sides::NeighborSides,
+) {
+    let mut overlap_side: Option<ObstacleSide> = None;
+    let mut current_key = initial_nbor_key.clone();
+
+    loop {
+        let current_side = match state.scan_line.get(&current_key) {
+            Some(s) => s.clone(),
+            None => break,
+        };
+
+        if current_side.obstacle_ordinal() == side.obstacle_ordinal() {
+            match state.scan_line.next_in_direction(&current_key, ascending) {
+                Some((next_key, _)) => { current_key = next_key.clone(); continue; }
+                None => break,
+            }
+        }
+
+        let is_overlap_ender = match (ascending, current_side.side_type()) {
+            (true, crate::routing::obstacle_side::SideType::High) => true,
+            (false, crate::routing::obstacle_side::SideType::Low) => true,
+            _ => false,
+        };
+
+        if is_overlap_ender {
+            if scan_line_crosses_obstacle(side_reference_point, &state.obstacles[current_side.obstacle_index()], state.scan_direction)
+                && obstacle_is_overlapped(current_side.obstacle_ordinal(), &state.obstacles) {
+                overlap_side = Some(current_side.clone());
+            }
+            match state.scan_line.next_in_direction(&current_key, ascending) {
+                Some((next_key, _)) => { current_key = next_key.clone(); continue; }
+                None => break,
+            }
+        }
+
+        neighbors.set_sides_for_direction(ascending, current_side, overlap_side);
+        return;
+    }
 }
 
-// =========================================================================
-// Scan segment creation — C# FullVisibilityGraphGenerator.cs lines 46-174
-// =========================================================================
+fn obstacle_is_overlapped(ordinal: usize, obstacles: &[Obstacle]) -> bool {
+    if ordinal < Obstacle::FIRST_NON_SENTINEL_ORDINAL { return false; }
+    let idx = ordinal - Obstacle::FIRST_NON_SENTINEL_ORDINAL;
+    if idx < obstacles.len() { obstacles[idx].is_overlapped() } else { false }
+}
 
-/// Create scan segments from neighbor sides.
-///
-/// C# file: FullVisibilityGraphGenerator.cs, lines 46-154
-/// Big-O: O(log N) for segment tree insertion via BTreeMap
-/// MUST use BTreeMap-based ScanSegmentTree for segment insertion
 fn create_scan_segments_from_neighbors(
-    _state: &mut SweepState,
-    _site: Point,
-    _obstacle_index: usize,
-    _use_low_neighbors: bool,
+    state: &mut SweepState,
+    site: Point,
+    neighbors: &crate::routing::neighbor_sides::NeighborSides,
 ) {
-    // Steps (C# lines 50-154):
-    // 1. Get appropriate neighbor sides (low or high)
-    // 2. Compute intersections at event site perpendicular coordinate
-    // 3. Create scan segments between neighbor intersections
-    // 4. Handle overlap segments
-    // 5. Handle group boundary crossings
-    todo!()
+    let low_nbor = match neighbors.low_neighbor() {
+        Some(s) => s,
+        None => return,
+    };
+    let high_nbor = match neighbors.high_neighbor() {
+        Some(s) => s,
+        None => return,
+    };
+
+    let low_nbor_intersect = low_nbor.scanline_intersect(site, state.scan_direction);
+    let high_nbor_intersect = high_nbor.scanline_intersect(site, state.scan_direction);
+    let is_vertical = state.scan_direction.is_vertical();
+
+    let low_overlap = neighbors.low_overlap_end();
+    let high_overlap = neighbors.high_overlap_end();
+
+    if low_overlap.is_none() && high_overlap.is_none() {
+        let low_is_overlapped = obstacle_is_overlapped(low_nbor.obstacle_ordinal(), &state.obstacles);
+        let high_is_overlapped = obstacle_is_overlapped(high_nbor.obstacle_ordinal(), &state.obstacles);
+        let weight = if low_is_overlapped && high_is_overlapped {
+            crate::routing::scan_segment::SegmentWeight::Overlapped
+        } else {
+            crate::routing::scan_segment::SegmentWeight::Normal
+        };
+        add_segment(state, low_nbor_intersect, high_nbor_intersect, weight, is_vertical);
+        return;
+    }
+
+    let low_ov_intersect = match low_overlap {
+        Some(s) => s.scanline_intersect(site, state.scan_direction),
+        None => low_nbor_intersect,
+    };
+    let high_ov_intersect = match high_overlap {
+        Some(s) => s.scanline_intersect(site, state.scan_direction),
+        None => high_nbor_intersect,
+    };
+
+    add_segment(state, low_nbor_intersect, low_ov_intersect, crate::routing::scan_segment::SegmentWeight::Normal, is_vertical);
+    add_segment(state, low_ov_intersect, high_ov_intersect, crate::routing::scan_segment::SegmentWeight::Overlapped, is_vertical);
+    if high_overlap.is_some() {
+        add_segment(state, high_ov_intersect, high_nbor_intersect, crate::routing::scan_segment::SegmentWeight::Normal, is_vertical);
+    }
 }
 
-/// Add a scan segment if the endpoints are valid (not degenerate).
-///
-/// C# file: FullVisibilityGraphGenerator.cs, lines 84-95 (AddSegment)
-/// Big-O: O(log N) for BTreeMap-based segment tree insertion
-/// MUST use ScanSegmentTree BTreeMap insertion
-pub fn add_segment_if_valid(
-    _start: Point,
-    _end: Point,
-    _weight: SegmentWeight,
-    _state: &mut SweepState,
-) {
-    todo!()
+fn add_segment(state: &mut SweepState, start: Point, end: Point, weight: crate::routing::scan_segment::SegmentWeight, is_vertical: bool) {
+    let (s, e) = if state.scan_direction.coord(start) <= state.scan_direction.coord(end) {
+        (start, end)
+    } else {
+        (end, start)
+    };
+    if crate::geometry::point_comparer::GeomConstants::close(state.scan_direction.coord(s), state.scan_direction.coord(e)) {
+        return;
+    }
+    state.seg_tree.insert_unique(crate::routing::scan_segment::ScanSegment::new(s, e, weight, is_vertical));
 }
 
 // =========================================================================
@@ -333,11 +479,11 @@ pub fn add_segment_if_valid(
 /// C# file: VisibilityGraphGenerator.cs, lines 170-203
 /// Big-O: O(1)
 pub fn scanline_intersect_side(
-    _site: Point,
-    _side: &ObstacleSide,
-    _scan_dir: ScanDirection,
+    site: Point,
+    side: &ObstacleSide,
+    scan_dir: ScanDirection,
 ) -> Point {
-    todo!()
+    side.scanline_intersect(site, scan_dir)
 }
 
 /// Check if a side reflects upward (has positive slope for low side, negative for high).
@@ -345,10 +491,15 @@ pub fn scanline_intersect_side(
 /// C# file: VisibilityGraphGenerator.cs, lines 264-272
 /// Big-O: O(1)
 pub fn side_reflects_upward(
-    _side: &ObstacleSide,
-    _scan_direction: ScanDirection,
+    side: &ObstacleSide,
+    scan_direction: ScanDirection,
 ) -> bool {
-    todo!()
+    let start_coord = scan_direction.coord(side.start());
+    let end_coord = scan_direction.coord(side.end());
+    match side.side_type() {
+        crate::routing::obstacle_side::SideType::Low => end_coord > start_coord,
+        crate::routing::obstacle_side::SideType::High => end_coord < start_coord,
+    }
 }
 
 /// Check if a side reflects downward (negative slope for low, positive for high).
@@ -356,10 +507,15 @@ pub fn side_reflects_upward(
 /// C# file: VisibilityGraphGenerator.cs, lines 274-282
 /// Big-O: O(1)
 pub fn side_reflects_downward(
-    _side: &ObstacleSide,
-    _scan_direction: ScanDirection,
+    side: &ObstacleSide,
+    scan_direction: ScanDirection,
 ) -> bool {
-    todo!()
+    let start_coord = scan_direction.coord(side.start());
+    let end_coord = scan_direction.coord(side.end());
+    match side.side_type() {
+        crate::routing::obstacle_side::SideType::Low => end_coord < start_coord,
+        crate::routing::obstacle_side::SideType::High => end_coord > start_coord,
+    }
 }
 
 /// Add a side to the scanline and load reflection events.
@@ -367,19 +523,17 @@ pub fn side_reflects_downward(
 /// C# file: VisibilityGraphGenerator.cs, lines 528-534
 /// Big-O: O(log N) for BTreeMap insert + O(log N + K) for reflection loading
 /// MUST use BTreeMap-based scanline insert
-fn add_side_to_scanline(_state: &mut SweepState, _side: ObstacleSide) {
-    // Steps:
-    // 1. Insert side into scanline BTreeMap (C# line 529)
-    // 2. Load reflection events for this side (C# line 532)
-    todo!()
+fn add_side_to_scanline(state: &mut SweepState, side: ObstacleSide) {
+    state.scan_line.insert(side.clone());
+    load_reflection_events(state, &side);
 }
 
 /// Remove a side from the scanline.
 ///
 /// C# file: VisibilityGraphGenerator.cs, lines 536-538
 /// Big-O: O(log N) for BTreeMap removal
-fn remove_side_from_scanline(_state: &mut SweepState, _side: &ObstacleSide) {
-    todo!()
+fn remove_side_from_scanline(state: &mut SweepState, side: &ObstacleSide) {
+    state.scan_line.remove(side);
 }
 
 // =========================================================================
@@ -392,11 +546,10 @@ fn remove_side_from_scanline(_state: &mut SweepState, _side: &ObstacleSide) {
 /// Big-O: O(log N + K) via BTreeMap range query
 /// MUST use BTreeMap range query on LookaheadScan
 pub fn load_reflection_events(
-    _state: &mut SweepState,
-    _side_to_queue: &ObstacleSide,
+    state: &mut SweepState,
+    side_to_queue: &ObstacleSide,
 ) {
-    // Delegates to load_reflection_events_with_range(side_to_queue, side_to_queue)
-    todo!()
+    load_reflection_events_with_range(state, side_to_queue, side_to_queue.clone());
 }
 
 /// Load reflection events with range-restricted side parameter.
@@ -405,20 +558,49 @@ pub fn load_reflection_events(
 /// Big-O: O(log N + K) where K = matching sites, via BTreeMap range query
 /// MUST use BTreeMap range query on LookaheadScan for coordinate-range lookup
 pub fn load_reflection_events_with_range(
-    _state: &mut SweepState,
-    _side_to_queue: &ObstacleSide,
-    _side_with_range: &ObstacleSide,
+    state: &mut SweepState,
+    side_to_queue: &ObstacleSide,
+    side_with_range: ObstacleSide,
 ) {
-    // Steps (C# lines 346-422):
-    // 1. Check side_to_queue: skip if reflects upward or is perpendicular (C# line 346)
-    // 2. Compute bbox intersection of both sides (C# lines 352-360)
-    // 3. Use LookaheadScan BTreeMap range query for low..high (C# line 367)
-    // 4. For each site found:
-    //    a. Compute perpendicular intersection (C# line 373)
-    //    b. If intersection is ahead of site, add reflection event (C# lines 392-399)
-    //    c. Else mark site as stale if different obstacle (C# lines 402-408)
-    // 5. Remove stale sites (C# line 422)
-    todo!()
+    if side_reflects_upward(side_to_queue, state.scan_direction)
+        || state.scan_direction.is_perpendicular(side_to_queue.start(), side_to_queue.end())
+    {
+        return;
+    }
+
+    let bbox1 = crate::geometry::rectangle::Rectangle::from_points(side_to_queue.start(), side_to_queue.end());
+    let bbox2 = crate::geometry::rectangle::Rectangle::from_points(side_with_range.start(), side_with_range.end());
+
+    if state.scan_direction.is_horizontal() {
+        if !bbox1.intersects_on_x(&bbox2) { return; }
+    } else {
+        if !bbox1.intersects_on_y(&bbox2) { return; }
+    }
+
+    let bbox_intersect = bbox1.intersection(&bbox2);
+    let low = bbox_intersect.left_bottom();
+    let high = bbox_intersect.right_top();
+
+    let low_coord = state.scan_direction.coord(low);
+    let high_coord = state.scan_direction.coord(high);
+
+    let sites: Vec<_> = state.lookahead_scan.find_all_in_range(low_coord, high_coord).into_iter().cloned().collect();
+    let mut stale_sites = Vec::new();
+
+    for site in sites {
+        let intersect = scanline_intersect_side(site.site, side_to_queue, state.scan_direction.perpendicular());
+        if state.scan_direction.compare_perp(intersect, site.site) == std::cmp::Ordering::Greater {
+            add_reflection_event(state, side_to_queue, intersect, site.initial_obstacle, side_to_queue.obstacle_index());
+        } else {
+            if site.reflecting_obstacle != side_to_queue.obstacle_index() {
+                stale_sites.push(site.site);
+            }
+        }
+    }
+
+    for site in stale_sites {
+        state.lookahead_scan.remove_site(site);
+    }
 }
 
 /// Store a lookahead reflection site.
@@ -427,20 +609,27 @@ pub fn load_reflection_events_with_range(
 /// Big-O: O(log N) for BTreeMap insertion in LookaheadScan
 /// MUST use BTreeMap-based LookaheadScan.find() and .add()
 pub fn store_lookahead_site(
-    _state: &mut SweepState,
-    _initial_obstacle: usize,
-    _reflecting_side: &ObstacleSide,
-    _reflection_site: Point,
-    _want_extreme: bool,
+    state: &mut SweepState,
+    initial_obstacle: usize,
+    reflecting_side: &ObstacleSide,
+    reflection_site: Point,
+    want_extreme: bool,
 ) {
-    // Steps (C# lines 288-332):
-    // 1. If !want_reflections, return (C# line 289)
-    // 2. Skip perpendicular sides (C# line 293)
-    // 3. If !want_extreme, check that site is in rectangle interior (C# line 296)
-    // 4. Check side_reflects_upward (C# line 301)
-    // 5. Check for existing site at same coordinate via BTreeMap find (C# line 324)
-    // 6. If no existing site, add to LookaheadScan BTreeMap (C# line 325)
-    todo!()
+    if !state.want_reflections { return; }
+
+    if !state.scan_direction.is_perpendicular(reflecting_side.start(), reflecting_side.end()) {
+        let obstacle = &state.obstacles[reflecting_side.obstacle_index()];
+        if !want_extreme && !crate::routing::static_graph_utility::StaticGraphUtility::point_is_in_rectangle_interior(reflection_site, &obstacle.padded_bounding_box()) {
+            return;
+        }
+
+        if side_reflects_upward(reflecting_side, state.scan_direction) {
+            let coord = state.scan_direction.coord(reflection_site);
+            if state.lookahead_scan.find_first_in_range(coord, coord).is_none() {
+                state.lookahead_scan.add_site(reflection_site, initial_obstacle, reflecting_side.obstacle_index());
+            }
+        }
+    }
 }
 
 /// Validate a perpendicular reflection segment and add it.
@@ -451,22 +640,64 @@ pub fn store_lookahead_site(
 ///
 /// Returns true if the segment was valid and added.
 fn add_perpendicular_reflection_segment(
-    _state: &mut SweepState,
-    _event_site: Point,
-    _prev_site: Point,
-    _event_side: &ObstacleSide,
-    _nbor_side: Option<&ObstacleSide>,
-    _initial_obstacle: usize,
-    _reflecting_obstacle: usize,
+    state: &mut SweepState,
+    event_site: Point,
+    prev_site: Point,
+    event_side: Option<&ObstacleSide>, // was &ObstacleSide, changed to Option for simplicity
+    nbor_side: Option<&ObstacleSide>,
+    initial_obstacle: usize,
+    reflecting_obstacle: usize,
 ) -> bool {
-    // Steps (C# lines 440-488):
-    // 1. Remove the exact previous site from lookahead_scan (C# line 440)
-    // 2. If removed: verify staircase step (C# line 456)
-    // 3. Check that event site is in the interior of reflecting obstacle bbox (C# line 464)
-    // 4. Insert perpendicular segment from prev_site to event_site (C# line 470)
-    // 5. If nbor_side continues the staircase, return true for parallel segment (C# line 476-478)
-    // 6. Otherwise return false
-    todo!()
+    let coord = state.scan_direction.coord(prev_site);
+    
+    let points_close = |a: Point, b: Point| (a.x() - b.x()).abs() < 1e-10 && (a.y() - b.y()).abs() < 1e-10;
+    
+    // Check if the site is still there (exact match)
+    let found = {
+        let sites = state.lookahead_scan.find_all_in_range(coord, coord);
+        sites.iter().any(|s| points_close(s.site, prev_site))
+    };
+
+    if found {
+        state.lookahead_scan.remove_site(prev_site);
+        
+        if event_side.is_none() {
+            return false;
+        }
+        
+        let event_side_ref = event_side.unwrap();
+        // Skip flat sides
+        if state.scan_direction.is_horizontal() {
+            if event_side_ref.start().y() == event_side_ref.end().y() { return false; }
+        } else {
+            if event_side_ref.start().x() == event_side_ref.end().x() { return false; }
+        }
+
+        let ref_obs = &state.obstacles[reflecting_obstacle];
+        
+        // Check staircase
+        let is_staircase = crate::routing::static_graph_utility::StaticGraphUtility::point_is_on_segment(prev_site, ref_obs.padded_polyline().point_at(ref_obs.active_low_side().unwrap().start_vertex_key()), ref_obs.padded_polyline().point_at(ref_obs.active_low_side().unwrap().end_vertex_key()))
+            || crate::routing::static_graph_utility::StaticGraphUtility::point_is_on_segment(prev_site, ref_obs.padded_polyline().point_at(ref_obs.active_high_side().unwrap().start_vertex_key()), ref_obs.padded_polyline().point_at(ref_obs.active_high_side().unwrap().end_vertex_key()));
+        if is_staircase {
+            if !crate::routing::static_graph_utility::StaticGraphUtility::point_is_in_rectangle_interior(event_site, &ref_obs.padded_bounding_box()) {
+                return false;
+            }
+
+            state.seg_tree.insert_unique(crate::routing::scan_segment::ScanSegment::new(
+                prev_site, 
+                event_site, 
+                crate::routing::scan_segment::SegmentWeight::Reflection,
+                state.scan_direction.is_horizontal()
+            ));
+
+            if let Some(nbor) = nbor_side {
+                let nbor_obs = &state.obstacles[nbor.obstacle_index()];
+                return scan_line_crosses_obstacle(event_site, nbor_obs, state.scan_direction);
+            }
+        }
+    }
+    
+    false
 }
 
 /// Add a parallel reflection segment (along the obstacle side).
@@ -477,19 +708,40 @@ fn add_perpendicular_reflection_segment(
 ///
 /// Returns true if the segment was added.
 fn add_parallel_reflection_segment(
-    _state: &mut SweepState,
-    _event_site: Point,
-    _low_nbor_side: Option<&ObstacleSide>,
-    _high_nbor_side: Option<&ObstacleSide>,
+    state: &mut SweepState,
+    event_site: Point,
+    low_nbor_side: Option<&ObstacleSide>,
+    high_nbor_side: Option<&ObstacleSide>,
     _event_obstacle: usize,
     _initial_obstacle: usize,
 ) -> bool {
-    // Steps (C# lines 498-509):
-    // 1. Compute intersect = scanline_intersect_side(event_site, low_or_high_nbor_side)
-    // 2. Determine start/end based on which neighbor is present
-    // 3. Find opposite neighbor via scanline next_low/next_high
-    // 4. Insert parallel reflection segment
-    todo!()
+    let active_nbor = low_nbor_side.or(high_nbor_side).unwrap();
+    let intersect = scanline_intersect_side(event_site, active_nbor, state.scan_direction);
+
+    let (start, end) = if low_nbor_side.is_some() {
+        (intersect, event_site)
+    } else {
+        (event_site, intersect)
+    };
+
+    let _actual_low_nbor = match low_nbor_side {
+        Some(s) => s.clone(),
+        None => state.scan_line.next_low(&state.scan_line.find(high_nbor_side.unwrap()).unwrap()).unwrap().1.clone(),
+    };
+    
+    let _actual_high_nbor = match high_nbor_side {
+        Some(s) => s.clone(),
+        None => state.scan_line.next_high(&state.scan_line.find(low_nbor_side.unwrap()).unwrap()).unwrap().1.clone(),
+    };
+
+    let _s = state.seg_tree.insert_unique(crate::routing::scan_segment::ScanSegment::new(
+        start, 
+        end, 
+        crate::routing::scan_segment::SegmentWeight::Reflection,
+        state.scan_direction.is_vertical()
+    ));
+
+    true
 }
 
 /// Add a reflection event to the event queue.
@@ -497,13 +749,28 @@ fn add_parallel_reflection_segment(
 /// C# file: VisibilityGraphGenerator.cs, lines 515-526
 /// Big-O: O(log N) for BinaryHeap insertion
 fn add_reflection_event(
-    _state: &mut SweepState,
-    _side: &ObstacleSide,
-    _site: Point,
-    _initial_obstacle: usize,
-    _reflecting_obstacle: usize,
+    state: &mut SweepState,
+    side: &ObstacleSide,
+    site: Point,
+    initial_obstacle: usize,
+    reflecting_obstacle: usize,
 ) {
-    todo!()
+    let is_low = side.side_type() == crate::routing::obstacle_side::SideType::Low;
+    if is_low {
+        state.event_queue.enqueue(super::event_queue::SweepEvent::LowReflection {
+            site,
+            initial_obstacle,
+            reflecting_obstacle,
+            prev_event_index: None,
+        });
+    } else {
+        state.event_queue.enqueue(super::event_queue::SweepEvent::HighReflection {
+            site,
+            initial_obstacle,
+            reflecting_obstacle,
+            prev_event_index: None,
+        });
+    }
 }
 
 /// Remove lookahead sites in the flat-bottom range of an obstacle.
@@ -512,27 +779,52 @@ fn add_reflection_event(
 /// Big-O: O(log N + K) for BTreeMap range removal
 /// MUST use BTreeMap range query on LookaheadScan
 pub fn remove_sites_for_flat_bottom(
-    _state: &mut SweepState,
-    _flat_start: Point,
-    _flat_end: Point,
+    state: &mut SweepState,
+    flat_start: Point,
+    flat_end: Point,
 ) {
-    todo!()
+    state.lookahead_scan.remove_sites_for_flat_bottom(flat_start, flat_end);
 }
 
 /// Enqueue a LowBend event at the end of the current low side.
 ///
 /// C# file: VisibilityGraphGenerator.cs, lines 780-783
 /// Big-O: O(log N) for BinaryHeap insertion
-fn enqueue_low_bend_event(_state: &mut SweepState, _low_side: &ObstacleSide) {
-    todo!()
+fn enqueue_low_bend_event(state: &mut SweepState, low_side: &ObstacleSide) {
+    state.event_queue.enqueue(super::event_queue::SweepEvent::LowBend {
+        site: low_side.end(),
+        obstacle_index: low_side.obstacle_index(),
+        vertex_key: low_side.end_vertex_key(),
+    });
 }
 
 /// Enqueue a HighBend or CloseVertex event based on the next high side.
 ///
 /// C# file: VisibilityGraphGenerator.cs, lines 823-836
 /// Big-O: O(log N) for BinaryHeap insertion
-fn enqueue_high_bend_or_close_event(_state: &mut SweepState, _high_side: &ObstacleSide) {
-    todo!()
+fn enqueue_high_bend_or_close_event(state: &mut SweepState, high_side: &ObstacleSide) {
+    let obstacle = &state.obstacles[high_side.obstacle_index()];
+    let polyline = obstacle.padded_polyline();
+    let next_high_side_end = if state.scan_direction.is_horizontal() {
+        polyline.prev_key(high_side.end_vertex_key()).unwrap()
+    } else {
+        polyline.next_key(high_side.end_vertex_key()).unwrap()
+    };
+    let next_point = polyline.point_at(next_high_side_end);
+
+    if state.scan_direction.compare_perp(next_point, high_side.end()) == std::cmp::Ordering::Greater {
+        state.event_queue.enqueue(super::event_queue::SweepEvent::HighBend {
+            site: high_side.end(),
+            obstacle_index: high_side.obstacle_index(),
+            vertex_key: high_side.end_vertex_key(),
+        });
+    } else {
+        state.event_queue.enqueue(super::event_queue::SweepEvent::CloseVertex {
+            site: high_side.end(),
+            obstacle_index: high_side.obstacle_index(),
+            vertex_key: high_side.end_vertex_key(),
+        });
+    }
 }
 
 /// Check if the scanline crosses an obstacle (for overlap detection).
@@ -540,9 +832,14 @@ fn enqueue_high_bend_or_close_event(_state: &mut SweepState, _high_side: &Obstac
 /// C# file: VisibilityGraphGenerator.cs, lines 592-597
 /// Big-O: O(1)
 fn scan_line_crosses_obstacle(
-    _event_site: Point,
-    _obstacle: &Obstacle,
-    _scan_direction: ScanDirection,
+    event_site: Point,
+    obstacle: &Obstacle,
+    scan_direction: ScanDirection,
 ) -> bool {
-    todo!()
+    let perp = scan_direction.perp_coord(event_site);
+    let bb = obstacle.padded_bounding_box();
+    let bb_low = scan_direction.perp_coord(bb.left_bottom());
+    let bb_high = scan_direction.perp_coord(bb.right_top());
+    perp > bb_low + crate::geometry::point_comparer::GeomConstants::DISTANCE_EPSILON
+        && perp < bb_high - crate::geometry::point_comparer::GeomConstants::DISTANCE_EPSILON
 }

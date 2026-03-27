@@ -212,6 +212,24 @@ impl Polyline {
             self.start = None;
         }
     }
+
+    pub fn remove_point(&mut self, key: PolylinePointKey) {
+        if let Some(data) = self.nodes.get(key) {
+            let prev = data.prev;
+            let next = data.next;
+            if let Some(p) = prev {
+                self.nodes[p].next = next;
+            } else {
+                self.start = next;
+            }
+            if let Some(n) = next {
+                self.nodes[n].prev = prev;
+            } else {
+                self.end = prev;
+            }
+            self.nodes.remove(key);
+        }
+    }
 }
 
 impl Default for Polyline {

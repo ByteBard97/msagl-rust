@@ -15,12 +15,23 @@ const CIRCLE_SEGMENTS: usize = 16;
 /// Ported from: routing/shape.ts -- `class Shape`
 /// The TS Shape stores `BoundaryCurve: ICurve`. We store `Polyline` directly
 /// since we only support polyline boundaries (not arcs/curves).
+///
+/// C# `Shape.IsGroup` → `is_group: bool` (true when the shape has children).
+/// C# `Shape.IsTransparent` → `is_transparent: bool` (edges may cross boundary).
 #[derive(Clone, Debug)]
 pub struct Shape {
     boundary: Polyline,
     bounding_box: Rectangle,
     /// Whether this shape was constructed as a rectangle (4 axis-aligned sides).
     is_rect: bool,
+    /// Whether this shape is a group (contains child shapes).
+    ///
+    /// Matches C# `Shape.IsGroup` (true when `Children.Count > 0`).
+    is_group: bool,
+    /// Whether edges are allowed to cross through this shape's boundary.
+    ///
+    /// Matches C# `Shape.IsTransparent`.
+    is_transparent: bool,
 }
 
 impl Shape {
@@ -37,6 +48,8 @@ impl Shape {
             boundary: polyline,
             bounding_box,
             is_rect: false,
+            is_group: false,
+            is_transparent: false,
         }
     }
 
@@ -55,6 +68,8 @@ impl Shape {
             boundary: poly,
             bounding_box,
             is_rect: true,
+            is_group: false,
+            is_transparent: false,
         }
     }
 
@@ -131,6 +146,44 @@ impl Shape {
     /// Whether this shape was constructed as a rectangle.
     pub fn is_rect(&self) -> bool {
         self.is_rect
+    }
+
+    /// Create a group shape — a shape that contains child shapes.
+    ///
+    /// Matches C# `Shape.IsGroup` (true when `Children.Count > 0`).
+    /// Returns a new `Shape` with `is_group = true`.
+    pub fn group(boundary: Polyline) -> Self {
+        let mut s = Self::from_polyline(boundary);
+        s.is_group = true;
+        s
+    }
+
+    /// Create a rectangular group shape.
+    pub fn rectangle_group(x: f64, y: f64, width: f64, height: f64) -> Self {
+        let mut s = Self::rectangle(x, y, width, height);
+        s.is_group = true;
+        s
+    }
+
+    /// Whether this shape is a group (contains child shapes).
+    ///
+    /// Matches C# `Shape.IsGroup`.
+    pub fn is_group(&self) -> bool {
+        self.is_group
+    }
+
+    /// Whether edges may cross through this shape's boundary.
+    ///
+    /// Matches C# `Shape.IsTransparent`.
+    pub fn is_transparent(&self) -> bool {
+        self.is_transparent
+    }
+
+    /// Set whether edges may cross through this shape's boundary.
+    ///
+    /// Matches C# `Shape.IsTransparent` setter.
+    pub fn set_transparent(&mut self, v: bool) {
+        self.is_transparent = v;
     }
 }
 

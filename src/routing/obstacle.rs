@@ -165,6 +165,27 @@ impl Obstacle {
         self.is_rectangle
     }
 
+    /// Whether this obstacle is a group (contains child shapes).
+    ///
+    /// Matches C# `Obstacle.IsGroup` / `Shape.IsGroup`.
+    pub fn is_group(&self) -> bool {
+        self.shape.is_group()
+    }
+
+    /// Whether edges may cross through this obstacle's boundary.
+    ///
+    /// Matches C# `Obstacle.IsTransparent` / `Shape.IsTransparent`.
+    pub fn is_transparent(&self) -> bool {
+        self.shape.is_transparent()
+    }
+
+    /// Set whether edges may cross through this obstacle's boundary.
+    ///
+    /// Matches C# `Shape.IsTransparent` setter.
+    pub fn set_transparent(&mut self, v: bool) {
+        self.shape.set_transparent(v);
+    }
+
     pub fn active_low_side(&self) -> Option<&ObstacleSide> {
         self.active_low_side.as_ref()
     }
@@ -312,7 +333,7 @@ impl Obstacle {
 
         self.active_low_side = Some(ObstacleSide::from_polyline_point(
             SideType::Low,
-            self.ordinal,
+            self.index,
             start_key,
             &self.padded_polyline,
             scan_direction,
@@ -320,7 +341,7 @@ impl Obstacle {
 
         self.active_high_side = Some(ObstacleSide::from_polyline_point(
             SideType::High,
-            self.ordinal,
+            self.index,
             start_key,
             &self.padded_polyline,
             scan_direction,
@@ -333,7 +354,7 @@ impl Obstacle {
                 let new_start = high_side.end_vertex_key();
                 self.active_high_side = Some(ObstacleSide::from_polyline_point(
                     SideType::High,
-                    self.ordinal,
+                    self.index,
                     new_start,
                     &self.padded_polyline,
                     scan_direction,
@@ -401,7 +422,9 @@ fn remove_close_vertices(polyline: &mut Polyline, epsilon: f64) {
     // We'd need a remove_point method on Polyline; for now, close vertices
     // are extremely rare for padded rectangles so this is effectively a no-op.
     // The TS implementation modifies linked list pointers directly.
-    let _ = to_remove;
+    for key in to_remove {
+        polyline.remove_point(key);
+    }
 }
 
 /// Create a padded polyline around a convex polygon boundary.

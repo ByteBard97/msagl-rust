@@ -118,12 +118,12 @@ impl Rectangle {
         self.intersects_on_x(other) && self.intersects_on_y(other)
     }
 
-    fn intersects_on_x(&self, other: &Rectangle) -> bool {
+    pub fn intersects_on_x(&self, other: &Rectangle) -> bool {
         let eps = GeomConstants::DISTANCE_EPSILON;
         !(other.left > self.right + eps || other.right < self.left - eps)
     }
 
-    fn intersects_on_y(&self, other: &Rectangle) -> bool {
+    pub fn intersects_on_y(&self, other: &Rectangle) -> bool {
         let eps = GeomConstants::DISTANCE_EPSILON;
         !(other.bottom > self.top + eps || other.top < self.bottom - eps)
     }

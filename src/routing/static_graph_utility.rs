@@ -62,6 +62,21 @@ impl StaticGraphUtility {
         (a.x() - b.x()).abs() < 1e-10 || (a.y() - b.y()).abs() < 1e-10
     }
 
+    pub fn point_is_on_segment(p: Point, start: Point, end: Point) -> bool {
+        let eps = crate::geometry::point_comparer::GeomConstants::DISTANCE_EPSILON;
+        if (start.x() - end.x()).abs() < eps {
+            (p.x() - start.x()).abs() < eps && p.y() >= start.y().min(end.y()) - eps && p.y() <= start.y().max(end.y()) + eps
+        } else if (start.y() - end.y()).abs() < eps {
+            (p.y() - start.y()).abs() < eps && p.x() >= start.x().min(end.x()) - eps && p.x() <= start.x().max(end.x()) + eps
+        } else {
+            let cross = (p.y() - start.y()) * (end.x() - start.x()) - (p.x() - start.x()) * (end.y() - start.y());
+            if cross.abs() > eps { return false; }
+            let dot = (p.x() - start.x()) * (end.x() - start.x()) + (p.y() - start.y()) * (end.y() - start.y());
+            let len2 = (end.x() - start.x()).powi(2) + (end.y() - start.y()).powi(2);
+            dot >= -eps && dot <= len2 + eps
+        }
+    }
+
     /// Find the out-edge from `vertex` in the given direction.
     ///
     /// Returns `(target_vertex_id, weight)` if found.
@@ -114,5 +129,27 @@ impl StaticGraphUtility {
             // Final edge is vertical, so bend is at (target.x, source.y)
             Point::new(target.x(), source.y())
         }
+    }
+
+    /// Get the boundary coordinate of a rectangle in a given direction.
+    ///
+    /// Ported from C# `StaticGraphUtility.GetRectangleBound(rect, dir)`.
+    /// Returns the far edge coordinate of the rectangle in the given direction:
+    /// North → top, South → bottom, East → right, West → left.
+    pub fn get_rectangle_bound(rect: &Rectangle, dir: CompassDirection) -> f64 {
+        match dir {
+            CompassDirection::North => rect.top(),
+            CompassDirection::South => rect.bottom(),
+            CompassDirection::East => rect.right(),
+            CompassDirection::West => rect.left(),
+        }
+    }
+
+    /// Check if a direction is ascending (North or East).
+    ///
+    /// Ported from C# `StaticGraphUtility.IsAscending(dir)`.
+    /// North and East are the ascending directions in the MSAGL coordinate system.
+    pub fn is_ascending(dir: CompassDirection) -> bool {
+        matches!(dir, CompassDirection::North | CompassDirection::East)
     }
 }

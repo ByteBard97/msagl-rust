@@ -63,6 +63,18 @@ impl LookaheadScan {
             .collect()
     }
 
+    pub fn remove_sites_for_flat_bottom(&mut self, flat_start: Point, flat_end: Point) {
+        let low = self.scan_direction.coord(flat_start).min(self.scan_direction.coord(flat_end));
+        let high = self.scan_direction.coord(flat_start).max(self.scan_direction.coord(flat_end));
+        let low_key = OrderedFloat(GeomConstants::round(low));
+        let high_key = OrderedFloat(GeomConstants::round(high));
+        
+        let keys_to_remove: Vec<_> = self.sites.range(low_key..=high_key).map(|(k, _)| *k).collect();
+        for k in keys_to_remove {
+            self.sites.remove(&k);
+        }
+    }
+
     pub fn is_empty(&self) -> bool {
         self.sites.is_empty()
     }

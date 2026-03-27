@@ -119,6 +119,10 @@ impl ObstacleSide {
     pub fn side_type(&self) -> SideType {
         self.side_type
     }
+
+    pub fn set_side_type(&mut self, t: SideType) {
+        self.side_type = t;
+    }
     pub fn start(&self) -> Point {
         self.start
     }
