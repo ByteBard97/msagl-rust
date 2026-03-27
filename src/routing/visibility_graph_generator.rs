@@ -24,9 +24,9 @@ const SENTINEL_OFFSET: f64 = 1.0;
 /// Then intersects H and V segments to build the visibility graph.
 ///
 /// Mirrors FullVisibilityGraphGenerator.cs / VisibilityGraphGenerator.ts from MSAGL.
-pub fn generate_visibility_graph(shapes: &[Shape], padding: f64) -> VisibilityGraph {
+pub fn generate_visibility_graph(shapes: &[Shape], padding: f64) -> (VisibilityGraph, ObstacleTree) {
     if shapes.is_empty() {
-        return VisibilityGraph::new();
+        return (VisibilityGraph::new(), ObstacleTree::empty());
     }
 
     let obstacle_tree = ObstacleTree::new(shapes, padding);
@@ -39,7 +39,8 @@ pub fn generate_visibility_graph(shapes: &[Shape], padding: f64) -> VisibilityGr
     let mut v_segments = run_sweep(&obstacle_tree, ScanDirection::vertical(), &graph_box);
 
     // Intersect to build the visibility graph
-    build_graph_from_segments(&mut h_segments, &mut v_segments)
+    let graph = build_graph_from_segments(&mut h_segments, &mut v_segments);
+    (graph, obstacle_tree)
 }
 
 /// Run one sweep pass (horizontal or vertical) and return the resulting scan segments.

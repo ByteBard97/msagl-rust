@@ -7,7 +7,7 @@ use msagl_rust::Point;
 #[test]
 fn single_obstacle_creates_visibility_graph() {
     let shapes = vec![Shape::rectangle(10.0, 10.0, 20.0, 20.0)];
-    let graph = generate_visibility_graph(&shapes, 2.0);
+    let (graph, _obstacle_tree) = generate_visibility_graph(&shapes, 2.0);
     // Padded obstacle is 8..32 x 8..32
     // Should have at least the 4 padded corners as vertices
     assert!(
@@ -24,7 +24,7 @@ fn two_obstacles_horizontal_visibility() {
         Shape::rectangle(0.0, 0.0, 10.0, 10.0),
         Shape::rectangle(30.0, 0.0, 10.0, 10.0),
     ];
-    let graph = generate_visibility_graph(&shapes, 2.0);
+    let (graph, _obstacle_tree) = generate_visibility_graph(&shapes, 2.0);
     // Should have vertices and edges connecting the gap between obstacles
     assert!(
         graph.vertex_count() >= 8,
@@ -47,7 +47,7 @@ fn two_obstacles_vertical_visibility() {
         Shape::rectangle(0.0, 0.0, 10.0, 10.0),
         Shape::rectangle(0.0, 30.0, 10.0, 10.0),
     ];
-    let graph = generate_visibility_graph(&shapes, 2.0);
+    let (graph, _obstacle_tree) = generate_visibility_graph(&shapes, 2.0);
     assert!(
         graph.vertex_count() >= 8,
         "got {} vertices",
@@ -63,14 +63,14 @@ fn three_obstacles_blocking() {
         Shape::rectangle(20.0, -5.0, 10.0, 20.0), // middle (taller)
         Shape::rectangle(40.0, 0.0, 10.0, 10.0),  // right
     ];
-    let graph = generate_visibility_graph(&shapes, 2.0);
+    let (graph, _obstacle_tree) = generate_visibility_graph(&shapes, 2.0);
     // The middle obstacle should block some horizontal visibility
     assert!(graph.vertex_count() > 0);
 }
 
 #[test]
 fn empty_obstacles_produces_empty_graph() {
-    let graph = generate_visibility_graph(&[], 2.0);
+    let (graph, _obstacle_tree) = generate_visibility_graph(&[], 2.0);
     assert_eq!(graph.vertex_count(), 0);
 }
 
@@ -82,7 +82,7 @@ fn single_obstacle_has_corner_segments() {
     // Vertical segments at x=-2 and x=12, from y=-2 to y=12
     // These 4 segments form a rectangle around the obstacle.
     let shapes = vec![Shape::rectangle(0.0, 0.0, 10.0, 10.0)];
-    let graph = generate_visibility_graph(&shapes, 2.0);
+    let (graph, _obstacle_tree) = generate_visibility_graph(&shapes, 2.0);
 
     // The 4 corners of the padded box should be vertices
     assert!(graph.find_vertex(Point::new(-2.0, -2.0)).is_some());
@@ -98,7 +98,7 @@ fn two_obstacles_gap_has_edges() {
         Shape::rectangle(0.0, 0.0, 10.0, 10.0),
         Shape::rectangle(30.0, 0.0, 10.0, 10.0),
     ];
-    let graph = generate_visibility_graph(&shapes, 2.0);
+    let (graph, _obstacle_tree) = generate_visibility_graph(&shapes, 2.0);
 
     // At y=-2 (bottom edge of both), there should be a horizontal segment
     // from x=12 to x=28
@@ -121,7 +121,7 @@ fn two_obstacles_gap_has_edges() {
 
 #[test]
 fn empty_shapes_returns_empty_graph() {
-    let graph = generate_visibility_graph(&[], 4.0);
+    let (graph, _obstacle_tree) = generate_visibility_graph(&[], 4.0);
     assert_eq!(graph.vertex_count(), 0);
 }
 
@@ -148,7 +148,7 @@ fn merge_overlapping_intervals() {
 #[test]
 fn single_obstacle_creates_surrounding_segments() {
     let shapes = vec![Shape::rectangle(50.0, 50.0, 100.0, 60.0)];
-    let graph = generate_visibility_graph(&shapes, 4.0);
+    let (graph, _obstacle_tree) = generate_visibility_graph(&shapes, 4.0);
     // All edges should be axis-aligned
     for v in 0..graph.vertex_count() {
         let vid = VertexId(v);
@@ -172,7 +172,7 @@ fn two_boxes_have_connected_graph() {
         Shape::rectangle(0.0, 0.0, 100.0, 50.0),
         Shape::rectangle(200.0, 0.0, 100.0, 50.0),
     ];
-    let graph = generate_visibility_graph(&shapes, 4.0);
+    let (graph, _obstacle_tree) = generate_visibility_graph(&shapes, 4.0);
     assert!(graph.vertex_count() > 0);
     // Every vertex should have at least one edge
     for v in 0..graph.vertex_count() {
@@ -192,7 +192,7 @@ fn three_boxes_triangle_layout() {
         Shape::rectangle(0.0, 100.0, 80.0, 40.0),
         Shape::rectangle(200.0, 100.0, 80.0, 40.0),
     ];
-    let graph = generate_visibility_graph(&shapes, 4.0);
+    let (graph, _obstacle_tree) = generate_visibility_graph(&shapes, 4.0);
     assert!(graph.vertex_count() > 0);
     // All edges rectilinear
     for v in 0..graph.vertex_count() {
@@ -210,7 +210,7 @@ fn single_obstacle_has_four_padded_corners() {
     // Shape at (0,0) size 10x10, padding 2
     // Padded bbox: (-2, -2) to (12, 12)
     let shapes = vec![Shape::rectangle(0.0, 0.0, 10.0, 10.0)];
-    let graph = generate_visibility_graph(&shapes, 2.0);
+    let (graph, _obstacle_tree) = generate_visibility_graph(&shapes, 2.0);
 
     // The 4 padded corners should be vertices in the graph
     assert!(
@@ -238,7 +238,7 @@ fn two_obstacles_gap_has_horizontal_edge() {
         Shape::rectangle(0.0, 0.0, 10.0, 10.0),
         Shape::rectangle(30.0, 0.0, 10.0, 10.0),
     ];
-    let graph = generate_visibility_graph(&shapes, 2.0);
+    let (graph, _obstacle_tree) = generate_visibility_graph(&shapes, 2.0);
 
     // Padded: [-2..12] and [28..42] at y range [-2..12]
     let v_left = graph.find_vertex(Point::new(12.0, -2.0));
@@ -263,7 +263,7 @@ fn route_around_blocker_vg_connected() {
         Shape::rectangle(60.0, 0.0, 30.0, 60.0),
         Shape::rectangle(120.0, 0.0, 30.0, 30.0),
     ];
-    let graph = generate_visibility_graph(&shapes, 4.0);
+    let (graph, _obstacle_tree) = generate_visibility_graph(&shapes, 4.0);
 
     // All boundary vertices should exist and be connected
     assert!(graph.vertex_count() >= 20, "need sufficient vertices");

@@ -1,3 +1,4 @@
+use msagl_rust::routing::obstacle_tree::ObstacleTree;
 use msagl_rust::routing::port_manager::PortManager;
 use msagl_rust::visibility::graph::{VertexId, VisibilityGraph};
 use msagl_rust::Point;
@@ -39,7 +40,7 @@ fn splice_connects_to_axis_aligned_neighbors() {
     // Edges are stored in ascending order (lower→higher), so the west connection
     // from port(25,50) to w(0,50) is stored as w→port rather than port→w.
     // Use find_edge_pp which checks both directions.
-    let _ = PortManager::splice_port(&mut graph, Point::new(25.0, 50.0));
+    let _ = PortManager::splice_port(&mut graph, &mut ObstacleTree::empty(), Point::new(25.0, 50.0));
 
     let has_east = graph
         .find_edge_pp(Point::new(25.0, 50.0), Point::new(50.0, 50.0))
@@ -65,7 +66,7 @@ fn unsplice_restores_edge_count() {
         .map(|i| graph.out_degree(VertexId(i)))
         .sum();
 
-    let mut splice = PortManager::splice_port(&mut graph, Point::new(25.0, 50.0));
+    let mut splice = PortManager::splice_port(&mut graph, &mut ObstacleTree::empty(), Point::new(25.0, 50.0));
     // After splice the edge count should have grown
     let after_splice_edges: usize = (0..graph.vertex_count())
         .map(|i| graph.out_degree(VertexId(i)))

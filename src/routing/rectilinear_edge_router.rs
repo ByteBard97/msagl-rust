@@ -113,15 +113,15 @@ impl RectilinearEdgeRouter {
         }
 
         // 1. Build visibility graph from shapes
-        let mut vis_graph = generate_visibility_graph(&self.shapes, self.padding);
+        let (mut vis_graph, mut obstacle_tree) = generate_visibility_graph(&self.shapes, self.padding);
 
         // 2. Route each edge: splice ports -> A* -> unsplice
         let search = PathSearch::new(self.bend_penalty_as_percentage);
         let mut paths: Vec<Vec<Point>> = Vec::new();
 
         for edge in &self.edges {
-            let mut src_splice = PortManager::splice_port(&mut vis_graph, edge.source.location);
-            let mut tgt_splice = PortManager::splice_port(&mut vis_graph, edge.target.location);
+            let mut src_splice = PortManager::splice_port(&mut vis_graph, &mut obstacle_tree, edge.source.location);
+            let mut tgt_splice = PortManager::splice_port(&mut vis_graph, &mut obstacle_tree, edge.target.location);
 
             let path = search.find_path(&vis_graph, edge.source.location, edge.target.location);
             paths.push(path.unwrap_or_else(|| {

@@ -41,6 +41,15 @@ pub struct ObstacleTree {
 }
 
 impl ObstacleTree {
+    /// Create an empty obstacle tree (no obstacles).
+    pub fn empty() -> Self {
+        Self {
+            obstacles: Vec::new(),
+            rtree: RTree::new(),
+            current_group_boundary_crossing_map: super::group_boundary_crossing::GroupBoundaryCrossingMap::new(),
+        }
+    }
+
     /// Create from shapes with given padding.
     pub fn new(shapes: &[Shape], padding: f64) -> Self {
         let mut obstacles: Vec<Obstacle> = shapes

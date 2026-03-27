@@ -38,7 +38,11 @@ impl PortManager {
     /// Uses O(log V) coordinate-index lookups + O(chain) VG adjacency walks
     /// (ported from C# `FindNearestPerpendicularOrContainingEdge`) instead of
     /// O(V) brute-force vertex scanning.
-    pub fn splice_port(graph: &mut VisibilityGraph, location: Point) -> PortSpliceResult {
+    pub fn splice_port(
+        graph: &mut VisibilityGraph,
+        obstacle_tree: &mut super::obstacle_tree::ObstacleTree,
+        location: Point,
+    ) -> PortSpliceResult {
         let mut tgu = TransientGraphUtility::new();
         let port_vertex = tgu.find_or_add_vertex(graph, location);
 
