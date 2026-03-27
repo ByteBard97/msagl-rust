@@ -304,6 +304,43 @@ impl VisibilityGraph {
     /// If the port is not on an exact VG line, finds the nearest perpendicular VG
     /// line in the search direction and returns the vertex closest to the port on
     /// that line.
+    /// Find the immediate neighbor vertex on the same axis line.
+    ///
+    /// Unlike `find_nearest_vertex_in_direction`, this does NOT fall back to
+    /// perpendicular lines. It only returns a vertex that is on the exact same
+    /// X line (for N/S) or Y line (for E/W) as `location`.
+    pub fn find_immediate_neighbor_on_axis(
+        &self,
+        location: Point,
+        direction: CompassDirection,
+    ) -> Option<VertexId> {
+        let lx = OrderedFloat(GeomConstants::round(location.x()));
+        let ly = OrderedFloat(GeomConstants::round(location.y()));
+
+        match direction {
+            CompassDirection::East => {
+                let xs = self.y_to_xs.get(&ly)?;
+                let &nx = xs.range((std::ops::Bound::Excluded(lx), std::ops::Bound::Unbounded)).next()?;
+                self.find_vertex(Point::new(nx.into_inner(), ly.into_inner()))
+            }
+            CompassDirection::West => {
+                let xs = self.y_to_xs.get(&ly)?;
+                let &nx = xs.range(..lx).next_back()?;
+                self.find_vertex(Point::new(nx.into_inner(), ly.into_inner()))
+            }
+            CompassDirection::North => {
+                let ys = self.x_to_ys.get(&lx)?;
+                let &ny = ys.range((std::ops::Bound::Excluded(ly), std::ops::Bound::Unbounded)).next()?;
+                self.find_vertex(Point::new(lx.into_inner(), ny.into_inner()))
+            }
+            CompassDirection::South => {
+                let ys = self.x_to_ys.get(&lx)?;
+                let &ny = ys.range(..ly).next_back()?;
+                self.find_vertex(Point::new(lx.into_inner(), ny.into_inner()))
+            }
+        }
+    }
+
     pub fn find_nearest_vertex_in_direction(
         &self,
         location: Point,
