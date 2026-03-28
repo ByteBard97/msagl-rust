@@ -272,6 +272,41 @@ impl RectilinearEdgeRouter {
         self.rebuild();
     }
 
+    /// Add a single obstacle and immediately rebuild the visibility graph.
+    ///
+    /// Mirrors C# `RectilinearEdgeRouter.AddObstacle(Shape)`.
+    /// (C# line 137–140.)
+    pub fn add_obstacle(&mut self, shape: Shape) {
+        self.add_shape_without_rebuild(shape);
+        self.rebuild();
+    }
+
+    /// Replace multiple obstacles in one batch, rebuilding the VG once.
+    ///
+    /// Each entry is `(index, new_shape)`. Indices that are out of range are
+    /// silently skipped.  A single `rebuild()` is performed at the end.
+    ///
+    /// Mirrors C# `RectilinearEdgeRouter.UpdateObstacles(IEnumerable<Shape>)`.
+    /// (C# line 146–152.)
+    pub fn update_obstacles(&mut self, updates: &[(usize, Shape)]) {
+        for (index, new_shape) in updates {
+            if *index < self.session.obstacle_tree.obstacles.len() {
+                self.session.obstacle_tree.obstacles[*index] =
+                    crate::routing::obstacle::Obstacle::from_shape(new_shape, self.padding, *index);
+                self.dirty = true;
+            }
+        }
+        self.rebuild();
+    }
+
+    /// Return a slice of all edge geometries currently registered for routing.
+    ///
+    /// Mirrors C# `RectilinearEdgeRouter.EdgeGeometriesToRoute`.
+    /// (C# line 94–96.)
+    pub fn edge_geometries_to_route(&self) -> &[EdgeGeometry] {
+        &self.edges
+    }
+
     /// Remove an edge geometry by index from the active routing set.
     ///
     /// Mirrors C# `RectilinearEdgeRouter.RemoveEdgeGeometryToRoute(EdgeGeometry)`.
