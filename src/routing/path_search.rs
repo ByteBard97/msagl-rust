@@ -284,14 +284,18 @@ impl SsstRectilinearPath {
         });
 
         let mut neighbors = Vec::new();
+        // C# SsstRectilinearPath.cs line 457: Source.OutEdges.Where(IsPassable)
         for edge in graph.out_edges(src) {
-            neighbors.push((edge.target, edge.weight));
+            if edge.check_is_passable() {
+                neighbors.push((edge.target, edge.weight));
+            }
         }
+        // C# line 460: Source.InEdges.Where(IsPassable)
         let in_srcs: Vec<VertexId> = graph.vertex(src).in_edges.clone();
         for s in in_srcs {
-            let w = graph.out_edges(s).find(|e| e.target == src)
-                .map(|e| e.weight).unwrap_or(1.0);
-            neighbors.push((s, w));
+            if let Some(edge) = graph.out_edges(s).find(|e| e.target == src && e.check_is_passable()) {
+                neighbors.push((s, edge.weight));
+            }
         }
         for (n, w) in neighbors {
             self.extend_to_neighbor(src_idx, n, w, graph);
@@ -346,12 +350,17 @@ impl SsstRectilinearPath {
             let mut edges: Vec<(VertexId, f64)> = Vec::new();
 
             let bv = self.arena[item.arena_index].vertex;
+            // C# SsstRectilinearPath.cs line 424: IsPassable filter on edges
             for &s in &graph.vertex(bv).in_edges {
-                let w = graph.out_edges(s).find(|e| e.target == bv)
-                    .map(|e| e.weight).unwrap_or(1.0);
-                edges.push((s, w));
+                if let Some(edge) = graph.out_edges(s).find(|e| e.target == bv && e.check_is_passable()) {
+                    edges.push((s, edge.weight));
+                }
             }
-            for oe in graph.out_edges(bv) { edges.push((oe.target, oe.weight)); }
+            for oe in graph.out_edges(bv) {
+                if oe.check_is_passable() {
+                    edges.push((oe.target, oe.weight));
+                }
+            }
 
             let bp = graph.point(bv);
             let pv = self.arena[item.arena_index].previous_entry.map(|i| self.arena[i].vertex);

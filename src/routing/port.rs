@@ -3,6 +3,7 @@ use crate::geometry::point_comparer::GeomConstants;
 use crate::geometry::rectangle::Rectangle;
 use crate::visibility::graph::VertexId;
 use super::compass_direction::CompassDirection;
+use super::router_session::RouterSession;
 
 /// A floating port attached to an obstacle.
 ///
@@ -145,37 +146,39 @@ impl ObstaclePortEntrance {
     /// Big-O: O(chain) for VG adjacency walk
     pub fn extend_edge_chain(
         &self,
-        graph: &mut crate::visibility::graph::VisibilityGraph,
+        session: &mut RouterSession,
         trans_util: &mut crate::routing::transient_graph_utility::TransientGraphUtility,
-        _obstacle_tree: &crate::routing::obstacle_tree::ObstacleTree,
         padded_border_vertex: VertexId,
-        _target_vertex: VertexId,
-        _limit_rect: &Rectangle,
+        target_vertex: VertexId,
+        limit_rect: &Rectangle,
         route_to_center: bool,
     ) {
-        // C#: transUtil.ExtendEdgeChain(targetVertex, limitRect, MaxVisibilitySegment,
-        //         pointAndCrossingsList, IsOverlapped);
-        // TODO: full extend_edge_chain — walk from targetVertex along max visibility
-        // segment adding edges to existing vertices. For now, this is a stub that
-        // connects the unpadded border vertex to the padded border vertex.
+        // C# line 169: transUtil.ExtendEdgeChain(targetVertex, limitRect,
+        //     this.MaxVisibilitySegment, this.pointAndCrossingsList, this.IsOverlapped);
+        trans_util.extend_edge_chain_public(
+            session,
+            target_vertex,
+            limit_rect,
+            self.max_visibility_segment_start,
+            self.max_visibility_segment_end,
+            None, // pointAndCrossingsList — no group crossings for rectangular obstacles
+            self.is_overlapped,
+        );
 
-        let unpadded_vertex = trans_util.find_or_add_vertex(graph, self.unpadded_border_intersect);
+        // C# line 173-174: connect unpadded border to padded border.
+        let unpadded_vertex = trans_util.find_or_add_vertex(session, self.unpadded_border_intersect);
         let weight = if self.is_overlapped { 100_000.0 } else { 1.0 };
-
-        // Connect unpadded border to padded border.
-        let up = graph.point(unpadded_vertex);
-        let pp = graph.point(padded_border_vertex);
+        let up = session.vis_graph.point(unpadded_vertex);
+        let pp = session.vis_graph.point(padded_border_vertex);
         if !(GeomConstants::close(up.x(), pp.x()) && GeomConstants::close(up.y(), pp.y())) {
-            graph.add_edge(unpadded_vertex, padded_border_vertex, weight);
+            trans_util.find_or_add_edge(session, unpadded_vertex, padded_border_vertex, weight);
         }
 
         if route_to_center {
-            // Connect center vertex to unpadded border vertex.
-            // The center vertex should have been set on the ObstaclePort before calling this.
-            // We cannot access ObstaclePort.center_vertex from here, so the caller
-            // (port_manager) must handle center-to-unpadded connection separately.
-            // This matches the C# pattern where ConnectVertexToTargetVertex is called
-            // with ObstaclePort.CenterVertex.
+            // C# line 177: transUtil.ConnectVertexToTargetVertex(
+            //     ObstaclePort.CenterVertex, unpaddedBorderVertex, OutwardDirection, InitialWeight);
+            // The center vertex is on ObstaclePort, not accessible here.
+            // The caller (port_manager) handles center-to-unpadded connection.
         }
     }
 
@@ -185,24 +188,23 @@ impl ObstaclePortEntrance {
     /// Big-O: O(chain) for VG adjacency walk
     pub fn add_to_adjacent_vertex(
         &self,
-        graph: &mut crate::visibility::graph::VisibilityGraph,
+        session: &mut RouterSession,
         trans_util: &mut crate::routing::transient_graph_utility::TransientGraphUtility,
-        obstacle_tree: &crate::routing::obstacle_tree::ObstacleTree,
         target_vertex: VertexId,
         limit_rect: &Rectangle,
         route_to_center: bool,
     ) {
         // C#: First check if a vertex already exists at VisibilityBorderIntersect.
-        let border_vertex_existing = graph.find_vertex(self.visibility_border_intersect);
+        let border_vertex_existing = session.vis_graph.find_vertex(self.visibility_border_intersect);
 
         if let Some(bv) = border_vertex_existing {
             // Border vertex already in graph — just extend.
-            self.extend_edge_chain(graph, trans_util, obstacle_tree, bv, bv, limit_rect, route_to_center);
+            self.extend_edge_chain(session, trans_util, bv, bv, limit_rect, route_to_center);
             return;
         }
 
         // Check if target is in the outward direction from visibility border intersect.
-        let target_point = graph.point(target_vertex);
+        let target_point = session.vis_graph.point(target_vertex);
         let dir_from_target = CompassDirection::from_points(target_point, self.visibility_border_intersect);
 
         let border_vertex;
@@ -214,18 +216,18 @@ impl ObstaclePortEntrance {
             border_vertex = target_vertex;
         } else {
             // Create a new vertex at the visibility border intersect and connect to target.
-            border_vertex = trans_util.find_or_add_vertex(graph, self.visibility_border_intersect);
+            border_vertex = trans_util.find_or_add_vertex(session, self.visibility_border_intersect);
             let weight = if self.is_overlapped { 100_000.0 } else { 1.0 };
             // Connect border vertex to target vertex.
-            let bp = graph.point(border_vertex);
-            let tp = graph.point(target_vertex);
+            let bp = session.vis_graph.point(border_vertex);
+            let tp = session.vis_graph.point(target_vertex);
             if !(GeomConstants::close(bp.x(), tp.x()) && GeomConstants::close(bp.y(), tp.y())) {
-                trans_util.find_or_add_edge(graph, border_vertex, target_vertex, weight);
+                trans_util.find_or_add_edge(session, border_vertex, target_vertex, weight);
             }
         }
 
         let _ = vis_border; // used conceptually above
-        self.extend_edge_chain(graph, trans_util, obstacle_tree, border_vertex, target_vertex, limit_rect, route_to_center);
+        self.extend_edge_chain(session, trans_util, border_vertex, target_vertex, limit_rect, route_to_center);
     }
 }
 
@@ -287,9 +289,18 @@ impl ObstaclePort {
         unpadded_border_intersect: Point,
         out_dir: CompassDirection,
         obstacle_index: usize,
+        obstacle_tree: &mut super::obstacle_tree::ObstacleTree,
+        graph_box: &Rectangle,
     ) {
         // C#: var entrance = new ObstaclePortEntrance(this, unpaddedBorderIntersect, outDir, obstacleTree);
         let mut entrance = ObstaclePortEntrance::new(unpadded_border_intersect, out_dir, obstacle_index);
+
+        // C# constructor calls ObstacleTree.CreateMaxVisibilitySegment to compute
+        // the max visibility segment from the unpadded border intersect outward.
+        let (seg_start, seg_end, _pac_list) =
+            obstacle_tree.create_max_visibility_segment(unpadded_border_intersect, out_dir, graph_box);
+        entrance.max_visibility_segment_start = seg_start;
+        entrance.max_visibility_segment_end = seg_end;
 
         // Check if this entrance is collinear with the port location.
         // C#: CompassVector.IsPureDirection(PointComparer.GetDirections(VisibilityBorderIntersect, ObstaclePort.Location))
@@ -353,347 +364,7 @@ impl ObstaclePort {
     }
 }
 
-// =========================================================================
-// FreePoint — C# FreePoint.cs (132 lines)
-//
-// A point on a path not associated with an obstacle (waypoint, free port).
-// Manages its own visibility vertex and max visibility segments in 4 dirs.
-// =========================================================================
+// FreePoint is in free_point.rs (split for file size).
+// Re-export for backward compatibility.
+pub use super::free_point::{FreePoint, SegmentAndCrossings};
 
-/// Segment and crossings data for one direction of max visibility.
-///
-/// C# FreePoint.cs line 15: SegmentAndCrossings = Tuple<LineSegment, PointAndCrossingsList>
-#[derive(Clone, Debug)]
-pub struct SegmentAndCrossings {
-    /// The max visibility line segment in this direction.
-    pub segment_start: Point,
-    pub segment_end: Point,
-    // Group boundary crossings along this segment (deferred: groups not yet supported).
-}
-
-/// A free point (waypoint or non-obstacle port) on a routing path.
-///
-/// C# file: FreePoint.cs, lines 21-132
-/// Manages its visibility vertex, overlap status, out-of-bounds status,
-/// and cached max visibility segments in each of 4 compass directions.
-#[derive(Clone, Debug)]
-pub struct FreePoint {
-    /// The visibility vertex for this point.
-    /// C# FreePoint.cs line 24: Vertex
-    pub vertex: Option<VertexId>,
-
-    /// The point location (derived from vertex).
-    /// C# FreePoint.cs line 25: Point
-    pub point: Point,
-
-    /// Whether this point is inside an obstacle (overlapped).
-    /// C# FreePoint.cs line 26: IsOverlapped
-    pub is_overlapped: bool,
-
-    /// Direction from graph boundary if out of bounds.
-    /// C# FreePoint.cs line 28: OutOfBoundsDirectionFromGraph
-    /// None means in-bounds.
-    pub out_of_bounds_direction: Option<CompassDirection>,
-
-    /// Cached max visibility segments and crossings in each of 4 directions.
-    /// C# FreePoint.cs line 31: maxVisibilitySegmentsAndCrossings[4]
-    pub max_visibility_segments: [Option<SegmentAndCrossings>; 4],
-}
-
-impl FreePoint {
-    /// Create a new FreePoint, adding a vertex to the graph if needed.
-    ///
-    /// C# file: FreePoint.cs, lines 34-37
-    /// Big-O: O(log V) for vertex find/add
-    pub fn new(point: Point, graph: &mut crate::visibility::graph::VisibilityGraph) -> Self {
-        // C#: OutOfBoundsDirectionFromGraph = Direction.None; this.GetVertex(transUtil, point);
-        let vertex = graph.find_or_add_vertex(point);
-        Self {
-            vertex: Some(vertex),
-            point,
-            is_overlapped: false,
-            out_of_bounds_direction: None,
-            max_visibility_segments: [None, None, None, None],
-        }
-    }
-
-    /// Get or create the visibility vertex for this point.
-    ///
-    /// C# file: FreePoint.cs, lines 39-41
-    /// Big-O: O(log V) for vertex find/add
-    pub fn get_vertex(&mut self, graph: &mut crate::visibility::graph::VisibilityGraph) {
-        // C#: this.Vertex = transUtil.FindOrAddVertex(point);
-        let vertex = graph.find_or_add_vertex(self.point);
-        self.vertex = Some(vertex);
-    }
-
-    /// Initial weight for edges from this point (overlapped or normal).
-    ///
-    /// C# file: FreePoint.cs, line 27: InitialWeight
-    pub fn initial_weight(&self) -> f64 {
-        if self.is_overlapped {
-            100_000.0 // ScanSegment.OverlappedWeight
-        } else {
-            1.0 // ScanSegment.NormalWeight
-        }
-    }
-
-    /// Whether this point is out of the graph bounds.
-    ///
-    /// C# file: FreePoint.cs, line 29: IsOutOfBounds
-    pub fn is_out_of_bounds(&self) -> bool {
-        self.out_of_bounds_direction.is_some()
-    }
-
-    /// Add an edge from this point to an adjacent edge and extend the chain.
-    ///
-    /// C# file: FreePoint.cs, lines 46-58
-    /// Big-O: O(chain) for VG adjacency walk
-    /// MUST use StaticGraphUtility.SegmentIntersection for intersection point
-    pub fn add_edge_to_adjacent_edge(
-        &mut self,
-        target_edge: (VertexId, VertexId),
-        dir_to_extend: CompassDirection,
-        limit_rect: &Rectangle,
-        graph: &mut crate::visibility::graph::VisibilityGraph,
-        trans_util: &mut crate::routing::transient_graph_utility::TransientGraphUtility,
-        obstacle_tree: &mut crate::routing::obstacle_tree::ObstacleTree,
-    ) -> Option<VertexId> {
-        // C#: Point targetIntersect = StaticGraphUtility.SegmentIntersection(targetEdge, this.Point);
-        // SegmentIntersection finds the perpendicular projection of this.Point onto the edge.
-        // For rectilinear edges, this is the point on the edge sharing the appropriate coordinate.
-        let self_vertex = self.vertex?;
-        let edge_src_point = graph.point(target_edge.0);
-        let edge_tgt_point = graph.point(target_edge.1);
-
-        // For axis-aligned edges, the intersection is the projection of self.point onto the edge.
-        let target_intersect = if GeomConstants::close(edge_src_point.x(), edge_tgt_point.x()) {
-            // Vertical edge — intersect at (edge.x, self.y)
-            Point::new(edge_src_point.x(), self.point.y())
-        } else {
-            // Horizontal edge — intersect at (self.x, edge.y)
-            Point::new(self.point.x(), edge_src_point.y())
-        };
-
-        // C#: VisibilityVertex targetVertex = transUtil.VisGraph.FindVertex(targetIntersect);
-        let target_vertex = graph.find_vertex(target_intersect);
-
-        if let Some(tv) = target_vertex {
-            // Vertex already exists — add edge to it and extend.
-            self.add_to_adjacent_vertex(tv, dir_to_extend, limit_rect, graph, trans_util, obstacle_tree);
-            return Some(tv);
-        }
-
-        // Vertex doesn't exist — AddEdgeToTargetEdge adds it to the graph.
-        // C#: targetVertex = transUtil.AddEdgeToTargetEdge(this.Vertex, targetEdge, targetIntersect);
-        let new_vertex = trans_util.add_edge_to_target_edge(
-            graph,
-            self_vertex,
-            target_edge.0,
-            target_edge.1,
-            target_intersect,
-        );
-
-        // C#: ExtendEdgeChain(transUtil, targetVertex, dirToExtend, limitRect);
-        self.extend_edge_chain(new_vertex, dir_to_extend, limit_rect, graph, trans_util, obstacle_tree);
-        Some(new_vertex)
-    }
-
-    /// Add edge to an adjacent vertex and extend the chain.
-    ///
-    /// C# file: FreePoint.cs, lines 60-66
-    /// Big-O: O(chain) for VG adjacency walk
-    pub fn add_to_adjacent_vertex(
-        &mut self,
-        target_vertex: VertexId,
-        dir_to_extend: CompassDirection,
-        limit_rect: &Rectangle,
-        graph: &mut crate::visibility::graph::VisibilityGraph,
-        trans_util: &mut crate::routing::transient_graph_utility::TransientGraphUtility,
-        obstacle_tree: &mut crate::routing::obstacle_tree::ObstacleTree,
-    ) {
-        if let Some(self_vertex) = self.vertex {
-            let tp = graph.point(target_vertex);
-            if !(GeomConstants::close(self.point.x(), tp.x())
-                && GeomConstants::close(self.point.y(), tp.y()))
-            {
-                let weight = self.initial_weight();
-                trans_util.find_or_add_edge(graph, self_vertex, target_vertex, weight);
-            }
-        }
-        self.extend_edge_chain(target_vertex, dir_to_extend, limit_rect, graph, trans_util, obstacle_tree);
-    }
-
-    /// Extend the edge chain from a target vertex in the given direction.
-    ///
-    /// C# file: FreePoint.cs, lines 68-86
-    /// Big-O: O(chain) for VG adjacency walk + O(log N) for obstacle tree
-    /// MUST use ObstacleTree for CreateMaxVisibilitySegment
-    pub fn extend_edge_chain(
-        &mut self,
-        target_vertex: VertexId,
-        dir_to_extend: CompassDirection,
-        limit_rect: &Rectangle,
-        graph: &mut crate::visibility::graph::VisibilityGraph,
-        trans_util: &mut crate::routing::transient_graph_utility::TransientGraphUtility,
-        obstacle_tree: &mut crate::routing::obstacle_tree::ObstacleTree,
-    ) {
-        let mut extend_overlapped = self.is_overlapped;
-        if extend_overlapped {
-            use crate::routing::scan_direction::ScanDirection;
-            let scan_dir = if dir_to_extend == CompassDirection::East || dir_to_extend == CompassDirection::West {
-                ScanDirection::horizontal()
-            } else {
-                ScanDirection::vertical()
-            };
-            extend_overlapped = obstacle_tree.point_is_inside_an_obstacle(graph.point(target_vertex), scan_dir);
-        }
-
-        let start_vertex = if self.is_overlapped { target_vertex } else { self.vertex.unwrap() };
-        let (seg_start, seg_end) = self.get_segment_and_crossings(start_vertex, dir_to_extend, graph, obstacle_tree);
-        trans_util.extend_edge_chain_public(
-            graph,
-            obstacle_tree,
-            target_vertex,
-            limit_rect,
-            seg_start,
-            seg_end,
-            None,
-            extend_overlapped
-        );
-    }
-
-    fn get_segment_and_crossings(
-        &mut self,
-        start_vertex: VertexId,
-        dir_to_extend: CompassDirection,
-        graph: &crate::visibility::graph::VisibilityGraph,
-        obstacle_tree: &mut crate::routing::obstacle_tree::ObstacleTree,
-    ) -> (Point, Point) {
-        let dir_index = dir_to_extend.index();
-        if let Some(ref mut sac) = self.max_visibility_segments[dir_index] {
-            let start_point = graph.point(start_vertex);
-            if CompassDirection::from_points(start_point, sac.segment_start) == Some(dir_to_extend) {
-                sac.segment_start = start_point;
-            }
-            return (sac.segment_start, sac.segment_end);
-        }
-
-        let start_point = graph.point(start_vertex);
-        // Create a very long segment in the direction of extension
-        // Then restrict it using the obstacle tree.
-        let far_distance = 1e6; // A sufficiently large number representing max visibility
-        let far_point = match dir_to_extend {
-            CompassDirection::North => Point::new(start_point.x(), start_point.y() + far_distance),
-            CompassDirection::South => Point::new(start_point.x(), start_point.y() - far_distance),
-            CompassDirection::East => Point::new(start_point.x() + far_distance, start_point.y()),
-            CompassDirection::West => Point::new(start_point.x() - far_distance, start_point.y()),
-        };
-
-        let (seg_start, seg_end) = obstacle_tree.restrict_segment_with_obstacles(start_point, far_point);
-        let sac = match &mut self.max_visibility_segments[dir_index] { // sac definition matching SegmentAndCrossings
-            slot => {
-                let val = SegmentAndCrossings {
-                    segment_start: seg_start,
-                    segment_end: seg_end,
-                };
-                *slot = Some(val.clone());
-                val
-            }
-        };
-        (sac.segment_start, sac.segment_end)
-    }
-
-    /// Get max visibility endpoint in a direction for non-overlapped free points.
-    ///
-    /// C# file: FreePoint.cs, lines 106-110
-    /// Big-O: O(log N) for obstacle tree if not cached
-    pub fn max_visibility_in_direction(
-        &mut self,
-        dir_to_extend: CompassDirection,
-        graph: &crate::visibility::graph::VisibilityGraph,
-        obstacle_tree: &mut crate::routing::obstacle_tree::ObstacleTree,
-    ) -> Point {
-        let vertex = self.vertex.unwrap();
-        let (_start, end) = self.get_segment_and_crossings(vertex, dir_to_extend, graph, obstacle_tree);
-        end
-    }
-
-    /// Add out-of-bounds edges from a graph corner vertex.
-    ///
-    /// C# file: FreePoint.cs, lines 112-119
-    /// Big-O: O(1) per edge
-    pub fn add_oob_edges_from_graph_corner(
-        &mut self,
-        corner_point: Point,
-        graph: &mut crate::visibility::graph::VisibilityGraph,
-    ) {
-        // C#: Direction dirs = PointComparer.GetDirections(cornerPoint, Vertex.Point);
-        //     VisibilityVertex cornerVertex = transUtil.VisGraph.FindVertex(cornerPoint);
-        //     transUtil.ConnectVertexToTargetVertex(cornerVertex, this.Vertex,
-        //         dirs & (Direction.North | Direction.South), ScanSegment.NormalWeight);
-        //     transUtil.ConnectVertexToTargetVertex(cornerVertex, this.Vertex,
-        //         dirs & (Direction.East | Direction.West), ScanSegment.NormalWeight);
-        use super::compass_direction::Direction;
-
-        let self_vertex = match self.vertex {
-            Some(v) => v,
-            None => return,
-        };
-
-        let corner_vertex = match graph.find_vertex(corner_point) {
-            Some(v) => v,
-            None => return,
-        };
-
-        let vertex_point = graph.point(self_vertex);
-        let dirs = Direction::from_point_to_point(corner_point, vertex_point);
-
-        // Extract vertical component (N/S).
-        let vertical = dirs & (Direction::NORTH | Direction::SOUTH);
-        if vertical.is_pure() {
-            // Connect corner to self via vertical direction.
-            // For a simple connection: if they share an x coordinate, one edge;
-            // otherwise a bend is needed. Use direct edge for now.
-            let cp = graph.point(corner_vertex);
-            let vp = graph.point(self_vertex);
-            if !(GeomConstants::close(cp.x(), vp.x()) && GeomConstants::close(cp.y(), vp.y())) {
-                graph.add_edge(corner_vertex, self_vertex, 1.0);
-            }
-        }
-
-        // Extract horizontal component (E/W).
-        let horizontal = dirs & (Direction::EAST | Direction::WEST);
-        if horizontal.is_pure() {
-            let cp = graph.point(corner_vertex);
-            let vp = graph.point(self_vertex);
-            if !(GeomConstants::close(cp.x(), vp.x()) && GeomConstants::close(cp.y(), vp.y())) {
-                // Only add if we didn't already add an edge above
-                // (which would be the case if both vertical and horizontal are pure,
-                // meaning diagonal — we need a bend vertex in between).
-                if !vertical.is_pure() {
-                    graph.add_edge(corner_vertex, self_vertex, 1.0);
-                } else {
-                    // Both components exist — need a bend vertex.
-                    // Create bend at (corner.x, self.y) or (self.x, corner.y).
-                    let bend_point = Point::new(cp.x(), vp.y());
-                    let bend_vertex = graph.find_or_add_vertex(bend_point);
-                    let bp = graph.point(bend_vertex);
-                    if !(GeomConstants::close(cp.x(), bp.x()) && GeomConstants::close(cp.y(), bp.y())) {
-                        graph.add_edge(corner_vertex, bend_vertex, 1.0);
-                    }
-                    if !(GeomConstants::close(bp.x(), vp.x()) && GeomConstants::close(bp.y(), vp.y())) {
-                        graph.add_edge(bend_vertex, self_vertex, 1.0);
-                    }
-                }
-            }
-        }
-    }
-
-    /// Remove this free point from the visibility graph.
-    ///
-    /// C# file: FreePoint.cs, lines 121-124
-    pub fn remove_from_graph(&mut self) {
-        self.vertex = None;
-    }
-}

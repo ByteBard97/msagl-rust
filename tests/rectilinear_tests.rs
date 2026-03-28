@@ -394,3 +394,162 @@ fn diagonal_pair_one_bend() {
     // or more if it detours; at minimum the path must be valid.
     assert!(result.edges[0].points.len() >= 2);
 }
+
+// ── Temporary diagnostics ────────────────────────────────────────────────────
+
+/// Dump VG vertices and test connectivity for the fan-out failure.
+#[test]
+#[ignore]
+fn diag_fan_out_vg_state() {
+    use msagl_rust::routing::visibility_graph_generator::generate_visibility_graph;
+    use msagl_rust::routing::shape::Shape;
+    use msagl_rust::routing::compass_direction::CompassDirection;
+    use msagl_rust::routing::transient_graph_utility::TransientGraphUtility;
+    use msagl_rust::routing::port_manager::PortManager;
+    use msagl_rust::Point;
+
+    let padding = 1.0_f64;
+    let shapes = vec![
+        Shape::rectangle(80.0, 80.0, 20.0, 20.0),   // top: bl=(80,80)
+        Shape::rectangle(20.0, 40.0, 20.0, 20.0),   // b0
+        Shape::rectangle(50.0, 40.0, 20.0, 20.0),   // b1
+        Shape::rectangle(80.0, 40.0, 20.0, 20.0),   // b2
+        Shape::rectangle(110.0, 40.0, 20.0, 20.0),  // b3
+        Shape::rectangle(140.0, 40.0, 20.0, 20.0),  // b4
+    ];
+    let mut session = generate_visibility_graph(&shapes, padding);
+
+    // Dump all VG vertices sorted by Y then X
+    let n = session.vis_graph.vertex_count();
+    let mut pts: Vec<msagl_rust::Point> = (0..n)
+        .map(|i| session.vis_graph.point(msagl_rust::visibility::graph::VertexId(i)))
+        .collect();
+    pts.sort_by(|a, b| a.y().partial_cmp(&b.y()).unwrap().then(a.x().partial_cmp(&b.x()).unwrap()));
+    println!("=== VG vertices ({} total) ===", pts.len());
+    for pt in &pts {
+        let v = session.vis_graph.find_vertex(*pt).unwrap();
+        println!("  ({:6.1}, {:6.1})  deg={}", pt.x(), pt.y(), session.vis_graph.degree(v));
+    }
+
+    let src = Point::new(90.0, 90.0);
+    let tgt = Point::new(150.0, 50.0);
+    let graph_box = session.obstacle_tree.graph_box();
+    println!("\ngraph_box = ({},{})-({}{})", graph_box.left(), graph_box.bottom(), graph_box.right(), graph_box.top());
+
+    println!("\n=== Perp seeds from src ({},{}) ===", src.x(), src.y());
+    for dir in [CompassDirection::East, CompassDirection::West, CompassDirection::North, CompassDirection::South] {
+        let seeds = session.vis_graph.find_perpendicular_line_seeds(src, dir);
+        println!("  {:?}: {} seeds", dir, seeds.len());
+        for (vid, dist) in seeds.iter().take(3) {
+            let pt = session.vis_graph.point(*vid);
+            println!("    ({:.1},{:.1}) dist={:.1}", pt.x(), pt.y(), dist);
+        }
+    }
+
+    println!("\n=== Perp seeds from tgt ({},{}) ===", tgt.x(), tgt.y());
+    for dir in [CompassDirection::East, CompassDirection::West, CompassDirection::North, CompassDirection::South] {
+        let seeds = session.vis_graph.find_perpendicular_line_seeds(tgt, dir);
+        println!("  {:?}: {} seeds", dir, seeds.len());
+        for (vid, dist) in seeds.iter().take(3) {
+            let pt = session.vis_graph.point(*vid);
+            println!("    ({:.1},{:.1}) dist={:.1}", pt.x(), pt.y(), dist);
+        }
+    }
+
+    // Dump scan segments
+    println!("\n=== H scan segments ({}) ===", session.h_scan_segments.all_segments().count());
+    for seg in session.h_scan_segments.all_segments() {
+        println!("  {:?}", seg);
+    }
+    println!("\n=== V scan segments ({}) ===", session.v_scan_segments.all_segments().count());
+    for seg in session.v_scan_segments.all_segments() {
+        println!("  {:?}", seg);
+    }
+
+    // Now simulate the routing for src->tgt
+    let mut tgu = TransientGraphUtility::new();
+    let src_v = PortManager::splice_port_into(&mut session, src, &mut tgu);
+    let src_deg = session.vis_graph.degree(src_v);
+    println!("\nAfter splice_port_into src={:?}: degree={}", src, src_deg);
+
+    let tgt_v = PortManager::splice_port_into(&mut session, tgt, &mut tgu);
+    let tgt_deg = session.vis_graph.degree(tgt_v);
+    println!("After splice_port_into tgt={:?}: degree={}", tgt, tgt_deg);
+}
+
+/// Verify that none of the benchmark scenario edges are genuine routing failures.
+///
+/// A "genuine fallback" is when path search returns None and the router falls back
+/// to a straight src→tgt line (`RoutedEdge::is_fallback == true`). Note that a
+/// 2-point path is NOT necessarily a fallback — horizontally or vertically aligned
+/// center-port obstacles legitimately produce collinear 2-waypoint paths.
+#[test]
+fn bench_scenarios_no_fallbacks() {
+    for name in ["small", "medium", "large"] {
+        let scenario = test_harness::load_bench_scenario(name);
+        let result = test_harness::run_bench_scenario(&scenario);
+        let fallbacks: Vec<_> = result.edges.iter().enumerate()
+            .filter(|(_, e)| e.is_fallback)
+            .map(|(i, _)| i)
+            .collect();
+        assert!(fallbacks.is_empty(), "{name}: edges {fallbacks:?} are genuine routing failures");
+    }
+}
+
+/// Center-port horizontal pair: two same-height boxes side by side.
+/// When both port centers are at the same y, the path is a straight horizontal
+/// line and legitimately has exactly 2 waypoints (no bends needed).
+#[test]
+fn two_squares_center_port_horizontal() {
+    let mut b = ScenarioBuilder::new();
+    let left = b.add_rectangle_bl(20.0, 20.0, 80.0, 80.0);
+    let right = b.add_rectangle_bl(220.0, 20.0, 80.0, 80.0);
+    b.route_between(left, right);
+    let result = b.run();
+    let e = &result.edges[0];
+    // Must NOT be a genuine routing failure.
+    assert!(!e.is_fallback, "path search failed: {:?}", e.points);
+    // Horizontal aligned center ports collapse to 2 collinear waypoints — that is correct.
+    assert!(e.points.len() >= 2, "path must have at least 2 waypoints");
+}
+
+/// Center-port staggered pair: boxes at different y-levels must produce a bent path.
+#[test]
+fn two_squares_center_port_staggered() {
+    let mut b = ScenarioBuilder::new();
+    let left  = b.add_rectangle_bl(0.0,   0.0, 80.0, 80.0);
+    let right = b.add_rectangle_bl(200.0, 100.0, 80.0, 80.0);
+    b.route_between(left, right);
+    let result = b.run();
+    let e = &result.edges[0];
+    assert!(!e.is_fallback, "path search failed: {:?}", e.points);
+    assert!(e.points.len() > 2, "staggered pair must have a bend: {:?}", e.points);
+}
+
+/// Audit common center-port scenarios and report genuine fallbacks.
+#[test]
+fn audit_center_port_scenarios() {
+    let cases: &[(&str, &[(f64,f64,f64,f64)], &[(usize,usize)])] = &[
+        ("two_squares_80x80",    &[(20.,20.,80.,80.),(220.,20.,80.,80.)],    &[(0,1)]),
+        ("three_inline",         &[(0.,0.,80.,80.),(200.,0.,80.,80.),(400.,0.,80.,80.)], &[(0,1),(1,2)]),
+        ("vertical_pair",        &[(0.,0.,80.,80.),(0.,200.,80.,80.)],       &[(0,1)]),
+        ("staggered_pair",       &[(0.,0.,80.,80.),(200.,100.,80.,80.)],     &[(0,1)]),
+    ];
+    let mut any_genuine_fallback = false;
+    for (name, obs, edges) in cases {
+        let mut b = ScenarioBuilder::new();
+        let indices: Vec<usize> = obs.iter().map(|&(x,y,w,h)| b.add_rectangle_bl(x,y,w,h)).collect();
+        for &(s,t) in *edges { b.route_between(indices[s], indices[t]); }
+        let result = b.run();
+        for (i, e) in result.edges.iter().enumerate() {
+            if e.is_fallback {
+                any_genuine_fallback = true;
+                println!("{name}[{i}]: GENUINE FALLBACK (path search failed)");
+            } else {
+                println!("{name}[{i}]: {} pts", e.points.len());
+            }
+        }
+    }
+    assert!(!any_genuine_fallback, "some edges failed path search");
+}
+

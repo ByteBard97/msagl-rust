@@ -334,6 +334,7 @@ impl Obstacle {
         self.active_low_side = Some(ObstacleSide::from_polyline_point(
             SideType::Low,
             self.index,
+            self.ordinal,
             start_key,
             &self.padded_polyline,
             scan_direction,
@@ -342,6 +343,7 @@ impl Obstacle {
         self.active_high_side = Some(ObstacleSide::from_polyline_point(
             SideType::High,
             self.index,
+            self.ordinal,
             start_key,
             &self.padded_polyline,
             scan_direction,
@@ -355,6 +357,7 @@ impl Obstacle {
                 self.active_high_side = Some(ObstacleSide::from_polyline_point(
                     SideType::High,
                     self.index,
+                    self.ordinal,
                     new_start,
                     &self.padded_polyline,
                     scan_direction,

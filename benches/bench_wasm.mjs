@@ -20,7 +20,7 @@ const ROOT = join(__dirname, "..");
 
 const ITERATIONS = 100;
 const SCENARIO_NAMES = ["small", "medium", "large"];
-const PKG_DIR = join(ROOT, "crates/msagl-wasm/pkg-web");
+const PKG_DIR = join(ROOT, "crates/msagl-wasm/pkg-node");
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -63,10 +63,9 @@ async function main() {
   }
 
   // Initialise the WASM module
-  if (wasmModule.default) {
+  if (typeof wasmModule.default === "function") {
     await wasmModule.default();
-  }
-  if (wasmModule.init) {
+  } else if (wasmModule.init) {
     wasmModule.init();
   }
 
