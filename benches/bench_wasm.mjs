@@ -128,6 +128,57 @@ async function main() {
   }
 
   console.log();
+
+  // -------------------------------------------------------------------------
+  // Stateful Router Smoke Test
+  // -------------------------------------------------------------------------
+  console.log("Stateful Router Smoke Test");
+  console.log("=".repeat(60));
+
+  const { Router } = wasmModule;
+  if (!Router) {
+    console.error("ERROR: Router class not found in WASM module exports");
+    process.exit(1);
+  }
+
+  const router = new Router(/* padding */ 4.0, /* edge_separation */ 8.0);
+
+  // Add two rectangular obstacles that don't overlap
+  const obstacleA = router.add_obstacle(0, 0, 60, 40);    // left block
+  const obstacleB = router.add_obstacle(200, 0, 60, 40);  // right block
+
+  // Add one edge between them
+  const edgeAB = router.add_edge(obstacleA, obstacleB);
+
+  // Route
+  router.route();
+
+  // Retrieve paths
+  const paths = router.get_paths();
+  if (!Array.isArray(paths)) {
+    console.error("ERROR: get_paths() did not return an array");
+    process.exit(1);
+  }
+  if (paths.length !== 1) {
+    console.error(
+      `ERROR: expected 1 path, got ${paths.length}`
+    );
+    process.exit(1);
+  }
+
+  const path = paths[0];
+  if (!path.points || path.points.length < 2) {
+    console.error(
+      `ERROR: path has fewer than 2 waypoints (got ${path.points?.length ?? 0})`
+    );
+    process.exit(1);
+  }
+
+  console.log(
+    `  PASS: 1 path returned, ${path.points.length} waypoints, ` +
+    `isFallback=${path.isFallback ?? path.is_fallback}`
+  );
+  console.log();
 }
 
 main().catch((err) => {
