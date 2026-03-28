@@ -394,3 +394,85 @@ fn diagonal_pair_one_bend() {
     // or more if it detours; at minimum the path must be valid.
     assert!(result.edges[0].points.len() >= 2);
 }
+
+// ── Temporary diagnostics ────────────────────────────────────────────────────
+
+/// Dump VG vertices and test connectivity for the fan-out failure.
+#[test]
+#[ignore]
+fn diag_fan_out_vg_state() {
+    use msagl_rust::routing::visibility_graph_generator::generate_visibility_graph;
+    use msagl_rust::routing::shape::Shape;
+    use msagl_rust::routing::compass_direction::CompassDirection;
+    use msagl_rust::routing::transient_graph_utility::TransientGraphUtility;
+    use msagl_rust::routing::port_manager::PortManager;
+    use msagl_rust::Point;
+
+    let padding = 1.0_f64;
+    let shapes = vec![
+        Shape::rectangle(80.0, 80.0, 20.0, 20.0),   // top: bl=(80,80)
+        Shape::rectangle(20.0, 40.0, 20.0, 20.0),   // b0
+        Shape::rectangle(50.0, 40.0, 20.0, 20.0),   // b1
+        Shape::rectangle(80.0, 40.0, 20.0, 20.0),   // b2
+        Shape::rectangle(110.0, 40.0, 20.0, 20.0),  // b3
+        Shape::rectangle(140.0, 40.0, 20.0, 20.0),  // b4
+    ];
+    let mut session = generate_visibility_graph(&shapes, padding);
+
+    // Dump all VG vertices sorted by Y then X
+    let n = session.vis_graph.vertex_count();
+    let mut pts: Vec<msagl_rust::Point> = (0..n)
+        .map(|i| session.vis_graph.point(msagl_rust::visibility::graph::VertexId(i)))
+        .collect();
+    pts.sort_by(|a, b| a.y().partial_cmp(&b.y()).unwrap().then(a.x().partial_cmp(&b.x()).unwrap()));
+    println!("=== VG vertices ({} total) ===", pts.len());
+    for pt in &pts {
+        let v = session.vis_graph.find_vertex(*pt).unwrap();
+        println!("  ({:6.1}, {:6.1})  deg={}", pt.x(), pt.y(), session.vis_graph.degree(v));
+    }
+
+    let src = Point::new(90.0, 90.0);
+    let tgt = Point::new(150.0, 50.0);
+    let graph_box = session.obstacle_tree.graph_box();
+    println!("\ngraph_box = ({},{})-({}{})", graph_box.left(), graph_box.bottom(), graph_box.right(), graph_box.top());
+
+    println!("\n=== Perp seeds from src ({},{}) ===", src.x(), src.y());
+    for dir in [CompassDirection::East, CompassDirection::West, CompassDirection::North, CompassDirection::South] {
+        let seeds = session.vis_graph.find_perpendicular_line_seeds(src, dir);
+        println!("  {:?}: {} seeds", dir, seeds.len());
+        for (vid, dist) in seeds.iter().take(3) {
+            let pt = session.vis_graph.point(*vid);
+            println!("    ({:.1},{:.1}) dist={:.1}", pt.x(), pt.y(), dist);
+        }
+    }
+
+    println!("\n=== Perp seeds from tgt ({},{}) ===", tgt.x(), tgt.y());
+    for dir in [CompassDirection::East, CompassDirection::West, CompassDirection::North, CompassDirection::South] {
+        let seeds = session.vis_graph.find_perpendicular_line_seeds(tgt, dir);
+        println!("  {:?}: {} seeds", dir, seeds.len());
+        for (vid, dist) in seeds.iter().take(3) {
+            let pt = session.vis_graph.point(*vid);
+            println!("    ({:.1},{:.1}) dist={:.1}", pt.x(), pt.y(), dist);
+        }
+    }
+
+    // Dump scan segments
+    println!("\n=== H scan segments ({}) ===", session.h_scan_segments.all_segments().count());
+    for seg in session.h_scan_segments.all_segments() {
+        println!("  {:?}", seg);
+    }
+    println!("\n=== V scan segments ({}) ===", session.v_scan_segments.all_segments().count());
+    for seg in session.v_scan_segments.all_segments() {
+        println!("  {:?}", seg);
+    }
+
+    // Now simulate the routing for src->tgt
+    let mut tgu = TransientGraphUtility::new();
+    let src_v = PortManager::splice_port_into(&mut session, src, &mut tgu);
+    let src_deg = session.vis_graph.degree(src_v);
+    println!("\nAfter splice_port_into src={:?}: degree={}", src, src_deg);
+
+    let tgt_v = PortManager::splice_port_into(&mut session, tgt, &mut tgu);
+    let tgt_deg = session.vis_graph.degree(tgt_v);
+    println!("After splice_port_into tgt={:?}: degree={}", tgt, tgt_deg);
+}

@@ -17,51 +17,72 @@ use crate::visibility::graph::VisibilityGraph;
 /// Matches C# VisibilityGraphGenerator.SentinelOffset = 1.0.
 const SENTINEL_OFFSET: f64 = 1.0;
 
-/// Generate a visibility graph from rectangular shapes, returning a populated RouterSession.
+/// Builds and rebuilds the visibility graph inside a `RouterSession`.
 ///
-/// Uses a two-pass event-driven sweep-line algorithm:
-///   Pass 1 (horizontal scan, vertical sweep): creates horizontal segments
-///   Pass 2 (vertical scan, horizontal sweep): creates vertical segments
-/// Then intersects H and V segments to build the visibility graph.
+/// The generator itself is stateless (no fields); all output lives on the session.
+/// This matches C# `FullVisibilityGraphGenerator` / TS `VisibilityGraphGenerator`.
 ///
-/// The H and V scan segment trees are preserved on the session so that PortManager
-/// can perform O(log n) edge lookups during port splicing.
+/// # Refactor 2
+/// Previously a free function (`generate_visibility_graph`); now a struct so that
+/// `RectilinearEdgeRouter` can hold it as an owned field and call `generate` whenever
+/// the obstacle set changes (`add_shape` / `remove_shape`).
+pub struct VisibilityGraphGenerator;
+
+impl VisibilityGraphGenerator {
+    /// Run both sweep passes and populate `session.vis_graph`, `session.h_scan_segments`,
+    /// and `session.v_scan_segments` from the obstacles already stored in
+    /// `session.obstacle_tree`.
+    ///
+    /// Replaces the entire VG on `session`; safe to call more than once (on obstacle change).
+    pub fn generate(&self, session: &mut RouterSession) {
+        if session.obstacle_tree.obstacles.is_empty() {
+            session.vis_graph = VisibilityGraph::new();
+            session.h_scan_segments = ScanSegmentTree::new(ScanDirection::horizontal());
+            session.v_scan_segments = ScanSegmentTree::new(ScanDirection::vertical());
+            return;
+        }
+
+        let graph_box = session.obstacle_tree.graph_box();
+
+        // Pass 1: Horizontal scan (vertical sweep, creates horizontal segments)
+        let h_scan_segments =
+            run_sweep(&session.obstacle_tree, ScanDirection::horizontal(), &graph_box);
+
+        // Pass 2: Vertical scan (horizontal sweep, creates vertical segments)
+        let v_scan_segments =
+            run_sweep(&session.obstacle_tree, ScanDirection::vertical(), &graph_box);
+
+        // Intersect H and V segments to build the visibility graph.
+        let mut h_segs: Vec<ScanSegment> = h_scan_segments.all_segments().cloned().collect();
+        let mut v_segs: Vec<ScanSegment> = v_scan_segments.all_segments().cloned().collect();
+
+        session.vis_graph = build_graph_from_segments(&mut h_segs, &mut v_segs);
+        session.h_scan_segments = h_scan_segments;
+        session.v_scan_segments = v_scan_segments;
+    }
+}
+
+/// Convenience constructor: build a `RouterSession` from scratch and run both sweep passes.
 ///
-/// Mirrors FullVisibilityGraphGenerator.cs / VisibilityGraphGenerator.ts from MSAGL.
+/// Kept for tests and one-off callers; internally creates a `VisibilityGraphGenerator`
+/// and calls `generate`.
 pub fn generate_visibility_graph(shapes: &[Shape], padding: f64) -> RouterSession {
-    if shapes.is_empty() {
-        return RouterSession {
-            vis_graph: VisibilityGraph::new(),
-            obstacle_tree: ObstacleTree::empty(),
-            h_scan_segments: ScanSegmentTree::new(ScanDirection::horizontal()),
-            v_scan_segments: ScanSegmentTree::new(ScanDirection::vertical()),
-            padding,
-        };
-    }
+    let obstacle_tree = if shapes.is_empty() {
+        ObstacleTree::empty()
+    } else {
+        ObstacleTree::new(shapes, padding)
+    };
 
-    let obstacle_tree = ObstacleTree::new(shapes, padding);
-    let graph_box = obstacle_tree.graph_box();
-
-    // Pass 1: Horizontal scan (vertical sweep, creates horizontal segments)
-    let h_scan_segments = run_sweep(&obstacle_tree, ScanDirection::horizontal(), &graph_box);
-
-    // Pass 2: Vertical scan (horizontal sweep, creates vertical segments)
-    let v_scan_segments = run_sweep(&obstacle_tree, ScanDirection::vertical(), &graph_box);
-
-    // Intersect to build the visibility graph.
-    // build_graph_from_segments clones the input slices internally, so we can still
-    // keep the trees alive on the session for PortManager splice lookups.
-    let mut h_segs: Vec<ScanSegment> = h_scan_segments.all_segments().cloned().collect();
-    let mut v_segs: Vec<ScanSegment> = v_scan_segments.all_segments().cloned().collect();
-    let vis_graph = build_graph_from_segments(&mut h_segs, &mut v_segs);
-
-    RouterSession {
-        vis_graph,
+    let mut session = RouterSession {
+        vis_graph: VisibilityGraph::new(),
         obstacle_tree,
-        h_scan_segments,
-        v_scan_segments,
+        h_scan_segments: ScanSegmentTree::new(ScanDirection::horizontal()),
+        v_scan_segments: ScanSegmentTree::new(ScanDirection::vertical()),
         padding,
-    }
+    };
+
+    VisibilityGraphGenerator.generate(&mut session);
+    session
 }
 
 /// Run one sweep pass (horizontal or vertical) and return the resulting ScanSegmentTree.

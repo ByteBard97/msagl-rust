@@ -13,7 +13,9 @@ use crate::routing::port_manager::PortManager;
 use crate::routing::transient_graph_utility::TransientGraphUtility;
 use crate::routing::shape::Shape;
 use crate::routing::router_session::RouterSession;
-use crate::routing::visibility_graph_generator::generate_visibility_graph;
+use crate::routing::visibility_graph_generator::{
+    generate_visibility_graph, VisibilityGraphGenerator,
+};
 
 /// Default padding around obstacles (pixels).
 const DEFAULT_PADDING: f64 = 4.0;
@@ -38,7 +40,16 @@ pub struct RoutedEdge {
     pub curve: Curve,
 }
 
-/// Builder + executor for rectilinear edge routing.
+/// Stateful rectilinear edge router.
+///
+/// Owns the `RouterSession` (visibility graph + obstacle tree) and rebuilds it
+/// incrementally when shapes change. Call `add_shape` / `remove_shape` to mutate
+/// the obstacle set, then `run()` to produce routes.
+///
+/// # Refactor 5
+/// Previously a builder that rebuilt the VG from scratch on every `run()` call.
+/// Now the session is owned and the VG is regenerated only when the obstacle set
+/// or padding changes, matching C# `RectilinearEdgeRouter`'s incremental model.
 ///
 /// # Example
 /// ```
@@ -57,7 +68,11 @@ pub struct RoutedEdge {
 /// assert_eq!(result.edges.len(), 1);
 /// ```
 pub struct RectilinearEdgeRouter {
-    shapes: Vec<Shape>,
+    /// Owns the visibility graph, obstacle tree, and scan segment trees.
+    session: RouterSession,
+    /// Stateless VG generator; held as a field so `add_shape`/`remove_shape`
+    /// can call `vg_generator.generate(&mut self.session)` on demand.
+    vg_generator: VisibilityGraphGenerator,
     edges: Vec<EdgeGeometry>,
     padding: f64,
     edge_separation: f64,
@@ -67,9 +82,15 @@ pub struct RectilinearEdgeRouter {
 
 impl RectilinearEdgeRouter {
     /// Create a router for the given obstacle shapes.
+    ///
+    /// Builds the visibility graph immediately from `shapes` using
+    /// `DEFAULT_PADDING`. Call `.padding(p)` in the builder chain to
+    /// override before adding edges.
     pub fn new(shapes: &[Shape]) -> Self {
+        let session = generate_visibility_graph(shapes, DEFAULT_PADDING);
         Self {
-            shapes: shapes.to_vec(),
+            session,
+            vg_generator: VisibilityGraphGenerator,
             edges: Vec::new(),
             padding: DEFAULT_PADDING,
             edge_separation: DEFAULT_EDGE_SEPARATION,
@@ -79,8 +100,15 @@ impl RectilinearEdgeRouter {
     }
 
     /// Set obstacle padding (space between shape boundary and routes).
+    ///
+    /// If the new padding differs from the current value, rebuilds the
+    /// obstacle tree and regenerates the visibility graph.
     pub fn padding(mut self, p: f64) -> Self {
-        self.padding = p;
+        if (self.padding - p).abs() > 1e-12 {
+            self.padding = p;
+            let shapes = Self::extract_shapes(&self.session);
+            self.session = generate_visibility_graph(&shapes, p);
+        }
         self
     }
 
@@ -102,6 +130,22 @@ impl RectilinearEdgeRouter {
         self
     }
 
+    /// Add an obstacle shape and regenerate the visibility graph.
+    pub fn add_shape(&mut self, shape: Shape) {
+        let mut shapes = Self::extract_shapes(&self.session);
+        shapes.push(shape);
+        self.session = generate_visibility_graph(&shapes, self.padding);
+    }
+
+    /// Remove the obstacle shape at `index` (by insertion order) and regenerate.
+    pub fn remove_shape(&mut self, index: usize) {
+        let mut shapes = Self::extract_shapes(&self.session);
+        if index < shapes.len() {
+            shapes.remove(index);
+        }
+        self.session = generate_visibility_graph(&shapes, self.padding);
+    }
+
     /// Add an edge to be routed.
     pub fn add_edge(&mut self, edge: EdgeGeometry) {
         self.edges.push(edge);
@@ -114,44 +158,57 @@ impl RectilinearEdgeRouter {
             return RoutingResult { edges: Vec::new() };
         }
 
-        // 1. Build visibility graph from shapes (H/V scan segment trees kept on session)
-        let mut session = generate_visibility_graph(&self.shapes, self.padding);
+        // Extract source/target locations upfront (Points are Copy) so that the
+        // loop body can take &mut self.session without conflicting with the
+        // &self.edges borrow.
+        let edge_locs: Vec<(Point, Point)> = self
+            .edges
+            .iter()
+            .map(|e| (e.source.location, e.target.location))
+            .collect();
 
-        // 2. Route each edge: splice ports -> A* -> unsplice
         let search = PathSearch::new(self.bend_penalty_as_percentage);
         let mut paths: Vec<Vec<Point>> = Vec::new();
 
-        let graph_box = session.obstacle_tree.graph_box();
+        let graph_box = self.session.obstacle_tree.graph_box();
 
-        // Phase 2: Route each edge with a single TGU shared by entrance creation and port
-        // splicing. This matches the C# design where one TGU per edge-routing call owns all
-        // transient VG modifications; remove_from_graph at the end restores the graph cleanly.
-        for edge in &self.edges {
+        // Route each edge with a single TGU shared by entrance creation and port
+        // splicing. This matches the C# design where one TGU per edge-routing call
+        // owns all transient VG modifications; remove_from_graph at the end restores
+        // the graph cleanly.
+        for (src_loc, tgt_loc) in edge_locs {
             let mut tgu = TransientGraphUtility::new();
 
-            // Phase 2a: Create port entrances at obstacle boundaries into the shared TGU.
+            // Phase 2a: Create port entrances at obstacle boundaries.
             Self::create_port_entrances_for_location(
-                edge.source.location, &self.shapes, self.padding,
-                &mut session, &mut tgu, &graph_box,
+                src_loc,
+                &mut self.session,
+                &mut tgu,
+                &graph_box,
             );
             Self::create_port_entrances_for_location(
-                edge.target.location, &self.shapes, self.padding,
-                &mut session, &mut tgu, &graph_box,
+                tgt_loc,
+                &mut self.session,
+                &mut tgu,
+                &graph_box,
             );
 
             // Phase 2b: Splice ports using the SAME TGU so all modifications are consistent.
-            PortManager::splice_port_into(&mut session, edge.source.location, &mut tgu);
-            PortManager::splice_port_into(&mut session, edge.target.location, &mut tgu);
+            PortManager::splice_port_into(&mut self.session, src_loc, &mut tgu);
+            PortManager::splice_port_into(&mut self.session, tgt_loc, &mut tgu);
 
-            let path = search.find_path(&session.vis_graph, edge.source.location, edge.target.location);
+            let path = search.find_path(&self.session.vis_graph, src_loc, tgt_loc);
             paths.push(path.unwrap_or_else(|| {
-                debug_assert!(false, "path search failed for {:?} -> {:?}",
-                    edge.source.location, edge.target.location);
-                vec![edge.source.location, edge.target.location]
+                debug_assert!(
+                    false,
+                    "path search failed for {:?} -> {:?}",
+                    src_loc, tgt_loc
+                );
+                vec![src_loc, tgt_loc]
             }));
 
             // Phase 2c: Remove ALL modifications (entrances + splices) atomically.
-            tgu.remove_from_graph(&mut session);
+            tgu.remove_from_graph(&mut self.session);
         }
 
         // 3. Nudge paths for edge separation
@@ -178,9 +235,7 @@ impl RectilinearEdgeRouter {
     /// AddObstaclePortEntranceToGraph.
     fn create_port_entrances_for_location(
         location: Point,
-        shapes: &[Shape],
-        padding: f64,
-        session: &mut crate::routing::router_session::RouterSession,
+        session: &mut RouterSession,
         tgu: &mut TransientGraphUtility,
         graph_box: &Rectangle,
     ) {
@@ -254,22 +309,28 @@ impl RectilinearEdgeRouter {
             // Connect the boundary vertex to nearest live VG vertices in each perpendicular
             // direction so that splice_port_into can find a crossing edge from the port center.
             let (perp_a, perp_b) = match out_dir {
-                CompassDirection::East | CompassDirection::West =>
-                    (CompassDirection::North, CompassDirection::South),
-                CompassDirection::North | CompassDirection::South =>
-                    (CompassDirection::East, CompassDirection::West),
+                CompassDirection::East | CompassDirection::West => {
+                    (CompassDirection::North, CompassDirection::South)
+                }
+                CompassDirection::North | CompassDirection::South => {
+                    (CompassDirection::East, CompassDirection::West)
+                }
             };
             for &pdir in &[perp_a, perp_b] {
-                if let Some(nbr) = session.vis_graph.find_nearest_vertex_in_direction(border_point, pdir) {
+                if let Some(nbr) =
+                    session.vis_graph.find_nearest_vertex_in_direction(border_point, pdir)
+                {
                     if nbr == border_vertex {
                         continue;
                     }
                     let nbr_pt = session.vis_graph.point(nbr);
                     let on_axis = match pdir {
-                        CompassDirection::North | CompassDirection::South =>
-                            GeomConstants::close(nbr_pt.x(), border_point.x()),
-                        CompassDirection::East | CompassDirection::West =>
-                            GeomConstants::close(nbr_pt.y(), border_point.y()),
+                        CompassDirection::North | CompassDirection::South => {
+                            GeomConstants::close(nbr_pt.x(), border_point.x())
+                        }
+                        CompassDirection::East | CompassDirection::West => {
+                            GeomConstants::close(nbr_pt.y(), border_point.y())
+                        }
                     };
                     if on_axis && session.vis_graph.degree(nbr) > 0 {
                         let dist = ((nbr_pt.x() - border_point.x()).powi(2)
@@ -285,20 +346,40 @@ impl RectilinearEdgeRouter {
                 session.obstacle_tree.create_max_visibility_segment(border_point, out_dir, graph_box);
             if !seg_start.close_to(seg_end) {
                 tgu.extend_edge_chain_public(
-                    session, border_vertex, graph_box,
-                    seg_start, seg_end, None, false,
+                    session,
+                    border_vertex,
+                    graph_box,
+                    seg_start,
+                    seg_end,
+                    None,
+                    false,
                 );
             }
         }
     }
 
+    /// Extract the original (unpadded) shapes from the session's obstacle tree.
+    ///
+    /// Each `Obstacle` stores the `Shape` it was built from, so shapes can be
+    /// recovered when the padding changes or a shape is added/removed.
+    fn extract_shapes(session: &RouterSession) -> Vec<Shape> {
+        session
+            .obstacle_tree
+            .obstacles
+            .iter()
+            .map(|obs| obs.shape.clone())
+            .collect()
+    }
+
     /// Build padded obstacle rectangles for nudging.
     fn padded_obstacles(&self) -> Vec<Rectangle> {
-        self.shapes
+        self.session
+            .obstacle_tree
+            .obstacles
             .iter()
-            .map(|s| {
-                let mut r = *s.bounding_box();
-                r.pad(self.padding);
+            .map(|obs| {
+                let mut r = *obs.shape.bounding_box();
+                r.pad(self.session.padding);
                 r
             })
             .collect()
