@@ -99,17 +99,9 @@ impl VisibilityGraph {
     ///
     /// For each out-edge, removes the corresponding in-edge reference from the target vertex.
     /// For each in-edge source, removes the out-edge targeting this vertex.
-    /// Then clears the vertex's own edge lists and removes it from the point-to-vertex map.
+    /// Then clears the vertex's own edge lists and removes it from all tracking structures.
     ///
     /// Faithfully ports `RemoveVertex` from VisibilityGraph.ts lines 250-261.
-    ///
-    /// **Rust adaptation:** In TS, `deleteP` removes the vertex from the map and the GC
-    /// reclaims it. In Rust with an arena (Vec-based), the slot persists and its index
-    /// may be reused by `add_vertex`. We keep the slot in the map (as an empty vertex)
-    /// so that future `add_vertex` calls at the same point reuse the same `VertexId`,
-    /// preserving deterministic edge ordering in `BTreeSet<VisEdge>` and `BinaryHeap`
-    /// tie-breaking. This is an approved Rust adaptation: "Object references with GC →
-    /// Index-based arenas."
     pub fn remove_vertex(&mut self, vertex: VertexId) {
         // For each out-edge of the vertex, remove the in-edge from the target.
         let out_targets: Vec<VertexId> = self.vertices[vertex.0]
@@ -131,15 +123,30 @@ impl VisibilityGraph {
         }
 
         // Clear the removed vertex's own edge lists.
-        // In TS/C# the object gets GC'd; in Rust the Vec slot persists.
         self.vertices[vertex.0].out_edges.clear();
         self.vertices[vertex.0].in_edges.clear();
 
-        // NOTE: We intentionally do NOT remove the vertex from point_to_vertex.
-        // In TS, deleteP makes the vertex unreachable and GC reclaims the object.
-        // In Rust's arena model, the slot persists, so keeping it in the map allows
-        // subsequent add_vertex calls at the same point to reuse the same VertexId.
-        // The vertex is effectively dead (no edges) but its map entry remains.
+        // Remove from point-to-vertex map so find_vertex returns None for this point.
+        // Without this, subsequent find_vertex calls return a dead vertex (no edges),
+        // which breaks extend_splice_worker's invariant when the same point is reused
+        // across multiple TGU runs (e.g. the same port location for different edges).
+        self.point_to_vertex.remove(&vertex_point);
+
+        // Remove from coordinate indices to keep spatial queries consistent.
+        let xk = OrderedFloat(GeomConstants::round(vertex_point.x()));
+        let yk = OrderedFloat(GeomConstants::round(vertex_point.y()));
+        if let Some(ys) = self.x_to_ys.get_mut(&xk) {
+            ys.remove(&yk);
+            if ys.is_empty() {
+                self.x_to_ys.remove(&xk);
+            }
+        }
+        if let Some(xs) = self.y_to_xs.get_mut(&yk) {
+            xs.remove(&xk);
+            if xs.is_empty() {
+                self.y_to_xs.remove(&yk);
+            }
+        }
     }
 
     pub fn point(&self, v: VertexId) -> Point {

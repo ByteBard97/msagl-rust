@@ -111,14 +111,6 @@ pub fn process_low_bend(
     obstacle_index: usize,
     vertex_key: crate::arenas::PolylinePointKey,
 ) {
-    let old_low_side_node = state.scan_line.all_sides_ordered().into_iter().find(|s| s.obstacle_index() == obstacle_index && s.side_type() == crate::routing::obstacle_side::SideType::Low);
-    if old_low_side_node.is_none() { return; }
-    let old_low_side = old_low_side_node.unwrap().clone();
-    
-    // Mutates state
-    remove_side_from_scanline(state, &old_low_side);
-    
-    // Re-borrow immutably
     let new_low_side = ObstacleSide::from_polyline_point(
         crate::routing::obstacle_side::SideType::Low,
         obstacle_index,
@@ -126,16 +118,18 @@ pub fn process_low_bend(
         &state.obstacles[obstacle_index].padded_polyline(),
         state.scan_direction
     );
-    
+
+    // C# line 772: only replace the side when the new segment is still ascending.
+    // If flat or turning toward scanline, leave the current ActiveLowSide in place —
+    // CloseVertexEvent will remove it.  (See C# comment lines 766-770.)
     if state.scan_direction.compare_perp(new_low_side.end(), new_low_side.start()) == std::cmp::Ordering::Greater {
+        let old_low_side = state.obstacles[obstacle_index].active_low_side().unwrap().clone();
+        remove_side_from_scanline(state, &old_low_side);
         add_side_to_scanline(state, new_low_side.clone());
+        state.obstacles[obstacle_index].set_active_low_side(Some(new_low_side.clone()));
         enqueue_low_bend_event(state, &new_low_side);
-    } else {
-        let mut new_high_side = new_low_side.clone();
-        new_high_side.set_side_type(crate::routing::obstacle_side::SideType::High);
-        add_side_to_scanline(state, new_high_side.clone());
-        enqueue_high_bend_or_close_event(state, &new_high_side);
     }
+    // else: do nothing — ActiveLowSide stays in scanline for CloseVertexEvent to use
 }
 
 // =========================================================================
@@ -153,14 +147,13 @@ pub fn process_high_bend(
     obstacle_index: usize,
     vertex_key: crate::arenas::PolylinePointKey,
 ) {
-    let old_high_side_node = state.scan_line.all_sides_ordered().into_iter().find(|s| s.obstacle_index() == obstacle_index && s.side_type() == crate::routing::obstacle_side::SideType::High);
-    if old_high_side_node.is_none() { return; }
-    let old_high_side = old_high_side_node.unwrap().clone();
-    
-    // Mutate state
+    // C# line 790: always remove old ActiveHighSide and replace with new one
+    let old_high_side = match state.obstacles[obstacle_index].active_high_side() {
+        Some(s) => s.clone(),
+        None => return,
+    };
     remove_side_from_scanline(state, &old_high_side);
 
-    // Re-borrow immutably
     let new_high_side = ObstacleSide::from_polyline_point(
         crate::routing::obstacle_side::SideType::High,
         obstacle_index,
@@ -168,9 +161,10 @@ pub fn process_high_bend(
         &state.obstacles[obstacle_index].padded_polyline(),
         state.scan_direction
     );
-    
-    // Mutate state again
+
+    // C# lines 791-792: add to scanline, update ActiveHighSide
     add_side_to_scanline(state, new_high_side.clone());
+    state.obstacles[obstacle_index].set_active_high_side(Some(new_high_side.clone()));
     enqueue_high_bend_or_close_event(state, &new_high_side);
 
     // Extreme vertex lookahead for non-rectangular
@@ -207,18 +201,28 @@ pub fn process_close_vertex(
     site: Point,
     obstacle_index: usize,
 ) {
-    let low_side_node = state.scan_line.all_sides_ordered().into_iter().find(|s| s.obstacle_index() == obstacle_index && s.side_type() == crate::routing::obstacle_side::SideType::Low);
-    let high_side_node = state.scan_line.all_sides_ordered().into_iter().find(|s| s.obstacle_index() == obstacle_index && s.side_type() == crate::routing::obstacle_side::SideType::High);
-    
-    if low_side_node.is_none() || high_side_node.is_none() { return; }
-    let low_side = low_side_node.unwrap().clone();
-    let high_side = high_side_node.unwrap().clone();
+    // C# lines 841-842: find nodes via ActiveLowSide / ActiveHighSide, not by type search.
+    // After LowBend-does-nothing, ActiveLowSide is still the original side from OpenVertex.
+    let low_side = match state.obstacles[obstacle_index].active_low_side() {
+        Some(s) => s.clone(),
+        None => return,
+    };
+    let high_side = match state.obstacles[obstacle_index].active_high_side() {
+        Some(s) => s.clone(),
+        None => return,
+    };
+
+    // Both sides must still be in the scan line.
+    if state.scan_line.find(&low_side).is_none() || state.scan_line.find(&high_side).is_none() {
+        return;
+    }
 
     find_neighbors_and_process_vertex_event(state, &low_side, &high_side, site, obstacle_index, false);
 
+    // C# lines 873-874: remove both sides
     remove_side_from_scanline(state, &low_side);
     remove_side_from_scanline(state, &high_side);
-    
+
     if state.want_reflections {
         store_lookahead_site(state, obstacle_index, &low_side, site, true);
         store_lookahead_site(state, obstacle_index, &high_side, site, true);
@@ -470,6 +474,9 @@ fn add_segment(state: &mut SweepState, start: Point, end: Point, weight: crate::
     };
     if crate::geometry::point_comparer::GeomConstants::close(state.scan_direction.coord(s), state.scan_direction.coord(e)) {
         return;
+    }
+    if std::env::var("MSAGL_DEBUG_SEGS").is_ok() {
+        eprintln!("[seg] ({:.0},{:.0})->({:.0},{:.0}) vert={}", s.x(), s.y(), e.x(), e.y(), is_vertical);
     }
     state.seg_tree.insert_unique(crate::routing::scan_segment::ScanSegment::new(s, e, weight, is_vertical));
 }
