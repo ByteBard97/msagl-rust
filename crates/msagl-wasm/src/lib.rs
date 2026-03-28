@@ -99,6 +99,7 @@ pub struct RoutingOutput {
 /// A single routed path (sequence of rectilinear waypoints).
 #[derive(Tsify, Serialize)]
 #[tsify(into_wasm_abi)]
+#[serde(rename_all = "camelCase")]
 pub struct PathOutput {
     /// Waypoints from source through bends to target.
     pub points: Vec<PointOutput>,

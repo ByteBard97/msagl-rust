@@ -99,7 +99,7 @@ async function main() {
 
     let fallbacks = 0;
     for (let i = 0; i < result.paths.length; i++) {
-      if (result.paths[i].is_fallback) {
+      if (result.paths[i].isFallback) {
         fallbacks++;
       }
     }
@@ -173,10 +173,13 @@ async function main() {
     );
     process.exit(1);
   }
+  if (path.isFallback) {
+    console.error("ERROR: stateful router returned a fallback (routing failure)");
+    process.exit(1);
+  }
 
   console.log(
-    `  PASS: 1 path returned, ${path.points.length} waypoints, ` +
-    `isFallback=${path.isFallback ?? path.is_fallback}`
+    `  PASS: 1 path returned, ${path.points.length} waypoints, isFallback=false`
   );
   console.log();
 }
