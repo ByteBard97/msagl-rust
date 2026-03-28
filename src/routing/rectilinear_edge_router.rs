@@ -155,6 +155,9 @@ impl RectilinearEdgeRouter {
     ///
     /// Mirrors C# `RectilinearEdgeRouter.RouteToCenterOfObstacles`.
     /// Default: false.
+    ///
+    /// TODO: this flag is stored but not yet wired into the routing pipeline.
+    /// Wire it into port-entrance selection in `port_manager_entrances.rs`.
     pub fn route_to_center_of_obstacles(mut self, val: bool) -> Self {
         self.route_to_center = val;
         self
@@ -164,6 +167,9 @@ impl RectilinearEdgeRouter {
     ///
     /// Mirrors C# `RectilinearEdgeRouter.LimitPortVisibilitySpliceToEndpointBoundingBox`.
     /// Default: false.
+    ///
+    /// TODO: this flag is stored but not yet wired into the routing pipeline.
+    /// Wire it into the TGU splice step in `transient_graph_utility.rs`.
     pub fn limit_port_visibility_splice_to_endpoint_bounding_box(mut self, val: bool) -> Self {
         self.limit_splice_to_bbox = val;
         self

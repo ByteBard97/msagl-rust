@@ -327,7 +327,7 @@ impl SsstRectilinearPath {
         source_ve: Option<&[Option<VertexEntryIndex>; 4]>,
         source: VertexId,
         source_cost_adj: f64,
-        target_ve: Option<&mut [Option<VertexEntryIndex>; 4]>,
+        mut target_ve: Option<&mut [Option<VertexEntryIndex>; 4]>,
         target: VertexId,
         target_cost_adj: f64,
         prior_best: f64,
@@ -358,6 +358,24 @@ impl SsstRectilinearPath {
                 let ed = e.direction;
                 if ed.is_pure() { self.entry_directions_to_target &= !ed; }
                 if self.entry_directions_to_target.is_none() {
+                    // C# line 373: copy target vertex entries before cleanup so
+                    // the caller (MsmtRectilinearPath) can use them as source
+                    // entries for the next stage.
+                    if let Some(tve) = target_ve.as_deref_mut() {
+                        let vd = graph.vertex(tid);
+                        for i in 0..4 {
+                            if tve[i].is_none() {
+                                tve[i] = vd.vertex_entries[i];
+                            } else if let Some(existing) = vd.vertex_entries[i] {
+                                let existing_cost = self.arena[existing.0].cost;
+                                if let Some(cur) = tve[i] {
+                                    if existing_cost < self.arena[cur.0].cost {
+                                        tve[i] = Some(existing);
+                                    }
+                                }
+                            }
+                        }
+                    }
                     self.cleanup(graph);
                     return None;
                 }
@@ -470,6 +488,10 @@ impl SsstRectilinearPath {
     /// Update an existing open entry if the new path is cheaper.
     ///
     /// Matches C# `UpdateEntryToNeighborVertexIfNeeded`.
+    /// C# calls `neigEntry.ResetEntry(bestEntry, length, numberOfBends, newCost)`
+    /// then `queue.DecreasePriority(neigEntry, newCost)`. Rust has no decrease-key
+    /// on BinaryHeap, so we push a new QueueItem and rely on the `is_closed` check
+    /// at dequeue time to discard the stale entry (lazy deletion).
     fn update_if_needed(&mut self, bi: usize, ni: usize, w: f64, g: &mut VisibilityGraph) {
         let nv = self.arena[ni].vertex;
         let (dir, len, bends) = self.len_bends(bi, nv, w, g);
@@ -477,10 +499,9 @@ impl SsstRectilinearPath {
         if self.combined_cost(len, bends) < old {
             let total = self.total_cost_from_source(len, bends)
                 + self.heuristic_to_target(g.point(nv), dir, g);
-            self.arena[ni].previous_entry = Some(VertexEntryIndex(bi));
-            self.arena[ni].length = len;
-            self.arena[ni].number_of_bends = bends;
-            self.arena[ni].cost = total;
+            // Mirrors C# ResetEntry: update all four mutable fields in one call.
+            self.arena[ni].reset_entry(Some(VertexEntryIndex(bi)), len, bends, total);
+            // Push duplicate; stale copy discarded at dequeue via is_closed check.
             self.queue.push(QueueItem { cost: total, arena_index: ni });
         }
     }

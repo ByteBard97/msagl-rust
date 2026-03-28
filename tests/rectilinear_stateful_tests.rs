@@ -87,10 +87,10 @@ fn update_free_port() {
     let a_center = center(a);
     let b_center = center(b);
     let a_bb = a.bounding_box();
-    let b_bb = b.bounding_box();
 
     // freePort1 starts at: right of a-box + 10, center.y + 10
-    let loc1 = Point::new(b_bb.left() - 10.0, b_center.y() + 10.0);
+    // C# line 957: var loc1 = new Point(abox.Right + 10, abox.Center.Y + 10)
+    let loc1 = Point::new(a_bb.right() + 10.0, a_center.y() + 10.0);
 
     let mut router = create_router(&shapes);
 
@@ -135,7 +135,6 @@ fn update_free_port() {
                 &format!("drag step ii={ii} jj={jj} loc={new_loc:?}"),
             );
             current_loc = new_loc;
-            let _ = a_bb; // suppress unused warning
         }
     }
     let _ = current_loc; // suppress unused warning
