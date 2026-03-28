@@ -23,6 +23,50 @@ Execute the remediation PRD. Replace all simplified components with faithful por
 
 All paths are relative to `/Users/ceres/Desktop/SignalCanvas/`.
 
+## Compliance Gate
+
+**Run before every session and before every commit:**
+
+```bash
+bash tools/compliance-check.sh
+```
+
+This must exit 0. If it fails, fix everything it reports before doing any other work.
+A pre-commit hook enforces this automatically. A Claude Code hook blocks banned patterns on every file write.
+
+<banned_patterns>
+These patterns are BLOCKED by the write hook and will fail the compliance check.
+Finding them in a PR means the work is not done.
+
+IN src/:
+  - todo!()
+  - unimplemented!()
+  - // TODO
+  - // FIXME
+  - // SIMPLIFIED
+
+IN src/routing/:
+  - "bbox approximat" (any form of bounding box approximation for polygon obstacles)
+  - add_nonrect_placeholder (banned helper — tests must use b.add_polygon())
+  - "placeholder for non-rect"
+
+IN tests/:
+  - #[ignore] (zero tolerance — fix the implementation, not the test)
+  - add_nonrect_placeholder
+</banned_patterns>
+
+<non_rectangular_obstacles>
+Non-rectangular (polygon) obstacles MUST be ported using actual ICurve/polygon routing.
+The bounding box approximation that was in this codebase is WRONG and has been removed.
+
+CORRECT:   b.add_polygon(&[Point::new(x1,y1), Point::new(x2,y2), ...])
+FORBIDDEN: b.add_rectangle_bl(bbox_x, bbox_y, bbox_w, bbox_h)  // as a stand-in for polygon
+
+If a test using polygon obstacles fails because the VG generator does not yet support
+polygon sweep events: that failure is CORRECT and HONEST. Do NOT hide it with #[ignore].
+Do NOT substitute a bounding box. The VG generator must be fixed.
+</non_rectangular_obstacles>
+
 ## Rules — READ THESE CAREFULLY
 
 ### 1. FAITHFUL PORT MEANS FAITHFUL

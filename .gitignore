@@ -9,6 +9,11 @@ crates/msagl-python/target/
 *.so
 *.pyd
 .claude/
+!.claude/hooks/
+!.claude/hooks/**
+!.claude/skills/
+!.claude/skills/**
+!.claude/settings.json
 
 # C# benchmark build artifacts
 benches/bench_csharp/bin/
