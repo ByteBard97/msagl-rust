@@ -236,15 +236,38 @@ impl ObstaclePortEntrance {
 /// C# file: ObstaclePort.cs, lines 14-83
 /// Holds the obstacle reference, location, center vertex, port entrances,
 /// and a visibility rectangle bounding the max visibility segments.
+///
+/// # Approved deviations from C#/TS
+///
+/// - `Port` back-reference (C# line 15) is omitted. In C# `ObstaclePort` holds a
+///   reference to the abstract `Port` object (which carries `Location` and `Curve`).
+///   In Rust we use index-based arenas, so there is no GC-managed back-reference.
+///   Instead we store the derived values directly:
+///     - `port_location` — the unrounded location (`Port.Location`, C# line 75)
+///     - `port_curve_bbox` — the bounding box of `Port.Curve` (C# line 70)
+///   The rounded location is already stored in `location` (C# line 26).
 #[derive(Clone, Debug)]
 pub struct ObstaclePort {
     /// Index of the obstacle this port belongs to.
     /// C# ObstaclePort.cs line 16: Obstacle
     pub obstacle_index: usize,
 
-    /// Rounded location of the port.
+    /// Rounded location of the port (used for visibility graph construction).
     /// C# ObstaclePort.cs line 26: Location
+    /// `ApproximateComparer.Round(Port.Location)`
     pub location: Point,
+
+    /// Unrounded location of the port.
+    /// C# ObstaclePort.cs line 75: PortLocation — `Port.Location`
+    /// Stored separately because `location` is rounded (C# line 34) and
+    /// `LocationHasChanged` compares the rounded value against this.
+    pub port_location: Point,
+
+    /// Bounding box of the obstacle curve the port lives on.
+    /// C# ObstaclePort.cs line 70: PortCurve — `Port.Curve` (an ICurve).
+    /// In Rust, non-rectangular ICurves are not yet supported; we store the
+    /// obstacle's bounding box as the closest equivalent.
+    pub port_curve_bbox: Rectangle,
 
     /// Visibility vertex at the port center (set when route_to_center is true).
     /// C# ObstaclePort.cs line 18: CenterVertex
@@ -268,10 +291,48 @@ impl ObstaclePort {
     ///
     /// C# file: ObstaclePort.cs, lines 30-35
     /// Big-O: O(1)
+    ///
+    /// `location` is the **rounded** port location (C# `ApproximateComparer.Round`).
+    /// `port_location` is the original unrounded location (`Port.Location`).
+    /// `port_curve_bbox` is the bounding box of the obstacle curve the port lives on.
     pub fn new(obstacle_index: usize, location: Point) -> Self {
+        // When created with just a rounded location, port_location mirrors it.
+        // Callers with an unrounded location should use new_with_curve() instead.
         Self {
             obstacle_index,
             location,
+            port_location: location,
+            port_curve_bbox: Rectangle::empty(),
+            center_vertex: None,
+            port_entrances: Vec::new(),
+            has_collinear_entrances: false,
+            visibility_rectangle: Rectangle::empty(),
+        }
+    }
+
+    /// Create a new ObstaclePort with an explicit unrounded port location and
+    /// the obstacle bounding box as the port curve.
+    ///
+    /// C# file: ObstaclePort.cs, lines 30-35
+    /// - `port_location` — `Port.Location` (unrounded)
+    /// - `port_curve_bbox` — bounding box of `Port.Curve` (the obstacle's curve)
+    ///
+    /// The rounded `location` field is derived from `port_location` here,
+    /// matching C# `ApproximateComparer.Round(Port.Location)` (line 34).
+    pub fn new_with_curve(
+        obstacle_index: usize,
+        port_location: Point,
+        port_curve_bbox: Rectangle,
+    ) -> Self {
+        let rounded = Point::new(
+            GeomConstants::round(port_location.x()),
+            GeomConstants::round(port_location.y()),
+        );
+        Self {
+            obstacle_index,
+            location: rounded,
+            port_location,
+            port_curve_bbox,
             center_vertex: None,
             port_entrances: Vec::new(),
             has_collinear_entrances: false,
