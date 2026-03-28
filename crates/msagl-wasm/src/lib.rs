@@ -101,6 +101,8 @@ pub struct RoutingOutput {
 pub struct PathOutput {
     /// Waypoints from source through bends to target.
     pub points: Vec<PointOutput>,
+    /// True when the path search failed and this is a straight-line fallback.
+    pub is_fallback: bool,
 }
 
 /// A 2D point (output side). Uses plain `f64` — the core library's
@@ -186,6 +188,7 @@ pub fn route_edges(input: RoutingInput) -> Result<RoutingOutput, JsError> {
                 .iter()
                 .map(|p| PointOutput { x: p.x(), y: p.y() })
                 .collect(),
+            is_fallback: routed.is_fallback,
         })
         .collect();
 

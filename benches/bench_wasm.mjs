@@ -99,13 +99,13 @@ async function main() {
 
     let fallbacks = 0;
     for (let i = 0; i < result.paths.length; i++) {
-      if (result.paths[i].points.length <= 2) {
+      if (result.paths[i].is_fallback) {
         fallbacks++;
       }
     }
     if (fallbacks > 0) {
       console.warn(
-        `  WARN: ${name} — ${fallbacks}/${numEdges} edges have <= 2 waypoints (fallback paths)`
+        `  WARN: ${name} — ${fallbacks}/${numEdges} edges are genuine routing failures`
       );
     }
 
