@@ -235,9 +235,17 @@ impl ObstacleTree {
                 continue;
             }
 
-            // Groups and transparent obstacles do not shorten the ray.
+            // Matches C# RecurseRestrictRayWithObstacles line 677:
+            // `if (!obstacle.IsGroup || stopAtGroups)` — groups block the ray only
+            // when stop_at_groups = true; otherwise they are handled in Pass 2.
+            if obs.is_group() {
+                if !stop_at_groups {
+                    continue;
+                }
+                // stop_at_groups = true: fall through and treat group as a blocking obstacle
+            }
             // Transparent obstacles are ports whose interior is temporarily passable.
-            if obs.is_group() || obs.is_transparent() {
+            if obs.is_transparent() {
                 continue;
             }
 

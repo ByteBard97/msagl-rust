@@ -488,18 +488,14 @@ impl TransientGraphUtility {
         }
 
         // StaticGraphUtility.Assert(!this.ObstacleTree.SegmentCrossesANonGroupObstacle(extendVertex.Point, nextExtendVertex.Point), ...)
-        // Note: segment_crosses_a_non_group_obstacle is not yet implemented.
-        // Using segment_crosses_an_obstacle as a conservative approximation.
-        // TODO: Replace with segment_crosses_a_non_group_obstacle when group support is added.
-        // For now, skip this assertion since it would be too strict (would also flag
-        // group obstacles which should be allowed).
-        // debug_assert!(
-        //     !obstacle_tree.segment_crosses_an_obstacle(
-        //         graph.point(extend_vertex),
-        //         graph.point(next_extend_vertex)
-        //     ),
-        //     "extendDir edge crosses an obstacle"
-        // );
+        // Matches C# `ObstacleTree.SegmentCrossesANonGroupObstacle()` (line 626).
+        debug_assert!(
+            !obstacle_tree.segment_crosses_a_non_group_obstacle(
+                graph.point(_extend_vertex),
+                graph.point(next_extend_vertex)
+            ),
+            "extendDir edge crosses a non-group obstacle"
+        );
 
         // if (spliceSource == null) { return; }
         let splice_source = match splice_source {

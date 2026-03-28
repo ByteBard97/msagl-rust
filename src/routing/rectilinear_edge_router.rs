@@ -155,9 +155,6 @@ impl RectilinearEdgeRouter {
     ///
     /// Mirrors C# `RectilinearEdgeRouter.RouteToCenterOfObstacles`.
     /// Default: false.
-    ///
-    /// TODO: this flag is stored but not yet wired into the routing pipeline.
-    /// Wire it into port-entrance selection in `port_manager_entrances.rs`.
     pub fn route_to_center_of_obstacles(mut self, val: bool) -> Self {
         self.route_to_center = val;
         self
@@ -167,9 +164,6 @@ impl RectilinearEdgeRouter {
     ///
     /// Mirrors C# `RectilinearEdgeRouter.LimitPortVisibilitySpliceToEndpointBoundingBox`.
     /// Default: false.
-    ///
-    /// TODO: this flag is stored but not yet wired into the routing pipeline.
-    /// Wire it into the TGU splice step in `transient_graph_utility.rs`.
     pub fn limit_port_visibility_splice_to_endpoint_bounding_box(mut self, val: bool) -> Self {
         self.limit_splice_to_bbox = val;
         self
@@ -431,18 +425,38 @@ impl RectilinearEdgeRouter {
         for (src_loc, tgt_loc) in edge_locs {
             let mut tgu = TransientGraphUtility::new();
 
+            // C# PortManager.cs lines 788-798: GetPortSpliceLimitRectangle.
+            // When limit_splice_to_bbox is true, restrict visibility splicing to the
+            // union of the two endpoint port rectangles; otherwise use the full graph box.
+            //
+            // C# GetPortRectangle: for ObstaclePort returns oport.Obstacle.VisibilityBoundingBox
+            // (the padded bounding box of the containing obstacle); for FreePoint returns
+            // new Rectangle(port.Location) — a degenerate zero-size rect at the point.
+            // Using point-to-point bounding box was wrong for obstacle ports because it
+            // ignores the obstacle extent and under-clips the splice.
+            let limit_rect = if self.limit_splice_to_bbox {
+                let src_rect = Self::get_port_rectangle(src_loc, &self.session.obstacle_tree.obstacles);
+                let mut tgt_rect = Self::get_port_rectangle(tgt_loc, &self.session.obstacle_tree.obstacles);
+                tgt_rect.add_rect(&src_rect);
+                tgt_rect
+            } else {
+                graph_box
+            };
+
             // Phase 2a: Create port entrances at obstacle boundaries.
             Self::create_port_entrances_for_location(
                 src_loc,
                 &mut self.session,
                 &mut tgu,
-                &graph_box,
+                &limit_rect,
+                self.route_to_center,
             );
             Self::create_port_entrances_for_location(
                 tgt_loc,
                 &mut self.session,
                 &mut tgu,
-                &graph_box,
+                &limit_rect,
+                self.route_to_center,
             );
 
             // Phase 2b: Splice ports using the SAME TGU so all modifications are consistent.
@@ -494,7 +508,8 @@ impl RectilinearEdgeRouter {
         location: Point,
         session: &mut RouterSession,
         tgu: &mut TransientGraphUtility,
-        graph_box: &Rectangle,
+        limit_rect: &Rectangle,
+        route_to_center: bool,
     ) {
         use crate::routing::compass_direction::CompassDirection;
         use crate::geometry::point_comparer::GeomConstants;
@@ -598,21 +613,78 @@ impl RectilinearEdgeRouter {
                 }
             }
 
-            // Compute max visibility segment and extend outward from boundary vertex.
+            // Compute max visibility segment using the full graph box as the outer
+            // boundary for ray casting.  `limit_rect` only restricts how far the splice
+            // extends along existing VG edges (P2b), so we must pass the real graph box
+            // here to get the true max extent.
+            let full_graph_box = session.obstacle_tree.graph_box();
             let (seg_start, seg_end, _pac) =
-                session.obstacle_tree.create_max_visibility_segment(border_point, out_dir, graph_box);
+                session.obstacle_tree.create_max_visibility_segment(border_point, out_dir, &full_graph_box);
             if !seg_start.close_to(seg_end) {
+                // P2b: pass limit_rect (endpoint bounding box or full graph box depending
+                // on limit_splice_to_bbox) so that the chain is clamped accordingly.
+                // C# PortManager.cs line 591: entrance.ExtendEdgeChain(TransUtil, bv, bv,
+                //     this.portSpliceLimitRectangle, RouteToCenterOfObstacles)
                 tgu.extend_edge_chain_public(
                     session,
                     border_vertex,
-                    graph_box,
+                    limit_rect,
                     seg_start,
                     seg_end,
                     None,
                     false,
                 );
             }
+
+            // P2a: when route_to_center is true, connect the obstacle center location to
+            // the padded border vertex so that paths can originate from the center.
+            // C# ObstaclePortEntrance.cs line 177: transUtil.ConnectVertexToTargetVertex(
+            //     ObstaclePort.CenterVertex, unpaddedBorderVertex, OutwardDirection, InitialWeight)
+            if route_to_center {
+                let center_vertex = tgu.find_or_add_vertex(session, location);
+                let bp = session.vis_graph.point(border_vertex);
+                let cp = session.vis_graph.point(center_vertex);
+                if !bp.close_to(cp) {
+                    let dist = ((bp.x() - cp.x()).powi(2) + (bp.y() - cp.y()).powi(2)).sqrt();
+                    tgu.find_or_add_edge(session, center_vertex, border_vertex, dist);
+                }
+            }
         }
+    }
+
+    /// Compute the port rectangle for a single endpoint location.
+    ///
+    /// Faithful port of C# `PortManager.GetPortRectangle` (PortManager.cs line 800-814).
+    ///
+    /// For an `ObstaclePort` (location inside an obstacle) returns the obstacle's
+    /// `VisibilityBoundingBox` — the padded bounding box (or convex-hull bbox when
+    /// the obstacle is in a hull).  For a free point returns a degenerate rectangle
+    /// at the point itself, matching C# `new Rectangle(ApproximateComparer.Round(port.Location))`.
+    fn get_port_rectangle(location: Point, obstacles: &[crate::routing::obstacle::Obstacle]) -> Rectangle {
+        use crate::geometry::point_comparer::GeomConstants;
+
+        // Check whether `location` falls strictly inside any obstacle's padded bbox.
+        // This mirrors the C# `obstaclePortMap.TryGetValue(port, out oport)` lookup;
+        // in the Rust port we identify obstacle membership by containment test.
+        for obs in obstacles {
+            if obs.is_sentinel() {
+                continue;
+            }
+            let bb = obs.padded_bounding_box();
+            if location.x() > bb.left() + GeomConstants::DISTANCE_EPSILON
+                && location.x() < bb.right() - GeomConstants::DISTANCE_EPSILON
+                && location.y() > bb.bottom() + GeomConstants::DISTANCE_EPSILON
+                && location.y() < bb.top() - GeomConstants::DISTANCE_EPSILON
+            {
+                // Obstacle port: return the obstacle's visibility bounding box.
+                // C#: return oport.Obstacle.VisibilityBoundingBox;
+                return obs.visibility_bounding_box();
+            }
+        }
+
+        // Free point: return a degenerate rectangle at the rounded location.
+        // C#: return new Rectangle(ApproximateComparer.Round(port.Location));
+        Rectangle::from_point(Point::round(location))
     }
 
     /// Extract the original (unpadded) shapes from the session's obstacle tree.

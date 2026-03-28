@@ -127,6 +127,23 @@ impl ObstacleTree {
         !points_equal(restricted_end, end_point)
     }
 
+    /// Returns true if the line segment from `start_point` to `end_point` crosses
+    /// any non-group obstacle. Group obstacles are transparent to this query.
+    ///
+    /// Matches C# `ObstacleTree.SegmentCrossesANonGroupObstacle()` (line 626).
+    /// Differs from `segment_crosses_an_obstacle` only in passing
+    /// `stop_at_groups = false`, which allows group obstacle boundaries to be
+    /// traversed without triggering a crossing result.
+    pub fn segment_crosses_a_non_group_obstacle(
+        &mut self,
+        start_point: Point,
+        end_point: Point,
+    ) -> bool {
+        let (_start, restricted_end) =
+            self.restrict_segment_private(start_point, end_point, false);
+        !points_equal(restricted_end, end_point)
+    }
+
     /// Returns true if the given point is strictly inside any obstacle
     /// (not on the boundary).
     ///
