@@ -111,30 +111,32 @@ pub fn process_low_bend(
     obstacle_index: usize,
     vertex_key: crate::arenas::PolylinePointKey,
 ) {
-    let old_low_side_node = state.scan_line.all_sides_ordered().into_iter().find(|s| s.obstacle_index() == obstacle_index && s.side_type() == crate::routing::obstacle_side::SideType::Low);
-    if old_low_side_node.is_none() { return; }
-    let old_low_side = old_low_side_node.unwrap().clone();
-    
-    // Mutates state
-    remove_side_from_scanline(state, &old_low_side);
-    
-    // Re-borrow immutably
+    // C1: Use active side cache (O(1)) instead of O(n) scanline scan.
+    // C# line 773: obstacle.ActiveLowSide
+    let old_low_side = match state.obstacles[obstacle_index].active_low_side() {
+        Some(s) => s.clone(),
+        None => return,
+    };
+
+    let obs_ordinal = state.obstacles[obstacle_index].ordinal();
     let new_low_side = ObstacleSide::from_polyline_point(
         crate::routing::obstacle_side::SideType::Low,
         obstacle_index,
+        obs_ordinal,
         vertex_key,
         &state.obstacles[obstacle_index].padded_polyline(),
         state.scan_direction
     );
-    
+
+    // C# line 772: Only replace if still ascending. If flat or descending, do nothing —
+    // CloseVertexEvent will remove the old side.  C4: NO else branch here.
     if state.scan_direction.compare_perp(new_low_side.end(), new_low_side.start()) == std::cmp::Ordering::Greater {
+        remove_side_from_scanline(state, &old_low_side);
         add_side_to_scanline(state, new_low_side.clone());
+        // W1: Update active side cache so CloseVertex can find the current side.
+        // C# line 775: obstacle.ActiveLowSide = lowSide
+        state.obstacles[obstacle_index].set_active_low_side(Some(new_low_side.clone()));
         enqueue_low_bend_event(state, &new_low_side);
-    } else {
-        let mut new_high_side = new_low_side.clone();
-        new_high_side.set_side_type(crate::routing::obstacle_side::SideType::High);
-        add_side_to_scanline(state, new_high_side.clone());
-        enqueue_high_bend_or_close_event(state, &new_high_side);
     }
 }
 
@@ -153,24 +155,28 @@ pub fn process_high_bend(
     obstacle_index: usize,
     vertex_key: crate::arenas::PolylinePointKey,
 ) {
-    let old_high_side_node = state.scan_line.all_sides_ordered().into_iter().find(|s| s.obstacle_index() == obstacle_index && s.side_type() == crate::routing::obstacle_side::SideType::High);
-    if old_high_side_node.is_none() { return; }
-    let old_high_side = old_high_side_node.unwrap().clone();
-    
-    // Mutate state
-    remove_side_from_scanline(state, &old_high_side);
+    // C1: Use active side cache (O(1)) instead of O(n) scanline scan.
+    // C# line 790: obstacle.ActiveHighSide
+    let old_high_side = match state.obstacles[obstacle_index].active_high_side() {
+        Some(s) => s.clone(),
+        None => return,
+    };
 
-    // Re-borrow immutably
+    let obs_ordinal = state.obstacles[obstacle_index].ordinal();
     let new_high_side = ObstacleSide::from_polyline_point(
         crate::routing::obstacle_side::SideType::High,
         obstacle_index,
+        obs_ordinal,
         vertex_key,
         &state.obstacles[obstacle_index].padded_polyline(),
         state.scan_direction
     );
-    
-    // Mutate state again
+
+    remove_side_from_scanline(state, &old_high_side);
     add_side_to_scanline(state, new_high_side.clone());
+    // W1: Update active side cache so CloseVertex can find the current side.
+    // C# line 792: obstacle.ActiveHighSide = highSide
+    state.obstacles[obstacle_index].set_active_high_side(Some(new_high_side.clone()));
     enqueue_high_bend_or_close_event(state, &new_high_side);
 
     // Extreme vertex lookahead for non-rectangular
@@ -207,12 +213,16 @@ pub fn process_close_vertex(
     site: Point,
     obstacle_index: usize,
 ) {
-    let low_side_node = state.scan_line.all_sides_ordered().into_iter().find(|s| s.obstacle_index() == obstacle_index && s.side_type() == crate::routing::obstacle_side::SideType::Low);
-    let high_side_node = state.scan_line.all_sides_ordered().into_iter().find(|s| s.obstacle_index() == obstacle_index && s.side_type() == crate::routing::obstacle_side::SideType::High);
-    
-    if low_side_node.is_none() || high_side_node.is_none() { return; }
-    let low_side = low_side_node.unwrap().clone();
-    let high_side = high_side_node.unwrap().clone();
+    // C1: Use active side cache (O(1)) instead of O(n) scanline scans.
+    // C# line 841-842: scanLine.Find(obstacle.ActiveLowSide) / scanLine.Find(obstacle.ActiveHighSide)
+    let low_side = match state.obstacles[obstacle_index].active_low_side() {
+        Some(s) => s.clone(),
+        None => return,
+    };
+    let high_side = match state.obstacles[obstacle_index].active_high_side() {
+        Some(s) => s.clone(),
+        None => return,
+    };
 
     find_neighbors_and_process_vertex_event(state, &low_side, &high_side, site, obstacle_index, false);
 
@@ -241,9 +251,11 @@ pub fn process_low_reflection(
     reflecting_obstacle: usize,
     _prev_event_site: Option<Point>,
 ) {
-    let side_node = state.scan_line.all_sides_ordered().into_iter().find(|s| s.obstacle_index() == reflecting_obstacle && s.side_type() == crate::routing::obstacle_side::SideType::Low);
-    if side_node.is_none() { return; }
-    let side_in_sl = side_node.unwrap().clone();
+    // C1: Use active side cache (O(1)) instead of O(n) scanline scan.
+    let side_in_sl = match state.obstacles[reflecting_obstacle].active_low_side() {
+        Some(s) => s.clone(),
+        None => return,
+    };
     
     let key = state.scan_line.find(&side_in_sl).unwrap();
     if let Some((_, neighbor_side)) = state.scan_line.next_low(&key) {
@@ -282,9 +294,11 @@ pub fn process_high_reflection(
     reflecting_obstacle: usize,
     _prev_event_site: Option<Point>,
 ) {
-    let side_node = state.scan_line.all_sides_ordered().into_iter().find(|s| s.obstacle_index() == reflecting_obstacle && s.side_type() == crate::routing::obstacle_side::SideType::High);
-    if side_node.is_none() { return; }
-    let side_in_sl = side_node.unwrap().clone();
+    // C1: Use active side cache (O(1)) instead of O(n) scanline scan.
+    let side_in_sl = match state.obstacles[reflecting_obstacle].active_high_side() {
+        Some(s) => s.clone(),
+        None => return,
+    };
     
     let key = state.scan_line.find(&side_in_sl).unwrap();
     if let Some((_, neighbor_side)) = state.scan_line.next_high(&key) {
@@ -325,9 +339,12 @@ fn find_neighbors_and_process_vertex_event(
     let low_in_sl = state.scan_line.get(&low_side_key).cloned().unwrap_or(low_side.clone());
     let high_in_sl = state.scan_line.get(&high_side_key).cloned().unwrap_or(high_side.clone());
 
-    let ref_point = if is_open { low_in_sl.start() } else { low_in_sl.end() };
-    let low_neighbors = find_neighbors(state, &low_side_key, &low_in_sl, ref_point);
-    let high_neighbors = find_neighbors(state, &high_side_key, &high_in_sl, ref_point);
+    // C6: Each side uses its own start/end as reference point.
+    // C# line 625: (vertexEvent is OpenVertexEvent) ? sideNode.Item.Start : sideNode.Item.End
+    let low_ref_point = if is_open { low_in_sl.start() } else { low_in_sl.end() };
+    let high_ref_point = if is_open { high_in_sl.start() } else { high_in_sl.end() };
+    let low_neighbors = find_neighbors(state, &low_side_key, &low_in_sl, low_ref_point);
+    let high_neighbors = find_neighbors(state, &high_side_key, &high_in_sl, high_ref_point);
 
     create_scan_segments_from_neighbors(state, site, &low_neighbors);
 

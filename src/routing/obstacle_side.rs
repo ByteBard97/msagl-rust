@@ -25,7 +25,13 @@ pub enum SideType {
 #[derive(Debug, Clone)]
 pub struct ObstacleSide {
     side_type: SideType,
+    /// Raw 0-based index into the obstacles Vec (for array lookups).
     obstacle_index: usize,
+    /// Scan-line ordinal (FIRST_NON_SENTINEL_ORDINAL + index for real obstacles,
+    /// FIRST_SENTINEL_ORDINAL / +1 for sentinels). Used for BTreeMap key ordering
+    /// and same-obstacle detection. Kept separate from obstacle_index to avoid
+    /// collisions between obstacle index 1 and sentinel ordinal 1.
+    ordinal: usize,
     start: Point,
     end: Point,
     start_key: PolylinePointKey,
@@ -48,6 +54,7 @@ impl ObstacleSide {
     pub fn from_polyline_point(
         side_type: SideType,
         obstacle_index: usize,
+        ordinal: usize,
         start_key: PolylinePointKey,
         polyline: &Polyline,
         scan_direction: ScanDirection,
@@ -87,6 +94,7 @@ impl ObstacleSide {
         Self {
             side_type,
             obstacle_index,
+            ordinal,
             start,
             end,
             start_key,
@@ -107,6 +115,7 @@ impl ObstacleSide {
         Self {
             side_type,
             obstacle_index: obstacle_ordinal,
+            ordinal: obstacle_ordinal,
             start,
             end,
             start_key: PolylinePointKey::default(),
@@ -145,9 +154,11 @@ impl ObstacleSide {
         self.slope_inverse
     }
 
-    /// Backward-compatibility alias for obstacle_index.
+    /// Returns the scan-line ordinal (FIRST_NON_SENTINEL_ORDINAL + index for real obstacles).
+    /// Used for BTreeMap key ordering and same-obstacle detection. Distinct from obstacle_index
+    /// to avoid collisions between obstacle raw indices and sentinel ordinals.
     pub fn obstacle_ordinal(&self) -> usize {
-        self.obstacle_index
+        self.ordinal
     }
 
     /// The direction vector from start to end.
@@ -205,6 +216,7 @@ impl ObstacleSide {
             start,
             end,
             obstacle_index: obstacle_ordinal,
+            ordinal: obstacle_ordinal,
             start_key: PolylinePointKey::default(),
             end_key: PolylinePointKey::default(),
             slope,

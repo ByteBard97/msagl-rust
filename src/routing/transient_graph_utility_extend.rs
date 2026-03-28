@@ -324,13 +324,8 @@ impl TransientGraphUtility {
                 }
 
                 // StaticGraphUtility.Assert(spliceTarget == StaticGraphUtility.FindAdjacentVertex(nextExtendVertex, spliceTargetDir), ...)
-                debug_assert!(
-                    splice_target
-                        == StaticGraphUtility::find_adjacent_vertex(
-                            &session.vis_graph,
-                            existing,
-                            splice_target_dir
-                        ),
+                let adj = StaticGraphUtility::find_adjacent_vertex(&session.vis_graph, existing, splice_target_dir);
+                debug_assert!(adj == splice_target,
                     "no edge exists between an existing nextExtendVertex and spliceTarget"
                 );
 

@@ -97,7 +97,7 @@ fn obstacle_side_low_traverses_clockwise_for_hscan() {
     // For H-scan, LowObstacleSide traverses clockwise from startVertex
     // Starting at BL(0,0), next clockwise is TL(0,100)
     let side =
-        ObstacleSide::from_polyline_point(SideType::Low, 0, bl, &poly, ScanDirection::horizontal());
+        ObstacleSide::from_polyline_point(SideType::Low, 0, 10, bl, &poly, ScanDirection::horizontal());
     assert_eq!(side.start(), Point::new(0.0, 0.0));
     assert_eq!(side.end(), Point::new(0.0, 100.0));
     assert_eq!(side.end_vertex_key(), tl);
@@ -117,6 +117,7 @@ fn obstacle_side_high_traverses_counterclockwise_for_hscan() {
     let side = ObstacleSide::from_polyline_point(
         SideType::High,
         0,
+        10,
         bl,
         &poly,
         ScanDirection::horizontal(),
@@ -137,7 +138,7 @@ fn obstacle_side_slope_for_angled_side() {
     poly.set_closed(true);
 
     let side =
-        ObstacleSide::from_polyline_point(SideType::Low, 0, p0, &poly, ScanDirection::horizontal());
+        ObstacleSide::from_polyline_point(SideType::Low, 0, 10, p0, &poly, ScanDirection::horizontal());
 
     // Slope = (change in scan-parallel coord) / (change in perp coord)
     // H-scan: scan-parallel = X, perp = Y
@@ -156,7 +157,7 @@ fn obstacle_side_perpendicular_has_zero_slope() {
     poly.set_closed(true);
 
     let side =
-        ObstacleSide::from_polyline_point(SideType::Low, 0, p0, &poly, ScanDirection::horizontal());
+        ObstacleSide::from_polyline_point(SideType::Low, 0, 10, p0, &poly, ScanDirection::horizontal());
 
     // Perpendicular side: X doesn't change (0,0) to (0,100)
     // slope = 0 (matching TS behavior for perpendicular)
@@ -187,7 +188,7 @@ fn obstacle_side_direction_vector() {
     poly.set_closed(true);
 
     let side =
-        ObstacleSide::from_polyline_point(SideType::Low, 0, p0, &poly, ScanDirection::horizontal());
+        ObstacleSide::from_polyline_point(SideType::Low, 0, 10, p0, &poly, ScanDirection::horizontal());
     let dir = side.direction();
     assert!((dir.x() - 0.0).abs() < 1e-10);
     assert!((dir.y() - 100.0).abs() < 1e-10);

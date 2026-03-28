@@ -135,11 +135,27 @@ impl VisibilityGraph {
         self.vertices[vertex.0].out_edges.clear();
         self.vertices[vertex.0].in_edges.clear();
 
-        // NOTE: We intentionally do NOT remove the vertex from point_to_vertex.
-        // In TS, deleteP makes the vertex unreachable and GC reclaims the object.
-        // In Rust's arena model, the slot persists, so keeping it in the map allows
-        // subsequent add_vertex calls at the same point to reuse the same VertexId.
-        // The vertex is effectively dead (no edges) but its map entry remains.
+        // Remove the vertex from the point-to-vertex map and coordinate indices.
+        // The arena slot persists (Vec entry remains), but find_vertex will no longer
+        // return this VertexId. A future add_vertex at the same point will allocate a
+        // new slot. This is correct because VisEdge ordering is by target_point (not
+        // VertexId), so determinism is unaffected by slot reuse.
+        let point = self.vertices[vertex.0].point;
+        self.point_to_vertex.remove(&point);
+        let xk = OrderedFloat(GeomConstants::round(point.x()));
+        let yk = OrderedFloat(GeomConstants::round(point.y()));
+        if let Some(ys) = self.x_to_ys.get_mut(&xk) {
+            ys.remove(&yk);
+            if ys.is_empty() {
+                self.x_to_ys.remove(&xk);
+            }
+        }
+        if let Some(xs) = self.y_to_xs.get_mut(&yk) {
+            xs.remove(&xk);
+            if xs.is_empty() {
+                self.y_to_xs.remove(&yk);
+            }
+        }
     }
 
     pub fn point(&self, v: VertexId) -> Point {
@@ -161,9 +177,7 @@ impl VisibilityGraph {
     /// Check if a vertex is still live (present in the point-to-vertex map
     /// with a matching VertexId).
     ///
-    /// Currently `remove_vertex` keeps the map entry, so this always returns
-    /// true for any vertex in the Vec. Retained for future use if the removal
-    /// strategy changes.
+    /// Returns false for vertices that have been removed via `remove_vertex`.
     pub fn is_live(&self, v: VertexId) -> bool {
         if v.0 >= self.vertices.len() {
             return false;
