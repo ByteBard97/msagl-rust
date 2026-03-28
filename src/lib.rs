@@ -4,7 +4,7 @@ pub mod projection_solver;
 pub mod routing;
 pub mod visibility;
 
-pub use geometry::curve::{Curve, CurveSegment};
+pub use geometry::curve::{Curve, CurveSegment, LineSegment};
 pub use geometry::point::Point;
 pub use geometry::point_comparer::GeomConstants;
 pub use geometry::polyline::{Polyline, PolylinePoint};

@@ -2,6 +2,28 @@ use crate::geometry::point::Point;
 use crate::geometry::polyline::Polyline;
 use crate::geometry::rectangle::Rectangle;
 
+/// A straight line segment between two points.
+///
+/// C# equivalent: `Microsoft.Msagl.Core.Geometry.Curves.LineSegment`
+/// Used by `ObstaclePortEntrance.MaxVisibilitySegment` and
+/// `TransientGraphUtility.ExtendEdgeChain`.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct LineSegment {
+    /// The start point of the segment.
+    /// C# LineSegment: Start
+    pub start: Point,
+    /// The end point of the segment.
+    /// C# LineSegment: End
+    pub end: Point,
+}
+
+impl LineSegment {
+    /// Create a new line segment from `start` to `end`.
+    pub fn new(start: Point, end: Point) -> Self {
+        Self { start, end }
+    }
+}
+
 /// A segment within a compound curve.
 #[derive(Clone, Debug)]
 pub enum CurveSegment {

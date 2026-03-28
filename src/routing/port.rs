@@ -1,3 +1,4 @@
+use crate::geometry::curve::LineSegment;
 use crate::geometry::point::Point;
 use crate::geometry::point_comparer::GeomConstants;
 use crate::geometry::rectangle::Rectangle;
@@ -58,6 +59,12 @@ pub struct ObstaclePortEntrance {
     pub max_visibility_segment_start: Point,
     pub max_visibility_segment_end: Point,
 
+    /// Typed `LineSegment` view of the max visibility segment.
+    /// C# ObstaclePortEntrance: `public LineSegment MaxVisibilitySegment { get; private set; }`
+    /// Set by `create_max_visibility_segment` via `ObstaclePort::create_port_entrance`.
+    /// `None` until that method has been called.
+    pub max_visibility_segment: Option<LineSegment>,
+
     /// Whether this entrance is collinear with the port location.
     /// C# ObstaclePortEntrance: IsCollinearWithPort
     pub is_collinear_with_port: bool,
@@ -100,6 +107,7 @@ impl ObstaclePortEntrance {
             outward_direction,
             max_visibility_segment_start: unpadded_border_intersect,
             max_visibility_segment_end: unpadded_border_intersect,
+            max_visibility_segment: None,
             is_collinear_with_port: false,
             is_vertical,
             is_overlapped: false,
@@ -362,6 +370,7 @@ impl ObstaclePort {
             obstacle_tree.create_max_visibility_segment(unpadded_border_intersect, out_dir, graph_box);
         entrance.max_visibility_segment_start = seg_start;
         entrance.max_visibility_segment_end = seg_end;
+        entrance.max_visibility_segment = Some(LineSegment::new(seg_start, seg_end));
 
         // Check if this entrance is collinear with the port location.
         // C#: CompassVector.IsPureDirection(PointComparer.GetDirections(VisibilityBorderIntersect, ObstaclePort.Location))
@@ -409,6 +418,15 @@ impl ObstaclePort {
     /// C# file: ObstaclePort.cs, lines 60-62
     pub fn remove_from_graph(&mut self) {
         self.center_vertex = None;
+    }
+
+    /// Return a reference to the bounding box of the obstacle curve this port lives on.
+    ///
+    /// C#/TS API alias for `port_curve_bbox`.
+    /// Mirrors C# `ObstaclePort.PortCurve` (line 70) and TS `portCurve`.
+    #[inline]
+    pub fn port_curve(&self) -> &Rectangle {
+        &self.port_curve_bbox
     }
 
     /// Check if the port location has changed (requiring recreation).

@@ -344,11 +344,57 @@ impl RectilinearEdgeRouter {
         self.edges.push(edge);
     }
 
+    /// Add an edge geometry to the route — C#/TS API alias for `add_edge`.
+    ///
+    /// Mirrors C# `RectilinearEdgeRouter.AddEdgeGeometryToRoute(EdgeGeometry)` and
+    /// TS `addEdgeGeometryToRoute`.
+    #[inline]
+    pub fn add_edge_geometry_to_route(&mut self, edge: EdgeGeometry) {
+        self.add_edge(edge);
+    }
+
+    /// Return the bend penalty as a percentage of source-target distance.
+    ///
+    /// C#/TS API alias for the `bend_penalty_as_percentage` field accessor.
+    /// Mirrors C# `RectilinearEdgeRouter.BendPenaltyAsAPercentageOfDistance` and
+    /// TS `bendPenaltyAsAPercentageOfDistance`.
+    #[inline]
+    pub fn bend_penalty_as_a_percentage_of_distance(&self) -> f64 {
+        self.bend_penalty_as_percentage
+    }
+
+    /// Remove all obstacles and edges, resetting the router to a clean state.
+    ///
+    /// C#/TS API alias for `clear`.
+    /// Mirrors C# `RectilinearEdgeRouter.RemoveAllObstacles` and TS `removeAllObstacles`.
+    #[inline]
+    pub fn remove_all_obstacles(&mut self) {
+        self.clear();
+    }
+
     /// Return the number of edge geometries currently registered for routing.
     ///
     /// Mirrors C# `router.EdgeGeometriesToRoute.Count()`.
     pub fn edge_count(&self) -> usize {
         self.edges.len()
+    }
+
+    /// Clear accumulated per-edge visibility vertex entries.
+    ///
+    /// Faithful port of C# `RectilinearEdgeRouter.RemoveVertexEntries` (RectilinearEdgeRouter.cs).
+    /// Called between routing runs to reset per-edge visibility state.
+    /// No-op in the current implementation: vertex entry caching is handled
+    /// inside `RouterSession` rather than accumulated on the router itself.
+    pub fn clear_vertex_entries(&mut self) {
+        // C# RectilinearEdgeRouter: RemoveVertexEntries — no vertex entry cache in current implementation
+    }
+
+    /// Alias for `clear_vertex_entries`.
+    ///
+    /// Mirrors C# `RectilinearEdgeRouter.RemoveVertexEntries`.
+    #[inline]
+    pub fn remove_vertex_entries(&mut self) {
+        self.clear_vertex_entries();
     }
 
     /// Run the full routing pipeline: visibility graph, path search,

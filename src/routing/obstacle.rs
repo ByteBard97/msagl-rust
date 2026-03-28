@@ -230,6 +230,17 @@ impl Obstacle {
         !self.clump.is_empty()
     }
 
+    /// Whether this obstacle and `other` belong to the same clump group.
+    ///
+    /// Faithful port of C# `Obstacle.IsInSameClump` (Obstacle.cs line 122–124).
+    /// C# uses reference equality on the `Clump` object; Rust uses value equality
+    /// on the sorted index set, which is equivalent since all members of a clump
+    /// carry identical index lists.
+    pub fn is_in_same_clump(&self, other: &Obstacle) -> bool {
+        // C# Obstacle: IsInSameClump - returns true when both obstacles share the same clump group
+        self.is_overlapped() && self.clump == other.clump
+    }
+
     /// Set the clump (indices of overlapping obstacles).
     pub fn set_clump(&mut self, clump: Vec<usize>) {
         self.clump = clump;
