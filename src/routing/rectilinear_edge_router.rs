@@ -38,6 +38,8 @@ pub struct RoutedEdge {
     pub points: Vec<Point>,
     /// Compound curve built from the waypoints.
     pub curve: Curve,
+    /// True when the path search failed and this edge uses a straight-line fallback.
+    pub is_fallback: bool,
 }
 
 /// Stateful rectilinear edge router.
@@ -168,7 +170,7 @@ impl RectilinearEdgeRouter {
             .collect();
 
         let search = PathSearch::new(self.bend_penalty_as_percentage);
-        let mut paths: Vec<Vec<Point>> = Vec::new();
+        let mut paths: Vec<(Vec<Point>, bool)> = Vec::new(); // (waypoints, is_fallback)
 
         let graph_box = self.session.obstacle_tree.graph_box();
 
@@ -198,14 +200,16 @@ impl RectilinearEdgeRouter {
             PortManager::splice_port_into(&mut self.session, tgt_loc, &mut tgu);
 
             let path = search.find_path(&self.session.vis_graph, src_loc, tgt_loc);
-            paths.push(path.unwrap_or_else(|| {
+            let is_fallback = path.is_none();
+            let pts = path.unwrap_or_else(|| {
                 debug_assert!(
                     false,
                     "path search failed for {:?} -> {:?}",
                     src_loc, tgt_loc
                 );
                 vec![src_loc, tgt_loc]
-            }));
+            });
+            paths.push((pts, is_fallback));
 
             // Phase 2c: Remove ALL modifications (entrances + splices) atomically.
             tgu.remove_from_graph(&mut self.session);
@@ -213,14 +217,17 @@ impl RectilinearEdgeRouter {
 
         // 3. Nudge paths for edge separation
         let obstacles = self.padded_obstacles();
-        nudge_paths(&mut paths, &obstacles, self.edge_separation);
+        let (mut raw_paths, fallback_flags): (Vec<Vec<Point>>, Vec<bool>) =
+            paths.into_iter().unzip();
+        nudge_paths(&mut raw_paths, &obstacles, self.edge_separation);
 
         // 4. Convert to curves
-        let edges = paths
+        let edges = raw_paths
             .into_iter()
-            .map(|pts| {
+            .zip(fallback_flags)
+            .map(|(pts, is_fallback)| {
                 let curve = self.points_to_curve(&pts);
-                RoutedEdge { points: pts, curve }
+                RoutedEdge { points: pts, curve, is_fallback }
             })
             .collect();
 

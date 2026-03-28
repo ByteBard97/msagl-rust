@@ -476,3 +476,80 @@ fn diag_fan_out_vg_state() {
     let tgt_deg = session.vis_graph.degree(tgt_v);
     println!("After splice_port_into tgt={:?}: degree={}", tgt, tgt_deg);
 }
+
+/// Verify that none of the benchmark scenario edges are genuine routing failures.
+///
+/// A "genuine fallback" is when path search returns None and the router falls back
+/// to a straight src→tgt line (`RoutedEdge::is_fallback == true`). Note that a
+/// 2-point path is NOT necessarily a fallback — horizontally or vertically aligned
+/// center-port obstacles legitimately produce collinear 2-waypoint paths.
+#[test]
+fn bench_scenarios_no_fallbacks() {
+    for name in ["small", "medium", "large"] {
+        let scenario = test_harness::load_bench_scenario(name);
+        let result = test_harness::run_bench_scenario(&scenario);
+        let fallbacks: Vec<_> = result.edges.iter().enumerate()
+            .filter(|(_, e)| e.is_fallback)
+            .map(|(i, _)| i)
+            .collect();
+        assert!(fallbacks.is_empty(), "{name}: edges {fallbacks:?} are genuine routing failures");
+    }
+}
+
+/// Center-port horizontal pair: two same-height boxes side by side.
+/// When both port centers are at the same y, the path is a straight horizontal
+/// line and legitimately has exactly 2 waypoints (no bends needed).
+#[test]
+fn two_squares_center_port_horizontal() {
+    let mut b = ScenarioBuilder::new();
+    let left = b.add_rectangle_bl(20.0, 20.0, 80.0, 80.0);
+    let right = b.add_rectangle_bl(220.0, 20.0, 80.0, 80.0);
+    b.route_between(left, right);
+    let result = b.run();
+    let e = &result.edges[0];
+    // Must NOT be a genuine routing failure.
+    assert!(!e.is_fallback, "path search failed: {:?}", e.points);
+    // Horizontal aligned center ports collapse to 2 collinear waypoints — that is correct.
+    assert!(e.points.len() >= 2, "path must have at least 2 waypoints");
+}
+
+/// Center-port staggered pair: boxes at different y-levels must produce a bent path.
+#[test]
+fn two_squares_center_port_staggered() {
+    let mut b = ScenarioBuilder::new();
+    let left  = b.add_rectangle_bl(0.0,   0.0, 80.0, 80.0);
+    let right = b.add_rectangle_bl(200.0, 100.0, 80.0, 80.0);
+    b.route_between(left, right);
+    let result = b.run();
+    let e = &result.edges[0];
+    assert!(!e.is_fallback, "path search failed: {:?}", e.points);
+    assert!(e.points.len() > 2, "staggered pair must have a bend: {:?}", e.points);
+}
+
+/// Audit common center-port scenarios and report genuine fallbacks.
+#[test]
+fn audit_center_port_scenarios() {
+    let cases: &[(&str, &[(f64,f64,f64,f64)], &[(usize,usize)])] = &[
+        ("two_squares_80x80",    &[(20.,20.,80.,80.),(220.,20.,80.,80.)],    &[(0,1)]),
+        ("three_inline",         &[(0.,0.,80.,80.),(200.,0.,80.,80.),(400.,0.,80.,80.)], &[(0,1),(1,2)]),
+        ("vertical_pair",        &[(0.,0.,80.,80.),(0.,200.,80.,80.)],       &[(0,1)]),
+        ("staggered_pair",       &[(0.,0.,80.,80.),(200.,100.,80.,80.)],     &[(0,1)]),
+    ];
+    let mut any_genuine_fallback = false;
+    for (name, obs, edges) in cases {
+        let mut b = ScenarioBuilder::new();
+        let indices: Vec<usize> = obs.iter().map(|&(x,y,w,h)| b.add_rectangle_bl(x,y,w,h)).collect();
+        for &(s,t) in *edges { b.route_between(indices[s], indices[t]); }
+        let result = b.run();
+        for (i, e) in result.edges.iter().enumerate() {
+            if e.is_fallback {
+                any_genuine_fallback = true;
+                println!("{name}[{i}]: GENUINE FALLBACK (path search failed)");
+            } else {
+                println!("{name}[{i}]: {} pts", e.points.len());
+            }
+        }
+    }
+    assert!(!any_genuine_fallback, "some edges failed path search");
+}
+
