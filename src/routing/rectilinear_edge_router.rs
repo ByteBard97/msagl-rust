@@ -274,11 +274,11 @@ impl RectilinearEdgeRouter {
 
     /// Add a single obstacle and immediately rebuild the visibility graph.
     ///
-    /// Mirrors C# `RectilinearEdgeRouter.AddObstacle(Shape)`.
+    /// Alias for `add_shape` — mirrors C# `RectilinearEdgeRouter.AddObstacle(Shape)`.
     /// (C# line 137–140.)
+    #[inline]
     pub fn add_obstacle(&mut self, shape: Shape) {
-        self.add_shape_without_rebuild(shape);
-        self.rebuild();
+        self.add_shape(shape);
     }
 
     /// Replace multiple obstacles in one batch, rebuilding the VG once.

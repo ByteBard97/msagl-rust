@@ -148,7 +148,7 @@ async function main() {
   const obstacleB = router.add_obstacle(200, 0, 60, 40);  // right block
 
   // Add one edge between them
-  const edgeAB = router.add_edge(obstacleA, obstacleB);
+  router.add_edge(obstacleA, obstacleB);
 
   // Route
   router.route();

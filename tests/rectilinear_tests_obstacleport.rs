@@ -230,9 +230,9 @@ fn count_bends(points: &[Point]) -> usize {
     }
     let mut bends = 0_usize;
     for w in points.windows(3) {
-        let dx1 = w[1].x() - w[0].x();
+        let _dx1 = w[1].x() - w[0].x();
         let dy1 = w[1].y() - w[0].y();
-        let dx2 = w[2].x() - w[1].x();
+        let _dx2 = w[2].x() - w[1].x();
         let dy2 = w[2].y() - w[1].y();
         // A bend occurs when the direction changes (horizontal↔vertical).
         // For a rectilinear path, if dx1 ≠ 0 then dy2 ≠ 0 (or vice-versa).
