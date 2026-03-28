@@ -45,7 +45,7 @@ impl MsmtRectilinearPath {
         &mut self,
         sources: &[VertexId],
         targets: &[VertexId],
-        graph: &VisibilityGraph,
+        graph: &mut VisibilityGraph,
     ) -> Vec<Point> {
         let (entry_idx, arena_searcher) = self.get_path_stage(
             None, sources, None, targets, graph,
@@ -69,7 +69,7 @@ impl MsmtRectilinearPath {
         sources: &[VertexId],
         mut target_vertex_entries: Option<&mut [Option<VertexEntryIndex>; 4]>,
         targets: &[VertexId],
-        graph: &VisibilityGraph,
+        graph: &mut VisibilityGraph,
     ) -> (Option<VertexEntryIndex>, Option<SsstRectilinearPath>) {
         let mut ssst = SsstRectilinearPath::new();
 

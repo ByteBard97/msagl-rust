@@ -5,10 +5,10 @@
 
 use super::compass_direction::CompassDirection;
 use super::path_search::{
-    SearchEntry, SsstRectilinearPath, DEFAULT_BEND_PENALTY_AS_PERCENTAGE_OF_DISTANCE,
+    SsstRectilinearPath, DEFAULT_BEND_PENALTY_AS_PERCENTAGE_OF_DISTANCE,
 };
+use super::vertex_entry::{VertexEntry, VertexEntryIndex};
 use crate::geometry::point::Point;
-use crate::routing::vertex_entry::VertexEntryIndex;
 use crate::visibility::graph::VisibilityGraph;
 
 /// Compute Manhattan distance between two points.
@@ -50,22 +50,22 @@ pub fn estimated_bends_to_target(direction: CompassDirection, point: Point, targ
     }
 }
 
-/// Zero-cost wrapper over `Vec<SearchEntry>` for external arena access.
+/// Zero-cost wrapper over `Vec<VertexEntry>` for external arena access.
 #[repr(transparent)]
 pub struct SearchArena {
-    inner: [SearchEntry],
+    inner: [VertexEntry],
 }
 
 impl SearchArena {
-    pub(crate) fn from_vec(v: &Vec<SearchEntry>) -> &SearchArena {
-        unsafe { &*(v.as_slice() as *const [SearchEntry] as *const SearchArena) }
+    pub(crate) fn from_vec(v: &Vec<VertexEntry>) -> &SearchArena {
+        unsafe { &*(v.as_slice() as *const [VertexEntry] as *const SearchArena) }
     }
 
-    pub fn get(&self, idx: VertexEntryIndex) -> &SearchEntry {
+    pub fn get(&self, idx: VertexEntryIndex) -> &VertexEntry {
         &self.inner[idx.0]
     }
 
-    pub fn entries(&self) -> &[SearchEntry] {
+    pub fn entries(&self) -> &[VertexEntry] {
         &self.inner
     }
 }
@@ -98,7 +98,7 @@ impl PathSearch {
     /// Find shortest path between two points.
     pub fn find_path(
         &self,
-        graph: &VisibilityGraph,
+        graph: &mut VisibilityGraph,
         source: Point,
         target: Point,
     ) -> Option<Vec<Point>> {

@@ -15,7 +15,7 @@ fn path_search_straight_line() {
     graph.add_edge(v2, v1, 1.0);
 
     let search = PathSearch::new(4.0);
-    let path = search.find_path(&graph, Point::new(0.0, 0.0), Point::new(10.0, 0.0));
+    let path = search.find_path(&mut graph, Point::new(0.0, 0.0), Point::new(10.0, 0.0));
     assert!(path.is_some());
     let pts = path.unwrap();
     assert_eq!(pts.len(), 2);
@@ -35,7 +35,7 @@ fn path_search_with_bend() {
     graph.add_edge(v3, v2, 1.0);
 
     let search = PathSearch::new(4.0);
-    let path = search.find_path(&graph, Point::new(0.0, 0.0), Point::new(10.0, 10.0));
+    let path = search.find_path(&mut graph, Point::new(0.0, 0.0), Point::new(10.0, 10.0));
     assert!(path.is_some());
     let pts = path.unwrap();
     assert_eq!(pts.len(), 3); // (0,0) -> (10,0) -> (10,10)
@@ -49,7 +49,7 @@ fn path_search_no_path() {
     // No edges
     let search = PathSearch::new(4.0);
     assert!(search
-        .find_path(&graph, Point::new(0.0, 0.0), Point::new(10.0, 0.0))
+        .find_path(&mut graph, Point::new(0.0, 0.0), Point::new(10.0, 0.0))
         .is_none());
 }
 
@@ -65,7 +65,7 @@ fn path_search_multi_hop() {
     graph.add_edge(v3, v2, 1.0);
 
     let search = PathSearch::new(4.0);
-    let path = search.find_path(&graph, Point::new(0.0, 0.0), Point::new(10.0, 0.0));
+    let path = search.find_path(&mut graph, Point::new(0.0, 0.0), Point::new(10.0, 0.0));
     assert!(path.is_some());
     // Should skip intermediate collinear point (5,0)
     let pts = path.unwrap();
@@ -78,7 +78,7 @@ fn path_search_same_source_target() {
     graph.add_vertex(Point::new(5.0, 5.0));
 
     let search = PathSearch::new(4.0);
-    let path = search.find_path(&graph, Point::new(5.0, 5.0), Point::new(5.0, 5.0));
+    let path = search.find_path(&mut graph, Point::new(5.0, 5.0), Point::new(5.0, 5.0));
     assert!(path.is_some());
     assert_eq!(path.unwrap().len(), 2);
 }
@@ -111,7 +111,7 @@ fn path_search_prefers_fewer_bends() {
 
     // With bend penalty, should prefer a -> e -> d (1 bend) over a -> b -> c -> d (2 bends)
     let search = PathSearch::new(4.0);
-    let path = search.find_path(&graph, Point::new(0.0, 0.0), Point::new(10.0, 5.0));
+    let path = search.find_path(&mut graph, Point::new(0.0, 0.0), Point::new(10.0, 5.0));
     assert!(path.is_some());
     let pts = path.unwrap();
     // The a -> e -> d path has 1 bend: East then North

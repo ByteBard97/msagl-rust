@@ -80,6 +80,21 @@ pub struct RectilinearEdgeRouter {
     edge_separation: f64,
     corner_fit_radius: f64,
     bend_penalty_as_percentage: f64,
+    /// When true the session is stale and `run()` must call `rebuild()` first.
+    ///
+    /// Mirrors C# `RectilinearEdgeRouter.RebuildTreeAndGraph()` which is called after
+    /// every obstacle mutation.  We defer the rebuild so that batched mutations
+    /// (e.g. `add_obstacles` / `remove_obstacles`) only rebuild once.
+    dirty: bool,
+    /// When true, ports are placed at obstacle centers rather than the nearest
+    /// padded boundary.  Mirrors C# `RouteToCenterOfObstacles`.
+    route_to_center: bool,
+    /// When true, the port-visibility splice is restricted to the bounding box of
+    /// the two endpoints.  Mirrors C# `LimitPortVisibilitySpliceToEndpointBoundingBox`.
+    limit_splice_to_bbox: bool,
+    /// When true (default), the nudger removes staircase patterns from routed paths.
+    /// Mirrors C# `RemoveStaircases`.
+    remove_staircases_flag: bool,
 }
 
 impl RectilinearEdgeRouter {
@@ -98,6 +113,10 @@ impl RectilinearEdgeRouter {
             edge_separation: DEFAULT_EDGE_SEPARATION,
             corner_fit_radius: DEFAULT_CORNER_FIT_RADIUS,
             bend_penalty_as_percentage: DEFAULT_BEND_PENALTY_PCT,
+            dirty: false,
+            route_to_center: false,
+            limit_splice_to_bbox: false,
+            remove_staircases_flag: true,
         }
     }
 
@@ -132,20 +151,151 @@ impl RectilinearEdgeRouter {
         self
     }
 
-    /// Add an obstacle shape and regenerate the visibility graph.
-    pub fn add_shape(&mut self, shape: Shape) {
-        let mut shapes = Self::extract_shapes(&self.session);
-        shapes.push(shape);
-        self.session = generate_visibility_graph(&shapes, self.padding);
+    /// If true, route to obstacle centers rather than the nearest padded boundary.
+    ///
+    /// Mirrors C# `RectilinearEdgeRouter.RouteToCenterOfObstacles`.
+    /// Default: false.
+    pub fn route_to_center_of_obstacles(mut self, val: bool) -> Self {
+        self.route_to_center = val;
+        self
     }
 
-    /// Remove the obstacle shape at `index` (by insertion order) and regenerate.
-    pub fn remove_shape(&mut self, index: usize) {
-        let mut shapes = Self::extract_shapes(&self.session);
-        if index < shapes.len() {
-            shapes.remove(index);
+    /// If true, limit port-visibility splicing to the bounding box of the two endpoints.
+    ///
+    /// Mirrors C# `RectilinearEdgeRouter.LimitPortVisibilitySpliceToEndpointBoundingBox`.
+    /// Default: false.
+    pub fn limit_port_visibility_splice_to_endpoint_bounding_box(mut self, val: bool) -> Self {
+        self.limit_splice_to_bbox = val;
+        self
+    }
+
+    /// If false, skip the staircase-removal pass in the nudger.
+    ///
+    /// Mirrors C# `RectilinearEdgeRouter.RemoveStaircases`.
+    /// Default: true.
+    pub fn remove_staircases(mut self, val: bool) -> Self {
+        self.remove_staircases_flag = val;
+        self
+    }
+
+    // ── Obstacle mutation API ────────────────────────────────────────────────
+
+    /// Add an obstacle shape.
+    ///
+    /// The VG is NOT rebuilt immediately; it will be rebuilt lazily on the next
+    /// `run()` call (or you can call `rebuild()` explicitly).  This matches the
+    /// C# `AddObstacleWithoutRebuild` + `RebuildTreeAndGraph` split but defers
+    /// the rebuild to the batch boundary.
+    pub fn add_shape_without_rebuild(&mut self, shape: Shape) {
+        let idx = self.session.obstacle_tree.obstacles.len();
+        self.session.obstacle_tree.obstacles.push(
+            crate::routing::obstacle::Obstacle::from_shape(&shape, self.padding, idx),
+        );
+        self.dirty = true;
+    }
+
+    /// Add an obstacle shape and immediately rebuild the VG.
+    ///
+    /// Mirrors C# `RectilinearEdgeRouter.AddObstacle(Shape)`.
+    pub fn add_shape(&mut self, shape: Shape) {
+        self.add_shape_without_rebuild(shape);
+        self.rebuild();
+    }
+
+    /// Remove the obstacle shape at `index` (by insertion order).
+    ///
+    /// The VG is NOT rebuilt immediately.  Mirrors C# `RemoveObstacleWithoutRebuild`.
+    pub fn remove_shape_without_rebuild(&mut self, index: usize) {
+        if index < self.session.obstacle_tree.obstacles.len() {
+            self.session.obstacle_tree.obstacles.remove(index);
         }
+        self.dirty = true;
+    }
+
+    /// Remove the obstacle shape at `index` and immediately rebuild the VG.
+    ///
+    /// Mirrors C# `RectilinearEdgeRouter.RemoveObstacle(Shape)`.
+    pub fn remove_shape(&mut self, index: usize) {
+        self.remove_shape_without_rebuild(index);
+        self.rebuild();
+    }
+
+    /// Alias for `remove_shape` using the C# method name.
+    ///
+    /// Mirrors C# `RectilinearEdgeRouter.RemoveObstacle(Shape)`.
+    pub fn remove_obstacle(&mut self, index: usize) {
+        self.remove_shape(index);
+    }
+
+    /// Batch-add obstacles without rebuilding after each one.
+    ///
+    /// The VG is rebuilt once at the end.
+    /// Mirrors C# `AddObstacles(IEnumerable<Shape>)`.
+    pub fn add_obstacles(&mut self, shapes: &[Shape]) {
+        for shape in shapes {
+            self.add_shape_without_rebuild(shape.clone());
+        }
+        self.rebuild();
+    }
+
+    /// Batch-remove obstacles by index (descending order to preserve indices).
+    ///
+    /// The VG is rebuilt once at the end.
+    /// Mirrors C# `RemoveObstacles(IEnumerable<Shape>)`.
+    pub fn remove_obstacles(&mut self, mut indices: Vec<usize>) {
+        // Remove in descending order so earlier indices remain valid.
+        indices.sort_unstable_by(|a, b| b.cmp(a));
+        indices.dedup();
+        for idx in indices {
+            self.remove_shape_without_rebuild(idx);
+        }
+        self.rebuild();
+    }
+
+    /// Replace the shape at `index` with `new_shape` and rebuild the VG.
+    ///
+    /// Mirrors C# `RectilinearEdgeRouter.UpdateObstacle(Shape)`, which calls
+    /// `UpdateObstacleWithoutRebuild` then `RebuildTreeAndGraph`.
+    /// (C# line 158–161.)
+    pub fn update_obstacle(&mut self, index: usize, new_shape: Shape) {
+        if index < self.session.obstacle_tree.obstacles.len() {
+            self.session.obstacle_tree.obstacles[index] =
+                crate::routing::obstacle::Obstacle::from_shape(&new_shape, self.padding, index);
+            self.dirty = true;
+        }
+        self.rebuild();
+    }
+
+    /// Remove an edge geometry by index from the active routing set.
+    ///
+    /// Mirrors C# `RectilinearEdgeRouter.RemoveEdgeGeometryToRoute(EdgeGeometry)`.
+    /// (C# line 85–87.)
+    pub fn remove_edge_geometry(&mut self, edge_idx: usize) {
+        if edge_idx < self.edges.len() {
+            self.edges.remove(edge_idx);
+        }
+    }
+
+    /// Remove all obstacles and edges, resetting the router to a clean state.
+    ///
+    /// Mirrors C# `RectilinearEdgeRouter.Clear()` → `InternalClear(retainObstacles: false)`.
+    /// (C# line 260–262.)
+    pub fn clear(&mut self) {
+        self.edges.clear();
+        self.session = generate_visibility_graph(&[], self.padding);
+        self.dirty = false;
+    }
+
+    /// Explicitly rebuild the visibility graph from the current obstacle set.
+    ///
+    /// Called automatically by `run()` when `dirty == true`.  Can also be
+    /// called manually after batched obstacle mutations.
+    ///
+    /// Mirrors C# `RebuildTreeAndGraph()` (C# line 233–245).
+    pub fn rebuild(&mut self) {
+        let shapes = Self::extract_shapes_from_obstacles(&self.session);
         self.session = generate_visibility_graph(&shapes, self.padding);
+        self.dirty = false;
     }
 
     /// Add an edge to be routed.
@@ -153,9 +303,22 @@ impl RectilinearEdgeRouter {
         self.edges.push(edge);
     }
 
+    /// Return the number of edge geometries currently registered for routing.
+    ///
+    /// Mirrors C# `router.EdgeGeometriesToRoute.Count()`.
+    pub fn edge_count(&self) -> usize {
+        self.edges.len()
+    }
+
     /// Run the full routing pipeline: visibility graph, path search,
     /// nudging, and curve generation.
     pub fn run(&mut self) -> RoutingResult {
+        // Rebuild the VG lazily if any obstacle mutation happened since last run.
+        // Mirrors C# RunInternal() which calls GenerateVisibilityGraph() first.
+        if self.dirty {
+            self.rebuild();
+        }
+
         if self.edges.is_empty() {
             return RoutingResult { edges: Vec::new() };
         }
@@ -199,7 +362,7 @@ impl RectilinearEdgeRouter {
             PortManager::splice_port_into(&mut self.session, src_loc, &mut tgu);
             PortManager::splice_port_into(&mut self.session, tgt_loc, &mut tgu);
 
-            let path = search.find_path(&self.session.vis_graph, src_loc, tgt_loc);
+            let path = search.find_path(&mut self.session.vis_graph, src_loc, tgt_loc);
             let is_fallback = path.is_none();
             let pts = path.unwrap_or_else(|| {
                 debug_assert!(
@@ -219,7 +382,7 @@ impl RectilinearEdgeRouter {
         let obstacles = self.padded_obstacles();
         let (mut raw_paths, fallback_flags): (Vec<Vec<Point>>, Vec<bool>) =
             paths.into_iter().unzip();
-        nudge_paths(&mut raw_paths, &obstacles, self.edge_separation);
+        nudge_paths(&mut raw_paths, &obstacles, self.edge_separation, self.remove_staircases_flag);
 
         // 4. Convert to curves
         let edges = raw_paths
@@ -376,6 +539,11 @@ impl RectilinearEdgeRouter {
             .iter()
             .map(|obs| obs.shape.clone())
             .collect()
+    }
+
+    /// Same as `extract_shapes` but named to match the rebuild call site clearly.
+    fn extract_shapes_from_obstacles(session: &RouterSession) -> Vec<Shape> {
+        Self::extract_shapes(session)
     }
 
     /// Build padded obstacle rectangles for nudging.

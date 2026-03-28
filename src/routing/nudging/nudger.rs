@@ -31,7 +31,16 @@ use super::staircase_remover;
 ///
 /// Modifies `paths` in-place so that overlapping parallel segments are
 /// spread apart by at least `edge_separation`.
-pub fn nudge_paths(paths: &mut [Vec<Point>], obstacles: &[Rectangle], edge_separation: f64) {
+/// Nudge paths to separate parallel edges.
+///
+/// `remove_staircases_flag` mirrors C# `RectilinearEdgeRouter.RemoveStaircases`
+/// (default true). When false, the staircase-removal pass is skipped.
+pub fn nudge_paths(
+    paths: &mut [Vec<Point>],
+    obstacles: &[Rectangle],
+    edge_separation: f64,
+    remove_staircases_flag: bool,
+) {
     if paths.is_empty() {
         return;
     }
@@ -47,8 +56,11 @@ pub fn nudge_paths(paths: &mut [Vec<Point>], obstacles: &[Rectangle], edge_separ
     calculate(paths, obstacles, edge_separation, Direction::East, false);
     calculate(paths, obstacles, edge_separation, Direction::North, false);
 
-    // Remove staircases.
-    staircase_remover::remove_staircases(paths, obstacles);
+    // Remove staircases (conditionally). Mirrors C# NudgePaths() calling
+    // Nudger.NudgePaths with RemoveStaircases flag (C# line 517).
+    if remove_staircases_flag {
+        staircase_remover::remove_staircases(paths, obstacles);
+    }
 
     // Safety: if nudging caused any path to cross an obstacle it didn't
     // cross before, restore the original path. This guards against the

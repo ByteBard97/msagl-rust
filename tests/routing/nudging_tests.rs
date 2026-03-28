@@ -16,7 +16,7 @@ fn nudge_two_parallel_paths() {
         vec![Point::new(0.0, 5.0), Point::new(20.0, 5.0)],
     ];
     let obstacles = vec![];
-    nudge_paths(&mut paths, &obstacles, 2.0);
+    nudge_paths(&mut paths, &obstacles, 2.0, true);
 
     // After nudging, paths should be separated by at least edge_separation.
     let y0 = paths[0][0].y();
@@ -37,7 +37,7 @@ fn nudge_preserves_single_path() {
         Point::new(10.0, 15.0),
     ]];
     let obstacles = vec![];
-    nudge_paths(&mut paths, &obstacles, 2.0);
+    nudge_paths(&mut paths, &obstacles, 2.0, true);
 
     // Single path should stay roughly in place.
     assert!(
@@ -55,7 +55,7 @@ fn nudge_respects_obstacles() {
     ];
     // Obstacle below that limits downward movement.
     let obstacles = vec![Rectangle::new(-1.0, 0.0, 21.0, 3.0)];
-    nudge_paths(&mut paths, &obstacles, 2.0);
+    nudge_paths(&mut paths, &obstacles, 2.0, true);
 
     // Both paths should be above the obstacle (y >= 3).
     for (pi, path) in paths.iter().enumerate() {
@@ -79,7 +79,7 @@ fn nudge_three_parallel_paths() {
         vec![Point::new(0.0, 10.0), Point::new(20.0, 10.0)],
     ];
     let obstacles = vec![];
-    nudge_paths(&mut paths, &obstacles, 3.0);
+    nudge_paths(&mut paths, &obstacles, 3.0, true);
 
     // All three should be separated.
     let mut ys: Vec<f64> = paths.iter().map(|p| p[0].y()).collect();
@@ -102,7 +102,7 @@ fn nudge_three_parallel_paths() {
 fn nudge_empty_paths() {
     let mut paths: Vec<Vec<Point>> = vec![];
     let obstacles = vec![];
-    nudge_paths(&mut paths, &obstacles, 2.0);
+    nudge_paths(&mut paths, &obstacles, 2.0, true);
     assert!(paths.is_empty());
 }
 
@@ -110,7 +110,7 @@ fn nudge_empty_paths() {
 fn nudge_single_point_paths_no_panic() {
     let mut paths = vec![vec![Point::new(5.0, 5.0)]];
     let obstacles = vec![];
-    nudge_paths(&mut paths, &obstacles, 2.0);
+    nudge_paths(&mut paths, &obstacles, 2.0, true);
     // Should not panic.
 }
 
@@ -130,7 +130,7 @@ fn nudge_l_shaped_paths() {
         ],
     ];
     let obstacles = vec![];
-    nudge_paths(&mut paths, &obstacles, 2.0);
+    nudge_paths(&mut paths, &obstacles, 2.0, true);
 
     // Paths should still have valid rectilinear structure.
     for (pi, path) in paths.iter().enumerate() {
@@ -151,7 +151,7 @@ fn nudge_vertical_parallel_paths() {
         vec![Point::new(5.0, 0.0), Point::new(5.0, 20.0)],
     ];
     let obstacles = vec![];
-    nudge_paths(&mut paths, &obstacles, 2.0);
+    nudge_paths(&mut paths, &obstacles, 2.0, true);
 
     let x0 = paths[0][0].x();
     let x1 = paths[1][0].x();
