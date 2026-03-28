@@ -96,6 +96,58 @@ impl PortManager {
         result.tgu.remove_from_graph(session);
     }
 
+    /// Splice a port location into an existing `TransientGraphUtility`.
+    ///
+    /// Same logic as `splice_port` but uses a caller-provided TGU instead of
+    /// creating its own. This enables a single TGU to span both port entrance
+    /// creation (Phase 2a) and port splicing (Phase 2b) for one edge, so that
+    /// `tgu.remove_from_graph` cleanly restores all modifications at once.
+    ///
+    /// Returns the port vertex ID.
+    pub fn splice_port_into(
+        session: &mut RouterSession,
+        location: Point,
+        tgu: &mut TransientGraphUtility,
+    ) -> VertexId {
+        let port_vertex = tgu.find_or_add_vertex(session, location);
+
+        for &direction in &CompassDirection::all() {
+            if let Some(intersection) =
+                Self::find_nearest_crossing_edge(&session.vis_graph, location, direction)
+            {
+                let (edge_source, edge_target, intersect_point) = intersection;
+                let pre_existing = session.vis_graph.find_vertex(intersect_point);
+                let was_orphan = pre_existing
+                    .is_some_and(|v| session.vis_graph.out_degree(v) == 0 && session.vis_graph.in_degree(v) == 0);
+
+                let split_vertex = tgu.add_edge_to_target_edge(
+                    session,
+                    port_vertex,
+                    edge_source,
+                    edge_target,
+                    intersect_point,
+                );
+
+                if was_orphan && session.vis_graph.find_edge(edge_source, edge_target).is_some() {
+                    tgu.split_edge(session, edge_source, edge_target, split_vertex);
+                }
+
+                let dist = ((intersect_point.x() - location.x()).powi(2)
+                    + (intersect_point.y() - location.y()).powi(2))
+                .sqrt();
+                if dist > GeomConstants::DISTANCE_EPSILON {
+                    tgu.find_or_add_edge(session, port_vertex, split_vertex, dist);
+                }
+            } else if let Some((neighbor, dist)) =
+                Self::find_nearest_aligned(&session.vis_graph, port_vertex, location, direction)
+            {
+                tgu.find_or_add_edge(session, port_vertex, neighbor, dist);
+            }
+        }
+
+        port_vertex
+    }
+
     /// Find the nearest VG edge that an axis-aligned ray from `location`
     /// in `direction` crosses.
     ///

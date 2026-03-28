@@ -9,9 +9,7 @@ use crate::geometry::rectangle::Rectangle;
 use crate::routing::edge_geometry::EdgeGeometry;
 use crate::routing::nudging::nudge_paths;
 use crate::routing::path_search::PathSearch;
-use crate::routing::port::{ObstaclePort, ObstaclePortEntrance};
 use crate::routing::port_manager::PortManager;
-use crate::routing::port_manager::FullPortManager;
 use crate::routing::transient_graph_utility::TransientGraphUtility;
 use crate::routing::shape::Shape;
 use crate::routing::router_session::RouterSession;
@@ -125,23 +123,25 @@ impl RectilinearEdgeRouter {
 
         let graph_box = session.obstacle_tree.graph_box();
 
-        // Phase 2a: Create port entrances at obstacle boundaries for ALL ports before routing.
-        let mut entrance_tgu = TransientGraphUtility::new();
+        // Phase 2: Route each edge with a single TGU shared by entrance creation and port
+        // splicing. This matches the C# design where one TGU per edge-routing call owns all
+        // transient VG modifications; remove_from_graph at the end restores the graph cleanly.
         for edge in &self.edges {
+            let mut tgu = TransientGraphUtility::new();
+
+            // Phase 2a: Create port entrances at obstacle boundaries into the shared TGU.
             Self::create_port_entrances_for_location(
                 edge.source.location, &self.shapes, self.padding,
-                &mut session, &mut entrance_tgu, &graph_box,
+                &mut session, &mut tgu, &graph_box,
             );
             Self::create_port_entrances_for_location(
                 edge.target.location, &self.shapes, self.padding,
-                &mut session, &mut entrance_tgu, &graph_box,
+                &mut session, &mut tgu, &graph_box,
             );
-        }
 
-        // Phase 2b: Route each edge with port splicing.
-        for edge in &self.edges {
-            let mut src_splice = PortManager::splice_port(&mut session, edge.source.location);
-            let mut tgt_splice = PortManager::splice_port(&mut session, edge.target.location);
+            // Phase 2b: Splice ports using the SAME TGU so all modifications are consistent.
+            PortManager::splice_port_into(&mut session, edge.source.location, &mut tgu);
+            PortManager::splice_port_into(&mut session, edge.target.location, &mut tgu);
 
             let path = search.find_path(&session.vis_graph, edge.source.location, edge.target.location);
             paths.push(path.unwrap_or_else(|| {
@@ -150,12 +150,9 @@ impl RectilinearEdgeRouter {
                 vec![edge.source.location, edge.target.location]
             }));
 
-            PortManager::unsplice(&mut session, &mut src_splice);
-            PortManager::unsplice(&mut session, &mut tgt_splice);
+            // Phase 2c: Remove ALL modifications (entrances + splices) atomically.
+            tgu.remove_from_graph(&mut session);
         }
-
-        // Clean up entrance modifications after all routing is done.
-        entrance_tgu.remove_from_graph(&mut session);
 
         // 3. Nudge paths for edge separation
         let obstacles = self.padded_obstacles();
@@ -191,30 +188,20 @@ impl RectilinearEdgeRouter {
         use crate::geometry::point_comparer::GeomConstants;
 
         // Find which obstacle contains this port location.
-        let obs_idx = session.obstacle_tree.obstacles.iter().enumerate().find_map(|(i, obs)| {
+        let containing_obs = session.obstacle_tree.obstacles.iter().enumerate().find(|(_, obs)| {
             let bb = obs.padded_bounding_box();
-            if location.x() > bb.left() + GeomConstants::DISTANCE_EPSILON
+            location.x() > bb.left() + GeomConstants::DISTANCE_EPSILON
                 && location.x() < bb.right() - GeomConstants::DISTANCE_EPSILON
                 && location.y() > bb.bottom() + GeomConstants::DISTANCE_EPSILON
                 && location.y() < bb.top() - GeomConstants::DISTANCE_EPSILON
-            {
-                Some(i)
-            } else {
-                None
-            }
         });
 
-        let obs_idx = match obs_idx {
-            Some(i) => i,
+        let (_obs_idx, obs) = match containing_obs {
+            Some((i, o)) => (i, o),
             None => return, // Port is not inside any obstacle — splice_port handles it
         };
 
-        let padded_box = session.obstacle_tree.obstacles[obs_idx].padded_bounding_box().clone();
-
-        // Temporarily mark this obstacle as transparent so that
-        // restrict_segment_with_obstacles doesn't block rays from the
-        // boundary outward through the port's own obstacle.
-        session.obstacle_tree.obstacles[obs_idx].set_transparent(true);
+        let padded_box = obs.padded_bounding_box();
         let rounded = Point::round(location);
 
         // Create entrances at boundary intersections (matches C# CreateObstaclePortEntrancesFromPoints).
@@ -251,14 +238,49 @@ impl RectilinearEdgeRouter {
             }
         }
 
-        // For each entrance: add vertex at boundary, connect to port, extend outward
-        // Add boundary vertices only — do NOT add edges from center to boundary,
-        // as those edges cross through the obstacle interior. splice_port will
-        // connect the center to these boundary vertices via its own heuristic.
+        // For each entrance: add vertex at boundary, connect to perpendicular VG neighbors,
+        // then extend outward via max visibility segment.
+        //
+        // Perpendicular connections are needed because the VG generator only creates scan
+        // segments at obstacle boundary Y-coordinates; it does NOT create edges along obstacle
+        // left/right sides. A boundary vertex like (61,10) is therefore isolated until we
+        // connect it to the nearest live VG vertex in each perpendicular direction on the
+        // same axis. This is safe here because we are inside a single per-edge TGU — any
+        // edge splits done here and by splice_port_into below all belong to the same TGU and
+        // are removed atomically by tgu.remove_from_graph at the end of each edge.
         for (border_point, out_dir) in entrances {
             let border_vertex = tgu.find_or_add_vertex(session, border_point);
 
-            // Extend edge chain outward from boundary vertex along max visibility segment.
+            // Connect the boundary vertex to nearest live VG vertices in each perpendicular
+            // direction so that splice_port_into can find a crossing edge from the port center.
+            let (perp_a, perp_b) = match out_dir {
+                CompassDirection::East | CompassDirection::West =>
+                    (CompassDirection::North, CompassDirection::South),
+                CompassDirection::North | CompassDirection::South =>
+                    (CompassDirection::East, CompassDirection::West),
+            };
+            for &pdir in &[perp_a, perp_b] {
+                if let Some(nbr) = session.vis_graph.find_nearest_vertex_in_direction(border_point, pdir) {
+                    if nbr == border_vertex {
+                        continue;
+                    }
+                    let nbr_pt = session.vis_graph.point(nbr);
+                    let on_axis = match pdir {
+                        CompassDirection::North | CompassDirection::South =>
+                            GeomConstants::close(nbr_pt.x(), border_point.x()),
+                        CompassDirection::East | CompassDirection::West =>
+                            GeomConstants::close(nbr_pt.y(), border_point.y()),
+                    };
+                    if on_axis && session.vis_graph.degree(nbr) > 0 {
+                        let dist = ((nbr_pt.x() - border_point.x()).powi(2)
+                            + (nbr_pt.y() - border_point.y()).powi(2))
+                        .sqrt();
+                        tgu.find_or_add_edge(session, border_vertex, nbr, dist);
+                    }
+                }
+            }
+
+            // Compute max visibility segment and extend outward from boundary vertex.
             let (seg_start, seg_end, _pac) =
                 session.obstacle_tree.create_max_visibility_segment(border_point, out_dir, graph_box);
             if !seg_start.close_to(seg_end) {
@@ -268,9 +290,6 @@ impl RectilinearEdgeRouter {
                 );
             }
         }
-
-        // Restore obstacle opacity.
-        session.obstacle_tree.obstacles[obs_idx].set_transparent(false);
     }
 
     /// Build padded obstacle rectangles for nudging.
