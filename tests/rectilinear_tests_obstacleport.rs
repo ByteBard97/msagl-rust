@@ -83,7 +83,6 @@ fn dead_end_open_space_obstacles(b: &mut ScenarioBuilder) -> Vec<usize> {
 /// added (`Shape::polygon` routing via true polygon boundaries), this test
 /// cannot be run with fidelity.
 #[test]
-#[ignore = "requires non-rectangular ICurve obstacle support — triangle is approximated as bbox"]
 fn triangle_obstacle_port_outside_obstacle() {
     // C# line 2490-2501
     let mut b = ScenarioBuilder::new();
@@ -132,7 +131,6 @@ fn triangle_obstacle_port_outside_obstacle() {
 /// triangle's angled sides are invisible to it, so the open-space condition
 /// cannot be reproduced. Un-ignore when non-rectangular ICurve support lands.
 #[test]
-#[ignore = "requires non-rectangular ICurve obstacle support — triangle bbox approximation loses open-space geometry"]
 fn dead_end_open_space_obstacle_port0() {
     // C# line 2621-2626
     let mut b = ScenarioBuilder::new();
@@ -175,7 +173,6 @@ fn dead_end_open_space_obstacle_port0() {
 /// triangle's angled side. The bounding-box approximation cannot produce the
 /// same splice path, so the bend count assertion is not valid in Rust today.
 #[test]
-#[ignore = "requires non-rectangular ICurve obstacle support — triangle bbox approximation loses direct-visibility splice, bend count not reproducible"]
 fn dead_end_open_space_obstacle_port0_eliminate_extra_bend() {
     // C# line 2655-2670
     let mut b = ScenarioBuilder::new();
@@ -244,3 +241,4 @@ fn count_bends(points: &[Point]) -> usize {
     }
     bends
 }
+

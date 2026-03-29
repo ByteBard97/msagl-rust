@@ -52,14 +52,9 @@ impl Obstacle {
 
     /// Faithful port of TS `Obstacle` constructor.
     ///
-    /// Pads the boundary polyline. Currently uses padded bounding box for
-    /// the scanline representation (both rectangular and non-rectangular shapes).
-    /// The actual polygon boundary is stored in the Shape for accurate
-    /// containment testing by the verifier.
-    ///
-    /// TODO: When bend/reflection events are implemented in the VG generator,
-    /// non-rectangular shapes should use `create_padded_polyline()` for
-    /// their padded polyline instead of the bounding-box approximation.
+    /// Pads the boundary polyline. For rectangular shapes, uses the padded
+    /// bounding box. For non-rectangular shapes, uses `create_padded_polyline()`
+    /// to offset the actual polygon boundary outward by `padding`.
     pub fn from_shape(shape: &Shape, padding: f64, index: usize) -> Self {
         let bb = shape.bounding_box();
         let padded_bb = Rectangle::new(
@@ -69,15 +64,19 @@ impl Obstacle {
             bb.top() + padding,
         );
 
-        // Create padded polyline from bounding box: clockwise from bottom-left.
-        // For non-rectangular shapes, this is conservative (routes around the
-        // bounding box), but the verifier uses the actual polygon boundary.
-        let mut poly = Polyline::new();
-        poly.add_point(padded_bb.left_bottom());
-        poly.add_point(padded_bb.left_top());
-        poly.add_point(padded_bb.right_top());
-        poly.add_point(padded_bb.right_bottom());
-        poly.set_closed(true);
+        let mut poly = if shape.is_rect() {
+            // Rectangular shape: build padded polyline from bounding box (clockwise from bottom-left).
+            let mut p = Polyline::new();
+            p.add_point(padded_bb.left_bottom());
+            p.add_point(padded_bb.left_top());
+            p.add_point(padded_bb.right_top());
+            p.add_point(padded_bb.right_bottom());
+            p.set_closed(true);
+            p
+        } else {
+            // Non-rectangular shape: offset the actual polygon boundary outward.
+            create_padded_polyline(shape.boundary_polyline(), padding)
+        };
 
         // Faithful port of TS Obstacle.RoundVerticesAndSimplify()
         round_vertices_and_simplify(&mut poly);
@@ -442,9 +441,6 @@ fn remove_close_vertices(polyline: &mut Polyline, epsilon: f64) {
 }
 
 /// Create a padded polyline around a convex polygon boundary.
-/// Not yet used — the VG generator currently routes around bounding boxes.
-/// Will be activated when bend/reflection events are implemented.
-#[allow(dead_code)]
 ///
 /// Faithful port of C# `InteractiveObstacleCalculator.CreatePaddedPolyline()`.
 /// Offsets each edge outward by `padding`, then computes corner intersections.
@@ -497,7 +493,6 @@ fn create_padded_polyline(poly: &Polyline, padding: f64) -> Polyline {
 }
 
 /// Result of padding a single corner vertex.
-#[allow(dead_code)]
 enum PadResult {
     /// Single offset point (normal or obtuse corner).
     One(Point),
@@ -511,7 +506,6 @@ enum PadResult {
 ///
 /// Given three consecutive vertices (u, v, w) on a clockwise polyline,
 /// compute the padded corner point(s) at vertex v.
-#[allow(dead_code)]
 fn get_padded_corner(u: Point, v: Point, w: Point, padding: f64) -> PadResult {
     // Check orientation: counterclockwise means concave corner
     if triangle_orientation(u, v, w) == Orientation::Counterclockwise {
@@ -571,7 +565,6 @@ fn get_padded_corner(u: Point, v: Point, w: Point, padding: f64) -> PadResult {
 /// Check if a corner at v (between edges u→v and v→w) is not too sharp.
 /// Faithful port of C# `CornerIsNotTooSharp`.
 /// Returns true if the angle is > π/4 (45 degrees).
-#[allow(dead_code)]
 fn corner_is_not_too_sharp(u: Point, v: Point, w: Point) -> bool {
     let uv = u - v;
     let rotated = rotate_by_angle(uv, std::f64::consts::FRAC_PI_4);
@@ -580,7 +573,6 @@ fn corner_is_not_too_sharp(u: Point, v: Point, w: Point) -> bool {
 }
 
 /// Rotate a vector by the given angle (radians, counterclockwise).
-#[allow(dead_code)]
 fn rotate_by_angle(p: Point, angle: f64) -> Point {
     let cos = angle.cos();
     let sin = angle.sin();
@@ -589,14 +581,12 @@ fn rotate_by_angle(p: Point, angle: f64) -> Point {
 
 /// Rotate a vector 90 degrees counterclockwise (left turn).
 /// For a clockwise polyline, this points outward.
-#[allow(dead_code)]
 fn rotate_90(p: Point) -> Point {
     Point::new(-p.y(), p.x())
 }
 
 /// Line-line intersection of lines (a1→a2) and (b1→b2).
 /// Returns None if lines are parallel.
-#[allow(dead_code)]
 fn line_line_intersection(a1: Point, a2: Point, b1: Point, b2: Point) -> Option<Point> {
     let d1 = a2 - a1;
     let d2 = b2 - b1;
@@ -613,7 +603,6 @@ fn line_line_intersection(a1: Point, a2: Point, b1: Point, b2: Point) -> Option<
 
 /// Triangle orientation for three points.
 #[derive(PartialEq, Eq, Debug)]
-#[allow(dead_code)]
 enum Orientation {
     Clockwise,
     Counterclockwise,
@@ -621,7 +610,6 @@ enum Orientation {
 }
 
 /// Determine the orientation of triangle (a, b, c).
-#[allow(dead_code)]
 fn triangle_orientation(a: Point, b: Point, c: Point) -> Orientation {
     let cross = (b.x() - a.x()) * (c.y() - a.y()) - (b.y() - a.y()) * (c.x() - a.x());
     if cross.abs() < GeomConstants::TOLERANCE {

@@ -404,13 +404,14 @@ impl RectilinearEdgeRouter {
             return RoutingResult { edges: Vec::new() };
         }
 
-        // Extract source/target locations upfront (Points are Copy) so that the
-        // loop body can take &mut self.session without conflicting with the
+        // Extract source/target locations and obstacle indices upfront (Points are Copy)
+        // so that the loop body can take &mut self.session without conflicting with the
         // &self.edges borrow.
-        let edge_locs: Vec<(Point, Point)> = self
+        let edge_locs: Vec<(Point, Point, usize, usize)> = self
             .edges
             .iter()
-            .map(|e| (e.source.location, e.target.location))
+            .map(|e| (e.source.location, e.target.location,
+                      e.source.obstacle_index, e.target.obstacle_index))
             .collect();
 
         let search = PathSearch::new(self.bend_penalty_as_percentage);
@@ -418,11 +419,15 @@ impl RectilinearEdgeRouter {
 
         let graph_box = self.session.obstacle_tree.graph_box();
 
+        // Overlapped-weight multiplier used by SegmentWeight::Overlapped.
+        // Matches scan_segment.rs SegmentWeight::Overlapped.value() = 500.
+        const OVERLAPPED_FACTOR: f64 = 500.0;
+
         // Route each edge with a single TGU shared by entrance creation and port
         // splicing. This matches the C# design where one TGU per edge-routing call
         // owns all transient VG modifications; remove_from_graph at the end restores
         // the graph cleanly.
-        for (src_loc, tgt_loc) in edge_locs {
+        for (src_loc, tgt_loc, src_obs_idx, tgt_obs_idx) in edge_locs {
             let mut tgu = TransientGraphUtility::new();
 
             // C# PortManager.cs lines 788-798: GetPortSpliceLimitRectangle.
@@ -463,7 +468,74 @@ impl RectilinearEdgeRouter {
             PortManager::splice_port_into(&mut self.session, src_loc, &mut tgu);
             PortManager::splice_port_into(&mut self.session, tgt_loc, &mut tgu);
 
+            // C# FloatingPort transparency: when a port is associated with an obstacle
+            // (FloatingPort.obstacle_index), that obstacle is transparent for this routing.
+            // C# RectilinearEdgeRouter sets Obstacle.IsTransparent = true before routing the
+            // edge, then restores it after. A transparent obstacle is excluded from the sweep
+            // as a blocker, so the VG is regenerated without it and vertical/horizontal scan
+            // segments extend freely through its interior.
+            //
+            // We implement this by marking the source and target obstacles transparent,
+            // rebuilding the VG, running path search, then restoring and rebuilding again.
+            let n_obstacles = self.session.obstacle_tree.obstacles.len();
+            let src_was_transparent = if src_obs_idx < n_obstacles {
+                let was = self.session.obstacle_tree.obstacles[src_obs_idx].is_transparent();
+                if !was {
+                    self.session.obstacle_tree.obstacles[src_obs_idx].set_transparent(true);
+                }
+                was
+            } else {
+                true // skip restore
+            };
+            let tgt_was_transparent = if tgt_obs_idx < n_obstacles && tgt_obs_idx != src_obs_idx {
+                let was = self.session.obstacle_tree.obstacles[tgt_obs_idx].is_transparent();
+                if !was {
+                    self.session.obstacle_tree.obstacles[tgt_obs_idx].set_transparent(true);
+                }
+                was
+            } else {
+                true // skip restore
+            };
+
+            // If we changed any transparency flags, rebuild the VG.
+            let rebuilt = !src_was_transparent || (!tgt_was_transparent && tgt_obs_idx != src_obs_idx);
+            if rebuilt {
+                VisibilityGraphGenerator.generate(&mut self.session);
+                // Re-create port entrances and splice with the new VG.
+                tgu = TransientGraphUtility::new();
+                Self::create_port_entrances_for_location(
+                    src_loc,
+                    &mut self.session,
+                    &mut tgu,
+                    &limit_rect,
+                    self.route_to_center,
+                );
+                Self::create_port_entrances_for_location(
+                    tgt_loc,
+                    &mut self.session,
+                    &mut tgu,
+                    &limit_rect,
+                    self.route_to_center,
+                );
+                PortManager::splice_port_into(&mut self.session, src_loc, &mut tgu);
+                PortManager::splice_port_into(&mut self.session, tgt_loc, &mut tgu);
+            }
+
             let path = search.find_path(&mut self.session.vis_graph, src_loc, tgt_loc);
+
+            // Restore transparency flags and rebuild VG to original state.
+            if rebuilt {
+                tgu.remove_from_graph(&mut self.session);
+                tgu = TransientGraphUtility::new();
+                if !src_was_transparent {
+                    self.session.obstacle_tree.obstacles[src_obs_idx].set_transparent(false);
+                }
+                if !tgt_was_transparent && tgt_obs_idx != src_obs_idx {
+                    self.session.obstacle_tree.obstacles[tgt_obs_idx].set_transparent(false);
+                }
+                VisibilityGraphGenerator.generate(&mut self.session);
+            }
+
             let is_fallback = path.is_none();
             let pts = path.unwrap_or_else(|| {
                 debug_assert!(

@@ -141,7 +141,7 @@ if ! command -v node &>/dev/null; then
 elif [ ! -f "tools/api-diff.mjs" ]; then
     warn "SKIP [api-diff — tools/api-diff.mjs not found]"
 else
-    diff_output=$(node tools/api-diff.mjs --ts-only --no-ToString 2>&1)
+    diff_output=$(node tools/api-diff.mjs --ts-only --no-toString 2>&1)
     missing_count=$(echo "$diff_output" | grep 'Missing entirely from src/:' | grep -oE '[0-9]+' || echo 0)
     if [ "${missing_count:-0}" -gt 0 ]; then
         red "FAIL [api-diff — $missing_count items missing from src/]"

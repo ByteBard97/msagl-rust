@@ -7,12 +7,15 @@
 
 use crate::geometry::point::Point;
 use crate::geometry::point_comparer::GeomConstants;
+use crate::geometry::polyline::Polyline;
 use crate::geometry::rectangle::Rectangle;
-use super::compass_direction::CompassDirection;
+use super::compass_direction::{CompassDirection, Direction};
 use super::obstacle_tree::ObstacleTree;
 use super::port::{ObstaclePort, ObstaclePortEntrance};
 use super::port_manager::FullPortManager;
 use super::router_session::RouterSession;
+use super::scan_direction::ScanDirection;
+use super::static_graph_utility::StaticGraphUtility;
 use super::transient_graph_utility::TransientGraphUtility;
 
 impl FullPortManager {
@@ -119,13 +122,49 @@ impl FullPortManager {
         obstacle_tree: &mut ObstacleTree,
         graph_box: &Rectangle,
     ) {
-        // TS line 105: oport.CreatePortEntrance(unpaddedBorderIntersect, outDir, this.ObstacleTree)
-        oport.create_port_entrance(unpadded_border_intersect, out_dir, oport.obstacle_index, obstacle_tree, graph_box);
+        // C# line 539: oport.CreatePortEntrance(unpaddedBorderIntersect, outDir, this.ObstacleTree)
+        let obstacle_index = oport.obstacle_index;
+        oport.create_port_entrance(unpadded_border_intersect, out_dir, obstacle_index, obstacle_tree, graph_box);
 
-        // TS lines 106-127: For non-rectangular obstacles, check if the border intersect
-        // is on a sloped boundary and add a perpendicular entrance. For rectangular obstacles
-        // (our current scope), the distance is always 0 so this never fires.
-        // TODO: implement perpendicular entrance for non-rectangular obstacles
+        // C# lines 540-556: For non-rectangular obstacles, check if the border intersect
+        // is NOT on the rectangular extreme boundary (axisDistanceBetweenIntersections > epsilon).
+        // If so, compute the tangent direction of the polyline at the border point and create
+        // a second entrance in the perpendicular direction.
+        //
+        // For rectangular obstacles port_curve_polyline is None, so this block never fires.
+        if let Some(polyline) = &oport.port_curve_polyline.clone() {
+            // C# line 541: ScanDirection scanDir = ScanDirection.GetInstance(outDir)
+            let scan_dir = ScanDirection::for_compass(out_dir);
+
+            // C# lines 542-545: axisDistanceBetweenIntersections =
+            //   |GetRectangleBound(curveBox, outDir) - scanDir.Coord(unpaddedBorderIntersect)|
+            let rect_bound = StaticGraphUtility::get_rectangle_bound(&oport.port_curve_bbox, out_dir);
+            let intersect_coord = scan_dir.coord(unpadded_border_intersect);
+            let axis_dist = (rect_bound - intersect_coord).abs();
+
+            if axis_dist > GeomConstants::INTERSECTION_EPSILON {
+                // C# line 547: perpDirs = CompassVector.VectorDirection(GetDerivative(oport, unpaddedBorderIntersect))
+                let deriv = get_polyline_derivative(polyline, unpadded_border_intersect);
+                let perp_dirs = Direction::from_vector(deriv.x(), deriv.y());
+
+                // C# line 548: perpDir = perpDirs & ~(outDir | OppositeDir(outDir))
+                let out_flag = out_dir.to_direction();
+                let opp_flag = out_dir.opposite().to_direction();
+                let mut perp_dir = perp_dirs & !(out_flag | opp_flag);
+
+                // C# lines 549-551: if outDir is contained in perpDirs, flip perpDir
+                if !(out_flag & perp_dirs).is_none() {
+                    perp_dir = !perp_dir & Direction::ALL;
+                }
+
+                // C# line 552: if Direction.None != (outDir & perpDirs) → already handled above
+                // C# line 553: oport.CreatePortEntrance(unpaddedBorderIntersect, perpDir, this.ObstacleTree)
+                if perp_dir.is_pure() {
+                    let perp_compass = CompassDirection::from_direction(perp_dir);
+                    oport.create_port_entrance(unpadded_border_intersect, perp_compass, obstacle_index, obstacle_tree, graph_box);
+                }
+            }
+        }
     }
 
     // ── TS: port_manager_entrances.ts lines 130-149 (20 lines) ──
@@ -208,4 +247,57 @@ impl FullPortManager {
             entrance.add_to_adjacent_vertex(session, trans_util, tv, limit_rect, route_to_center);
         }
     }
+}
+
+/// Faithful port of C# `PortManager.GetDerivative()`.
+///
+/// For a polyline boundary, the "derivative" at a border point is the
+/// direction vector of the polyline edge that the point lies on (clockwise
+/// orientation). The C# version calls `PortCurve.Derivative(param)` on an
+/// ICurve; for polylines the derivative is simply the edge direction.
+///
+/// Algorithm:
+/// 1. Iterate over consecutive edges of the closed polyline.
+/// 2. Find the edge whose segment contains `border_point` (min distance).
+/// 3. Return the normalised direction vector of that edge.
+///
+/// The polyline is assumed to be clockwise (Shape::polygon enforces this).
+fn get_polyline_derivative(polyline: &Polyline, border_point: Point) -> Point {
+    let mut best_dist = f64::MAX;
+    let mut best_dir = Point::new(1.0, 0.0); // fallback: East
+
+    let pts: Vec<Point> = polyline.points().collect();
+    let n = pts.len();
+    if n < 2 {
+        return best_dir;
+    }
+
+    for i in 0..n {
+        let a = pts[i];
+        let b = pts[(i + 1) % n];
+
+        // Distance from border_point to segment a→b.
+        let ab = b - a;
+        let ab_len2 = ab.x() * ab.x() + ab.y() * ab.y();
+        if ab_len2 < 1e-20 {
+            continue; // degenerate segment
+        }
+
+        let t = ((border_point.x() - a.x()) * ab.x() + (border_point.y() - a.y()) * ab.y())
+            / ab_len2;
+        let t_clamped = t.clamp(0.0, 1.0);
+        let closest = Point::new(a.x() + t_clamped * ab.x(), a.y() + t_clamped * ab.y());
+        let dx = border_point.x() - closest.x();
+        let dy = border_point.y() - closest.y();
+        let dist = dx * dx + dy * dy;
+
+        if dist < best_dist {
+            best_dist = dist;
+            // Normalise the edge direction (clockwise polyline → derivative in clockwise order).
+            let len = ab_len2.sqrt();
+            best_dir = Point::new(ab.x() / len, ab.y() / len);
+        }
+    }
+
+    best_dir
 }

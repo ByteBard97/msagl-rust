@@ -1,6 +1,7 @@
 use crate::geometry::curve::LineSegment;
 use crate::geometry::point::Point;
 use crate::geometry::point_comparer::GeomConstants;
+use crate::geometry::polyline::Polyline;
 use crate::geometry::rectangle::Rectangle;
 use crate::visibility::graph::VertexId;
 use super::compass_direction::CompassDirection;
@@ -277,6 +278,11 @@ pub struct ObstaclePort {
     /// obstacle's bounding box as the closest equivalent.
     pub port_curve_bbox: Rectangle,
 
+    /// Unpadded boundary polyline for non-rectangular port derivative computation.
+    /// C# PortManager.cs GetDerivative: oport.PortCurve used for closest-point / Derivative.
+    /// None for rectangular obstacles (derivative is always axis-aligned, never fires).
+    pub port_curve_polyline: Option<Polyline>,
+
     /// Visibility vertex at the port center (set when route_to_center is true).
     /// C# ObstaclePort.cs line 18: CenterVertex
     pub center_vertex: Option<VertexId>,
@@ -311,6 +317,7 @@ impl ObstaclePort {
             location,
             port_location: location,
             port_curve_bbox: Rectangle::empty(),
+            port_curve_polyline: None,
             center_vertex: None,
             port_entrances: Vec::new(),
             has_collinear_entrances: false,
@@ -341,6 +348,7 @@ impl ObstaclePort {
             location: rounded,
             port_location,
             port_curve_bbox,
+            port_curve_polyline: None,
             center_vertex: None,
             port_entrances: Vec::new(),
             has_collinear_entrances: false,
@@ -427,6 +435,15 @@ impl ObstaclePort {
     #[inline]
     pub fn port_curve(&self) -> &Rectangle {
         &self.port_curve_bbox
+    }
+
+    /// Returns the obstacle index this port is associated with.
+    ///
+    /// Faithful port of C# ObstaclePort.Port property (ObstaclePort.cs).
+    /// In C# this returns the `Port` object; in Rust we represent the port
+    /// by its obstacle index since there is no separate Port wrapper class.
+    pub fn port(&self) -> usize {
+        self.obstacle_index
     }
 
     /// Check if the port location has changed (requiring recreation).

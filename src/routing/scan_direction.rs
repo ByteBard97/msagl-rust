@@ -1,5 +1,6 @@
 use crate::geometry::point::Point;
 use crate::geometry::point_comparer::GeomConstants;
+use crate::routing::compass_direction::CompassDirection;
 use std::cmp::Ordering;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -22,6 +23,17 @@ impl ScanDirection {
     pub fn vertical() -> Self {
         Self {
             dir: Direction::North,
+        }
+    }
+
+    /// Return the scan direction for a compass direction.
+    ///
+    /// Faithful port of C# `ScanDirection.GetInstance(outDir)`.
+    /// East/West → horizontal (coord = x); North/South → vertical (coord = y).
+    pub fn for_compass(dir: CompassDirection) -> Self {
+        match dir {
+            CompassDirection::East | CompassDirection::West => Self::horizontal(),
+            CompassDirection::North | CompassDirection::South => Self::vertical(),
         }
     }
 
