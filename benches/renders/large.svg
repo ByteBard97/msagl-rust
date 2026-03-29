@@ -1,4 +1,5 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="3390" height="2190" style="background:#f8f9fa;font-family:monospace">
+<svg xmlns="http://www.w3.org/2000/svg" width="3390" height="2190" style="font-family:monospace">
+<rect width="3390" height="2190" fill="#f8f9fa"/>
 <defs>
   <marker id="arr" markerWidth="6" markerHeight="6"           refX="5" refY="3" orient="auto">
     <path d="M0,0 L6,3 L0,6 Z" fill="context-stroke"/>

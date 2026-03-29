@@ -41,7 +41,8 @@ def svg_header(w, h):
     return (
         f'<svg xmlns="http://www.w3.org/2000/svg" '
         f'width="{w}" height="{h}" '
-        f'style="background:#f8f9fa;font-family:monospace">\n'
+        f'style="font-family:monospace">\n'
+        f'<rect width="{w}" height="{h}" fill="#f8f9fa"/>\n'
         '<defs>\n'
         '  <marker id="arr" markerWidth="6" markerHeight="6" '
         '          refX="5" refY="3" orient="auto">\n'
@@ -405,7 +406,32 @@ def main():
         routed_poly = route_via_cargo("polygon")
     render_scenario("polygon", scenario, routed_poly, OUTPUT_DIR / "polygon.svg")
 
-    print(f"\nDone. Open files in {OUTPUT_DIR}/")
+    # Convert SVGs to PNGs using rsvg-convert (2× scale)
+    rsvg = None
+    for candidate in ("rsvg-convert",):
+        try:
+            subprocess.run([candidate, "--version"], capture_output=True, check=True)
+            rsvg = candidate
+            break
+        except (FileNotFoundError, subprocess.CalledProcessError):
+            pass
+
+    if rsvg:
+        print("\nConverting to PNG...")
+        for svg_path in sorted(OUTPUT_DIR.glob("*.svg")):
+            png_path = svg_path.with_suffix(".png")
+            r = subprocess.run(
+                [rsvg, "-z", "2", str(svg_path), "-o", str(png_path)],
+                capture_output=True,
+            )
+            if r.returncode == 0:
+                print(f"  Wrote {png_path.relative_to(REPO)}")
+            else:
+                print(f"  FAILED: {png_path.name}: {r.stderr.decode()[:100]}")
+    else:
+        print("\nrsvg-convert not found — skipping PNG conversion")
+
+    print(f"\nDone. Files in {OUTPUT_DIR}/")
 
 
 if __name__ == "__main__":
