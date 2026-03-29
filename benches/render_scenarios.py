@@ -222,26 +222,7 @@ def render_scenario(name, scenario, routed_edges, output_path):
         svg += f'<line x1="0" y1="{y:.0f}" x2="{W:.0f}" y2="{y:.0f}" stroke="#e0e0e0" stroke-width="0.5"/>\n'
         gy += grid
 
-    # Obstacles
-    for i, o in enumerate(obstacles):
-        if "points" in o:
-            pts = [(tx(px), ty(py)) for px, py in o["points"]]
-            padded = offset_polygon(pts, padding_val)
-            svg += svg_polygon(padded, "#c8dff0", "#7fb3d3", dash="3,2", opacity=0.5)
-            svg += svg_polygon(pts, "#aec6e8", "#5b9bd5", stroke_w=1.5, opacity=0.85)
-            cx = sum(p[0] for p in pts) / len(pts)
-            cy = sum(p[1] for p in pts) / len(pts)
-        else:
-            x, y, w, h = tx(o["x"]), ty(o["y"]), o["width"], o["height"]
-            svg += svg_rect(x - padding_val, y - padding_val,
-                            w + 2 * padding_val, h + 2 * padding_val,
-                            "none", "#7fb3d3", dash="3,2", opacity=0.5)
-            svg += svg_rect(x, y, w, h, "#aec6e8", "#5b9bd5", stroke_w=1.5, opacity=0.85)
-            cx, cy = x + w / 2, y + h / 2
-
-        svg += svg_text(cx, cy + 3, str(i), size=8, colour="#1a5276")
-
-    # Routed edges or fallback lines
+    # Routed edges or fallback lines (drawn BEFORE obstacles so boxes cover wire stubs inside them)
     for ei, e in enumerate(raw_edges):
         colour = EDGE_COLOURS[ei % len(EDGE_COLOURS)]
         if routed_edges and ei < len(routed_edges) and routed_edges[ei]:
@@ -256,6 +237,24 @@ def render_scenario(name, scenario, routed_edges, output_path):
                 f'stroke="{colour}" stroke-width="1.2" stroke-dasharray="4,3" '
                 f'marker-end="url(#arr)"/>\n'
             )
+
+    # Obstacles drawn ON TOP of edges so boxes visually cover the wire stubs inside them
+    for i, o in enumerate(obstacles):
+        if "points" in o:
+            pts = [(tx(px), ty(py)) for px, py in o["points"]]
+            padded = offset_polygon(pts, padding_val)
+            svg += svg_polygon(padded, "#deeaf7", "#7fb3d3", dash="3,2", opacity=0.6)
+            svg += svg_polygon(pts, "#d0e4f7", "#5b9bd5", stroke_w=1.5, opacity=1.0)
+            cx = sum(p[0] for p in pts) / len(pts)
+            cy = sum(p[1] for p in pts) / len(pts)
+        else:
+            x, y, w, h = tx(o["x"]), ty(o["y"]), o["width"], o["height"]
+            svg += svg_rect(x - padding_val, y - padding_val,
+                            w + 2 * padding_val, h + 2 * padding_val,
+                            "none", "#7fb3d3", dash="3,2", opacity=0.5)
+            svg += svg_rect(x, y, w, h, "#d0e4f7", "#5b9bd5", stroke_w=1.5, opacity=1.0)
+            cx, cy = x + w / 2, y + h / 2
+        svg += svg_text(cx, cy + 3, str(i), size=8, colour="#1a5276")
 
     # Port dots
     for ei, e in enumerate(raw_edges):
