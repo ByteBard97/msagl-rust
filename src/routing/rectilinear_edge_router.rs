@@ -477,8 +477,19 @@ impl RectilinearEdgeRouter {
             //
             // We implement this by marking the source and target obstacles transparent,
             // rebuilding the VG, running path search, then restoring and rebuilding again.
+            // C# FloatingPort transparency only applies when the port obstacle is
+            // non-rectangular. Rectangular obstacles never need the VG rebuild path because
+            // their padded bbox is already the sweep boundary; making them transparent would
+            // be incorrect and rebuilding for every edge is catastrophically expensive
+            // (2× VG rebuilds × N edges on the large benchmark).
             let n_obstacles = self.session.obstacle_tree.obstacles.len();
-            let src_was_transparent = if src_obs_idx < n_obstacles {
+            let src_needs_transparent = src_obs_idx < n_obstacles
+                && !self.session.obstacle_tree.obstacles[src_obs_idx].is_rectangle();
+            let tgt_needs_transparent = tgt_obs_idx < n_obstacles
+                && tgt_obs_idx != src_obs_idx
+                && !self.session.obstacle_tree.obstacles[tgt_obs_idx].is_rectangle();
+
+            let src_was_transparent = if src_needs_transparent {
                 let was = self.session.obstacle_tree.obstacles[src_obs_idx].is_transparent();
                 if !was {
                     self.session.obstacle_tree.obstacles[src_obs_idx].set_transparent(true);
@@ -487,7 +498,7 @@ impl RectilinearEdgeRouter {
             } else {
                 true // skip restore
             };
-            let tgt_was_transparent = if tgt_obs_idx < n_obstacles && tgt_obs_idx != src_obs_idx {
+            let tgt_was_transparent = if tgt_needs_transparent {
                 let was = self.session.obstacle_tree.obstacles[tgt_obs_idx].is_transparent();
                 if !was {
                     self.session.obstacle_tree.obstacles[tgt_obs_idx].set_transparent(true);
@@ -498,7 +509,7 @@ impl RectilinearEdgeRouter {
             };
 
             // If we changed any transparency flags, rebuild the VG.
-            let rebuilt = !src_was_transparent || (!tgt_was_transparent && tgt_obs_idx != src_obs_idx);
+            let rebuilt = !src_was_transparent || !tgt_was_transparent;
             if rebuilt {
                 VisibilityGraphGenerator.generate(&mut self.session);
                 // Re-create port entrances and splice with the new VG.
