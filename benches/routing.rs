@@ -155,47 +155,72 @@ fn bench_polygon(c: &mut Criterion) {
     fn make_router() -> (msagl_rust::RoutingResult, usize) {
         use msagl_rust::{EdgeGeometry, FloatingPort, Point, RectilinearEdgeRouter, Shape};
 
-        let padding = 3.0;
+        let padding = 6.0;
 
-        // 12 rectangles arranged in a 4×3 grid (column-major, 120px spacing)
-        let mut shapes: Vec<Shape> = (0..4)
+        // Layout: left cluster (6 rects) | polygon corridor | right cluster (6 rects)
+        //
+        // Left rects:   2 columns × 3 rows, x=0..140,   pitch 200px col / 150px row
+        // Right rects:  2 columns × 3 rows, x=650..790, pitch 200px col / 150px row
+        // Corridor:     x=200..600 — polygon obstacles sit here forcing route detours
+        //
+        // Every left-to-right edge must navigate THROUGH the corridor, exercising
+        // polygon obstacle avoidance on every route.
+
+        // Left cluster: cols 0-1
+        let mut shapes: Vec<Shape> = (0..2)
             .flat_map(|col| {
                 (0..3).map(move |row| {
                     Shape::rectangle(
-                        col as f64 * 120.0,
-                        row as f64 * 100.0,
-                        60.0,
-                        40.0,
+                        col as f64 * 200.0,
+                        row as f64 * 150.0,
+                        120.0,
+                        80.0,
                     )
                 })
             })
             .collect();
 
-        // 8 polygon obstacles: alternating upward triangles and hexagons
-        // placed in the gaps between the rect grid rows.
+        // Right cluster: cols 0-1, offset to x=650
+        for col in 0..2_usize {
+            for row in 0..3_usize {
+                shapes.push(Shape::rectangle(
+                    650.0 + col as f64 * 200.0,
+                    row as f64 * 150.0,
+                    120.0,
+                    80.0,
+                ));
+            }
+        }
+
+        // 8 polygon obstacles scattered through the corridor (x=220..580)
+        // — triangles point upward, hexagons are wide
+        // — staggered vertically so routes at different row heights must detour
         let poly_defs: &[&[(f64, f64)]] = &[
-            // upward triangles (4)
-            &[(490.0, 30.0), (460.0, 70.0), (520.0, 70.0)],
-            &[(490.0, 130.0), (460.0, 170.0), (520.0, 170.0)],
-            &[(490.0, 230.0), (460.0, 270.0), (520.0, 270.0)],
-            &[(490.0, 330.0), (460.0, 370.0), (520.0, 370.0)],
-            // rough hexagons (4)
+            // triangle blocking upper corridor, left side
+            &[(290.0,  30.0), (230.0, 130.0), (350.0, 130.0)],
+            // triangle blocking lower corridor, left side
+            &[(290.0, 200.0), (230.0, 300.0), (350.0, 300.0)],
+            // triangle blocking upper corridor, right side
+            &[(510.0,  80.0), (450.0, 180.0), (570.0, 180.0)],
+            // triangle blocking lower corridor, right side
+            &[(510.0, 240.0), (450.0, 340.0), (570.0, 340.0)],
+            // hexagon in the mid corridor, upper half
             &[
-                (620.0, 50.0), (640.0, 30.0), (670.0, 30.0),
-                (690.0, 50.0), (670.0, 70.0), (640.0, 70.0),
+                (390.0,  50.0), (420.0,  20.0), (470.0,  20.0),
+                (500.0,  50.0), (470.0, 120.0), (420.0, 120.0),
             ],
+            // hexagon in the mid corridor, lower half
             &[
-                (620.0, 150.0), (640.0, 130.0), (670.0, 130.0),
-                (690.0, 150.0), (670.0, 170.0), (640.0, 170.0),
+                (390.0, 210.0), (420.0, 180.0), (470.0, 180.0),
+                (500.0, 210.0), (470.0, 280.0), (420.0, 280.0),
             ],
+            // hexagon blocking the very centre
             &[
-                (620.0, 250.0), (640.0, 230.0), (670.0, 230.0),
-                (690.0, 250.0), (670.0, 270.0), (640.0, 270.0),
+                (370.0, 120.0), (400.0,  95.0), (450.0,  95.0),
+                (480.0, 120.0), (450.0, 175.0), (400.0, 175.0),
             ],
-            &[
-                (620.0, 350.0), (640.0, 330.0), (670.0, 330.0),
-                (690.0, 350.0), (670.0, 370.0), (640.0, 370.0),
-            ],
+            // wide triangle spanning bottom of corridor
+            &[(420.0, 310.0), (330.0, 420.0), (510.0, 420.0)],
         ];
 
         for pts in poly_defs {
@@ -203,19 +228,33 @@ fn bench_polygon(c: &mut Criterion) {
             shapes.push(Shape::polygon(&points));
         }
 
-        let n_rect = 12_usize;
+        let n_left = 6_usize;   // rects 0..5
+        let n_right = 6_usize;  // rects 6..11
+        let n_rect = n_left + n_right;
         let n_poly = 8_usize;
-        let n = n_rect + n_poly;
 
         let mut router = RectilinearEdgeRouter::new(&shapes)
             .padding(padding)
-            .edge_separation(2.0);
+            .edge_separation(8.0);
 
         let mut n_edges = 0_usize;
 
-        // rect↔rect: every rect to the one 4 columns ahead (wraps), 12 edges
-        for i in 0..n_rect {
-            let j = (i + 4) % n_rect;
+        // left ↔ right: all 36 cross-corridor pairs (6×6)
+        // Every one of these must navigate through the polygon obstacle corridor.
+        for l in 0..n_left {
+            for r in 0..n_right {
+                let src_pt = shapes[l].bounding_box().center();
+                let tgt_pt = shapes[n_left + r].bounding_box().center();
+                router.add_edge(EdgeGeometry::new(
+                    FloatingPort::new(l, src_pt),
+                    FloatingPort::new(n_left + r, tgt_pt),
+                ));
+                n_edges += 1;
+            }
+        }
+        // within left cluster: ring (6 edges)
+        for i in 0..n_left {
+            let j = (i + 1) % n_left;
             let src_pt = shapes[i].bounding_box().center();
             let tgt_pt = shapes[j].bounding_box().center();
             router.add_edge(EdgeGeometry::new(
@@ -224,32 +263,20 @@ fn bench_polygon(c: &mut Criterion) {
             ));
             n_edges += 1;
         }
-        // rect↔poly: 16 edges (2 per polygon)
-        for k in 0..n_poly * 2 {
-            let r = (k * 3) % n_rect;
-            let p = n_rect + (k % n_poly);
-            let src_pt = shapes[r].bounding_box().center();
-            let tgt_pt = shapes[p].bounding_box().center();
+        // within right cluster: ring (6 edges)
+        for i in 0..n_right {
+            let j = (i + 1) % n_right;
+            let src_pt = shapes[n_left + i].bounding_box().center();
+            let tgt_pt = shapes[n_left + j].bounding_box().center();
             router.add_edge(EdgeGeometry::new(
-                FloatingPort::new(r, src_pt),
-                FloatingPort::new(p, tgt_pt),
+                FloatingPort::new(n_left + i, src_pt),
+                FloatingPort::new(n_left + j, tgt_pt),
             ));
             n_edges += 1;
         }
-        // poly↔poly: 8 edges (ring)
-        for k in 0..n_poly {
-            let p1 = n_rect + k;
-            let p2 = n_rect + (k + 1) % n_poly;
-            let src_pt = shapes[p1].bounding_box().center();
-            let tgt_pt = shapes[p2].bounding_box().center();
-            router.add_edge(EdgeGeometry::new(
-                FloatingPort::new(p1, src_pt),
-                FloatingPort::new(p2, tgt_pt),
-            ));
-            n_edges += 1;
-        }
+        let _ = n_rect;
+        let _ = n_poly;
 
-        let _ = n;
         (router.run(), n_edges)
     }
 
@@ -258,7 +285,7 @@ fn bench_polygon(c: &mut Criterion) {
     assert_eq!(result.edges.len(), n_edges, "all edges must be routed");
 
     c.bench_function(
-        "routing/polygon (12 rects + 8 polygons, 36 edges)",
+        "routing/polygon (12 rects + 8 polygons, 36 edges, sep=8)",
         |b| b.iter(|| make_router().0),
     );
 }

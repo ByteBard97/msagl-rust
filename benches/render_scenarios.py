@@ -283,48 +283,12 @@ def render_scenario(name, scenario, routed_edges, output_path):
 # ── Polygon scenario (defined in Rust bench, mirrored here) ──────────────────
 
 def polygon_scenario():
-    """Mirror of the bench_polygon scenario in benches/routing.rs."""
+    """Mirror of bench_polygon in benches/routing.rs.
+
+    Left cluster (6 rects) | polygon obstacle corridor | right cluster (6 rects).
+    Every left-to-right route must navigate through the polygon obstacles.
+    """
     obstacles = []
-
-    # 12 rectangles in 4×3 grid
-    for col in range(4):
-        for row in range(3):
-            obstacles.append({
-                "x": col * 120.0,
-                "y": row * 100.0,
-                "width": 60.0,
-                "height": 40.0,
-            })
-
-    # 8 polygon obstacles
-    poly_defs = [
-        [(490.0, 30.0), (460.0, 70.0), (520.0, 70.0)],
-        [(490.0, 130.0), (460.0, 170.0), (520.0, 170.0)],
-        [(490.0, 230.0), (460.0, 270.0), (520.0, 270.0)],
-        [(490.0, 330.0), (460.0, 370.0), (520.0, 370.0)],
-        [
-            (620.0, 50.0), (640.0, 30.0), (670.0, 30.0),
-            (690.0, 50.0), (670.0, 70.0), (640.0, 70.0),
-        ],
-        [
-            (620.0, 150.0), (640.0, 130.0), (670.0, 130.0),
-            (690.0, 150.0), (670.0, 170.0), (640.0, 170.0),
-        ],
-        [
-            (620.0, 250.0), (640.0, 230.0), (670.0, 230.0),
-            (690.0, 250.0), (670.0, 270.0), (640.0, 270.0),
-        ],
-        [
-            (620.0, 350.0), (640.0, 330.0), (670.0, 330.0),
-            (690.0, 350.0), (670.0, 370.0), (640.0, 370.0),
-        ],
-    ]
-    for pts in poly_defs:
-        obstacles.append({"points": pts})
-
-    n_rect, n_poly = 12, 8
-    edges = []
-    shapes = obstacles
 
     def center(o):
         if "points" in o:
@@ -333,37 +297,65 @@ def polygon_scenario():
             return sum(xs) / len(xs), sum(ys) / len(ys)
         return o["x"] + o["width"] / 2, o["y"] + o["height"] / 2
 
-    # rect↔rect ring (12 edges)
-    for i in range(n_rect):
-        j = (i + 4) % n_rect
-        sx, sy = center(shapes[i])
-        tx2, ty2 = center(shapes[j])
+    # Left cluster: 2 cols × 3 rows, x=0..320, pitch 200×150
+    for col in range(2):
+        for row in range(3):
+            obstacles.append({"x": col * 200.0, "y": row * 150.0, "width": 120.0, "height": 80.0})
+
+    # Right cluster: 2 cols × 3 rows, x=650..1050
+    for col in range(2):
+        for row in range(3):
+            obstacles.append({"x": 650.0 + col * 200.0, "y": row * 150.0, "width": 120.0, "height": 80.0})
+
+    # 8 polygon obstacles in the corridor (x=220..590)
+    poly_defs = [
+        [(290.0,  30.0), (230.0, 130.0), (350.0, 130.0)],
+        [(290.0, 200.0), (230.0, 300.0), (350.0, 300.0)],
+        [(510.0,  80.0), (450.0, 180.0), (570.0, 180.0)],
+        [(510.0, 240.0), (450.0, 340.0), (570.0, 340.0)],
+        [(390.0,  50.0), (420.0,  20.0), (470.0,  20.0),
+         (500.0,  50.0), (470.0, 120.0), (420.0, 120.0)],
+        [(390.0, 210.0), (420.0, 180.0), (470.0, 180.0),
+         (500.0, 210.0), (470.0, 280.0), (420.0, 280.0)],
+        [(370.0, 120.0), (400.0,  95.0), (450.0,  95.0),
+         (480.0, 120.0), (450.0, 175.0), (400.0, 175.0)],
+        [(420.0, 310.0), (330.0, 420.0), (510.0, 420.0)],
+    ]
+    for pts in poly_defs:
+        obstacles.append({"points": pts})
+
+    n_left, n_right = 6, 6
+    edges = []
+
+    # left ↔ right (36 cross-corridor edges)
+    for l in range(n_left):
+        for r in range(n_right):
+            sx, sy = center(obstacles[l])
+            tx2, ty2 = center(obstacles[n_left + r])
+            edges.append({"source": {"x": sx, "y": sy}, "target": {"x": tx2, "y": ty2},
+                          "sourceObstacle": l, "targetObstacle": n_left + r})
+
+    # left ring (6 edges)
+    for i in range(n_left):
+        j = (i + 1) % n_left
+        sx, sy = center(obstacles[i])
+        tx2, ty2 = center(obstacles[j])
         edges.append({"source": {"x": sx, "y": sy}, "target": {"x": tx2, "y": ty2},
                       "sourceObstacle": i, "targetObstacle": j})
 
-    # rect↔poly (16 edges)
-    for k in range(n_poly * 2):
-        r = (k * 3) % n_rect
-        p = n_rect + (k % n_poly)
-        sx, sy = center(shapes[r])
-        tx2, ty2 = center(shapes[p])
+    # right ring (6 edges)
+    for i in range(n_right):
+        j = (i + 1) % n_right
+        sx, sy = center(obstacles[n_left + i])
+        tx2, ty2 = center(obstacles[n_left + j])
         edges.append({"source": {"x": sx, "y": sy}, "target": {"x": tx2, "y": ty2},
-                      "sourceObstacle": r, "targetObstacle": p})
-
-    # poly↔poly ring (8 edges)
-    for k in range(n_poly):
-        p1 = n_rect + k
-        p2 = n_rect + (k + 1) % n_poly
-        sx, sy = center(shapes[p1])
-        tx2, ty2 = center(shapes[p2])
-        edges.append({"source": {"x": sx, "y": sy}, "target": {"x": tx2, "y": ty2},
-                      "sourceObstacle": p1, "targetObstacle": p2})
+                      "sourceObstacle": n_left + i, "targetObstacle": n_left + j})
 
     return {
         "obstacles": obstacles,
         "edges": edges,
-        "padding": 3.0,
-        "edgeSeparation": 2.0,
+        "padding": 6.0,
+        "edgeSeparation": 8.0,
     }
 
 # ── Entry point ───────────────────────────────────────────────────────────────
