@@ -312,6 +312,7 @@ impl Solver {
         }
 
         self.update_reference_pos_from_sums(block_to);
+
         self.activate_constraint(violated_ci);
         self.remove_block_from_vector(block_from);
 

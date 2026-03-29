@@ -245,7 +245,17 @@ impl Solver {
             self.variables[right.0].right_constraints.push(ConIndex(ci));
         }
 
-        self.constraint_vector = ConstraintVector::new(num_cons);
+        // Build constraint vector in per-variable left-constraint order, matching
+        // C# SetupConstraints() (Solver.cs ~650): iterates variables in ordinal order,
+        // adds each variable's left constraints to allConstraints. This ordering is
+        // preserved through reinitialize() and used by the QPSC project pass.
+        let mut order: Vec<ConIndex> = Vec::with_capacity(num_cons);
+        for vi in 0..self.variables.len() {
+            for &ci in &self.variables[vi].left_constraints {
+                order.push(ci);
+            }
+        }
+        self.constraint_vector = ConstraintVector::with_order(num_cons, order);
     }
 
     /// Main standalone project loop: project then split, repeat.

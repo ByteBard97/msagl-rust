@@ -70,14 +70,29 @@ fn run_fixture_inner(name: &str, fixture: &Fixture) {
     if max_error > tolerance {
         let worst_result = fixture.results.iter().find(|r| r.id == worst_var).unwrap();
         let actual = shell.get_variable_resolved_position(worst_var);
+        // DEBUG: find all variables with error > tolerance/2
+        let mut large_errors: Vec<(usize, f64, f64, f64)> = fixture.results.iter()
+            .map(|r| {
+                let a = shell.get_variable_resolved_position(r.id);
+                (r.id, r.expected_pos, a, (a - r.expected_pos).abs())
+            })
+            .filter(|(_, _, _, e)| *e > tolerance / 2.0)
+            .collect();
+        large_errors.sort_by(|a, b| b.3.partial_cmp(&a.3).unwrap());
+        eprintln!("DEBUG: {} variables with error > {:.3}: {:?}", large_errors.len(), tolerance/2.0, &large_errors[..large_errors.len().min(10)]);
         panic!(
             "Fixture {name}: Variable {worst_var} expected {:.5} but got {:.5} \
-             (error={:.6}, tolerance={:.6}, range={:.1})",
+             (error={:.6}, tolerance={:.6}, range={:.1}) \
+             [outer_iters={}, inner_iters_total={}, limit_exceeded={}, goal={:.4}]",
             worst_result.expected_pos,
             actual,
             (actual - worst_result.expected_pos).abs(),
             tolerance,
             pos_range,
+            solution.outer_project_iterations,
+            solution.inner_project_iterations_total,
+            solution.execution_limit_exceeded(),
+            solution.goal_function_value,
         );
     }
 
@@ -166,7 +181,7 @@ fixture_test!(
 // convergence to a slightly different local minimum. Error ~24 on range ~144.
 // The diagonal scaling computation accumulates floating-point errors at
 // these extreme weight ratios. Needs deeper QPSC precision investigation.
-fixture_test_ignored!(neighbors_vars1000_constraintsmax10_neighborsmax10_neighborweightmax100_varweights_1_to_1e6_at_10_percent, "Neighbors_Vars1000_ConstraintsMax10_NeighborsMax10_NeighborWeightMax100_VarWeights_1_To_1E6_At_10_Percent.txt", "extreme weight ratio convergence");
+fixture_test!(neighbors_vars1000_constraintsmax10_neighborsmax10_neighborweightmax100_varweights_1_to_1e6_at_10_percent, "Neighbors_Vars1000_ConstraintsMax10_NeighborsMax10_NeighborWeightMax100_VarWeights_1_To_1E6_At_10_Percent.txt");
 fixture_test!(
     neighbors_vars1000_constraintsmax10_neighborsmax10_weightmax100,
     "Neighbors_Vars1000_ConstraintsMax10_NeighborsMax10_WeightMax100.txt"

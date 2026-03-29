@@ -75,12 +75,12 @@ impl ConstraintVector {
     }
 
     /// Reset all constraints to inactive (for QPSC block reinitialization).
+    /// Matches C# allConstraints.Reinitialize() (Solver.cs line 881): only resets
+    /// the partition boundary back to "all inactive". The shuffle history in `order`
+    /// is deliberately preserved so the QPSC project pass sees constraints in the
+    /// same order the feasibility pass left them, which is critical for convergence
+    /// at extreme weight ratios.
     pub fn reinitialize(&mut self) {
         self.first_active = self.order.len();
-        // Restore identity mapping
-        for i in 0..self.order.len() {
-            self.order[i] = ConIndex(i);
-            self.positions[i] = i;
-        }
     }
 }

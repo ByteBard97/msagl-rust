@@ -97,10 +97,15 @@ impl Solver {
         self.blocks_order.clear();
         self.block_vector_indices.clear();
 
-        // Reinitialize each variable: reset offset and active constraint count.
+        // Reinitialize each variable: reset offset, active constraint count, and
+        // actual position to desired position. This matches C# Variable.Reinitialize()
+        // which sets ActualPos = DesiredPos before recreating blocks. Without this,
+        // curr_y in pre_project starts from post-feasibility positions instead of
+        // the QPSC desired (initial scaled) positions, causing divergent gradient steps.
         for &vi in &all_vars {
             self.variables[vi.0].active_constraint_count = 0;
             self.variables[vi.0].offset_in_block = 0.0;
+            self.variables[vi.0].actual_pos = self.variables[vi.0].desired_pos;
 
             // Create a new block for this variable.
             let bi = BlockIndex(self.blocks.len());
